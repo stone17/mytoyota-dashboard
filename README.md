@@ -116,6 +116,7 @@ docker-compose up -d --build
 All application settings can be set in the **Settings** and are stored in the `data/mytoyota_config.yaml` file.
 
 *   `logging_level`: Set the verbosity of the logs (e.g., `DEBUG`, `INFO`, `WARNING`).
+*   `log_history_size`: The number of recent log lines to keep in memory for the web UI.
 *   `api_retries`: Number of times to retry a failing API call.
 *   `polling`: Configure the data refresh schedule.
     *   `mode`: Can be `interval` (poll every X seconds) or `fixed_time` (poll once per day at a specific time).

@@ -284,16 +284,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const vehicleStatus = get(vehicle, 'status', null);
                 updateStatusPanel(vehicleCard, vehicleStatus);
 
-                // --- Status Panel Update Button ---
-                const statusUpdateBtn = vehicleCard.querySelector('.status-update-btn');
-                if (statusUpdateBtn) {
-                    statusUpdateBtn.addEventListener('click', (e) => handlePollRequest('/api/force_status_poll', e.target));
-                }
-
-                // --- Full Update Button ---
-                const fullUpdateBtn = vehicleCard.querySelector('.full-update-btn');
-                if (fullUpdateBtn) {
-                    fullUpdateBtn.addEventListener('click', (e) => handlePollRequest('/api/force_poll', e.target));
+                // --- Refresh Button ---
+                const refreshBtn = vehicleCard.querySelector('.refresh-btn');
+                if (refreshBtn) {
+                    refreshBtn.addEventListener('click', (e) => handlePollRequest('/api/force_poll', e.target));
                 }
 
                 // --- New Chart Logic ---
@@ -343,7 +337,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function handlePollRequest(url, clickedButton) {
-        const allPollButtons = document.querySelectorAll('.full-update-btn, .status-update-btn');
+        const allPollButtons = document.querySelectorAll('.refresh-btn');
         allPollButtons.forEach(btn => btn.disabled = true);
 
         const originalText = clickedButton.textContent;

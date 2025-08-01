@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Settings - MyToyota Dashboard</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/style.css?v={{ cache_buster }}">
     <style>
         main { max-width: 800px; margin: 20px auto; }
         .settings-section {
@@ -30,9 +30,27 @@
     </style>
 </head>
 <body>
-    <header>
-        <h1>Settings</h1>
-        <nav><a href="/">Dashboard</a> | <a href="/trips">Trip History</a></nav>
+    <header class="main-header">
+        <div class="header-title">MyToyota Dashboard</div>
+        <nav class="main-nav">
+            <a href="/" class="nav-link">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"></path></svg>
+                <span>Dashboard</span>
+            </a>
+            <a href="/trips" class="nav-link">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11C5.84 5 5.28 5.42 5.08 6.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"></path></svg>
+                <span>Trip History</span>
+            </a>
+            <a href="/settings" class="nav-link active">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c-.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
+                <span>Settings</span>
+            </a>
+            <a href="/logs" class="nav-link">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"></path></svg>
+                <span>Logs</span>
+            </a>
+        </nav>
+        <div class="header-extra"></div>
     </header>
 
     <main>
@@ -80,6 +98,13 @@
                 <div class="form-group">
                     <label for="api-retry-delay">Retry Delay (seconds)</label>
                     <input type="number" id="api-retry-delay" name="api_retry_delay_seconds">
+                </div>
+
+                <h3>Web Interface</h3>
+                <div class="form-group">
+                    <label for="log-history-size">Log History Size</label>
+                    <input type="number" id="log-history-size" name="log_history_size" min="10" max="5000">
+                    <p>Number of recent log lines to keep in memory for the Logs page. A restart is required for this change to take effect.</p>
                 </div>
 
                 <button type="submit">Save Settings</button>
