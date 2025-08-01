@@ -7,22 +7,53 @@ import yaml
 import time
 import datetime
 import logging
+from collections import deque
+from typing import Deque, Dict
 
 import aiofiles
 from fastapi import FastAPI, HTTPException, Request, Body, UploadFile, File
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from . import fetcher
 from . import database
 from .credentials_manager import get_username, save_credentials
-from .config import settings, load_config, CONFIG_PATH
+from .config import settings, load_config, CONFIG_PATH, DATA_DIR
 from .logging_config import setup_logging
 from sqlalchemy.exc import IntegrityError
 
 # Configure logging at the very beginning of the application startup
 setup_logging()
+
+# --- Live Log Streaming Setup ---
+# Get the desired log history size from config, with a sensible default.
+log_history_size = settings.get("log_history_size", 200)
+# A thread-safe, memory-efficient deque to hold the last N log messages for new clients.
+log_history: Deque[Dict] = deque(maxlen=log_history_size)
+# An asyncio queue for broadcasting new log messages to connected clients.
+log_queue = asyncio.Queue()
+
+class WebLogHandler(logging.Handler):
+    """A custom logging handler that captures logs for the web UI."""
+    def emit(self, record):
+        """Formats the log record and puts it into our history and live queue."""
+        log_entry = {
+            "level": record.levelname,
+            "message": self.format(record)
+        }
+        log_history.append(log_entry)
+        try:
+            # Use put_nowait to avoid blocking in the synchronous logging call.
+            log_queue.put_nowait(log_entry)
+        except asyncio.QueueFull:
+            # This is unlikely to happen with a default queue size but is a safe fallback.
+            pass
+
+# Get the root logger and add our custom handler to capture all logs.
+web_log_handler = WebLogHandler()
+web_log_handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+logging.getLogger().addHandler(web_log_handler)
 
 app = FastAPI()
 
@@ -116,6 +147,12 @@ async def read_trips(request: Request):
     cache_buster = int(time.time())
     return templates.TemplateResponse("trips.html", {"request": request, "cache_buster": cache_buster})
 
+@app.get("/logs", response_class=HTMLResponse)
+async def read_logs_page(request: Request):
+    """Serve the logs page."""
+    cache_buster = int(time.time())
+    return templates.TemplateResponse("logs.html", {"request": request, "cache_buster": cache_buster})
+
 @app.get("/api/vehicles")
 async def get_vehicle_data():
     """API endpoint to get the cached vehicle data."""
@@ -169,6 +206,70 @@ async def get_vehicle_data():
             db.close()
 
         return vehicles_data
+
+@app.get("/api/summary")
+async def get_fleet_summary():
+    """API endpoint to get combined statistics for all vehicles."""
+    db = database.SessionLocal()
+    try:
+        from sqlalchemy import func
+        
+        # Get total stats from the database across all trips
+        stats = db.query(
+            func.sum(database.Trip.distance_km).label("total_distance"),
+            func.sum(database.Trip.ev_distance_km).label("total_ev_distance"),
+            func.sum(database.Trip.fuel_consumption_l_100km * database.Trip.distance_km / 100).label("total_fuel")
+        ).first()
+
+        if not stats or stats.total_distance is None:
+            return {"total_vehicles": 0, "total_distance_km": 0, "total_ev_distance_km": 0, "overall_fuel_consumption_l_100km": 0, "overall_ev_ratio_percent": 0}
+
+        total_distance = stats.total_distance or 0.0
+        total_ev_distance = stats.total_ev_distance or 0.0
+        total_fuel = stats.total_fuel or 0.0
+
+        # Get total number of vehicles from cache
+        total_vehicles = 0
+        if fetcher.CACHE_FILE.exists():
+            async with aiofiles.open(fetcher.CACHE_FILE, 'r') as f:
+                content = await f.read()
+                vehicles_data = json.loads(content)
+                total_vehicles = len(vehicles_data)
+
+        summary = {
+            "total_vehicles": total_vehicles,
+            "total_distance_km": round(total_distance),
+            "total_ev_distance_km": round(total_ev_distance),
+            "overall_fuel_consumption_l_100km": round((total_fuel / total_distance) * 100, 2) if total_distance > 0 and total_fuel > 0 else 0.0,
+            "overall_ev_ratio_percent": round((total_ev_distance / total_distance) * 100, 1) if total_distance > 0 else 0.0
+        }
+        return summary
+    finally:
+        db.close()
+
+async def log_stream_generator(request: Request):
+    """Yields historical and then live log messages as Server-Sent Events."""
+    # Send the recent history to the new client
+    for log_entry in list(log_history):
+        if await request.is_disconnected():
+            break
+        yield f"data: {json.dumps(log_entry)}\n\n"
+    
+    # Now, stream new logs as they arrive in the queue
+    while True:
+        if await request.is_disconnected():
+            break
+        try:
+            log_entry = await asyncio.wait_for(log_queue.get(), timeout=30)
+            yield f"data: {json.dumps(log_entry)}\n\n"
+            log_queue.task_done()
+        except asyncio.TimeoutError:
+            yield ": keep-alive\n\n"
+
+@app.get("/api/logs")
+async def stream_logs(request: Request):
+    """API endpoint to stream logs using Server-Sent Events (SSE)."""
+    return StreamingResponse(log_stream_generator(request), media_type="text/event-stream")
 
 @app.get("/api/vehicles/{vin}/history")
 def get_vehicle_history(vin: str, days: int = 30):
@@ -311,16 +412,6 @@ async def force_poll():
         logging.error(f"Error during manual poll: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred during the data poll.")
 
-@app.post("/api/force_status_poll")
-async def force_status_poll():
-    """Manually triggers a data fetch for live status only."""
-    try:
-        logging.info("Manual status-only poll triggered via API.")
-        await fetcher.fetch_and_save_status_only()
-        return {"message": "Status poll completed successfully."}
-    except Exception as e:
-        logging.error(f"Error during manual status poll: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="An internal error occurred during the status poll.")
 @app.get("/api/credentials")
 def get_stored_username():
     """API endpoint to get the stored username."""
@@ -362,6 +453,9 @@ def update_config(new_settings: dict = Body(...)):
         # Update other settings
         current_config['api_retries'] = new_settings['api_retries']
         current_config['api_retry_delay_seconds'] = new_settings['api_retry_delay_seconds']
+        if 'log_history_size' in new_settings:
+            # Ensure it's a positive integer
+            current_config['log_history_size'] = max(10, int(new_settings['log_history_size']))
 
         # Write the updated config back to the file
         with open(CONFIG_PATH, 'w') as f:
