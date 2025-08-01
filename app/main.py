@@ -1,0 +1,474 @@
+# app/main.py
+import asyncio
+import json
+import csv
+import io
+import yaml
+import time
+import datetime
+import logging
+
+import aiofiles
+from fastapi import FastAPI, HTTPException, Request, Body, UploadFile, File
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
+from . import fetcher
+from . import database
+from .credentials_manager import get_username, save_credentials
+from .config import settings, load_config, CONFIG_PATH
+from .logging_config import setup_logging
+from sqlalchemy.exc import IntegrityError
+
+# Configure logging at the very beginning of the application startup
+setup_logging()
+
+app = FastAPI()
+
+# Mount static files (CSS, JS)
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+# Setup templates
+templates = Jinja2Templates(directory="app/templates")
+
+async def schedule_fetch():
+    """Runs the data fetcher on a schedule."""
+    while True:
+        try:
+            await fetcher.fetch_and_save_data()
+        except Exception as e:
+            logging.error(f"Error in scheduled fetch: {e}")
+
+        web_server_settings = settings.get("web_server", {})
+        polling_settings = web_server_settings.get("polling", {})
+        mode = polling_settings.get("mode", "interval")
+
+        if mode == "fixed_time":
+            now = datetime.datetime.now()
+            target_time_str = polling_settings.get("fixed_time", "07:00")
+            hour, minute = map(int, target_time_str.split(':'))
+
+            target_today = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+            if now >= target_today:
+                target_next = target_today + datetime.timedelta(days=1)
+            else:
+                target_next = target_today
+
+            sleep_duration = (target_next - now).total_seconds()
+            logging.info(f"Next poll scheduled for {target_next}. Sleeping for {int(sleep_duration)} seconds.")
+            await asyncio.sleep(sleep_duration)
+        else: # Default to interval mode
+            # Fallback to the old key for backward compatibility
+            interval = polling_settings.get("interval_seconds") or web_server_settings.get("data_refresh_interval_seconds", 3600)
+            logging.info(f"Next poll in {interval} seconds.")
+            await asyncio.sleep(interval)
+
+@app.on_event("startup")
+async def startup_event():
+    """On startup, run an immediate fetch and then schedule periodic updates."""
+    logging.info("Initializing database...")
+    database.init_db()
+    logging.info("Application startup...")
+
+    web_server_settings = settings.get("web_server", {})
+    polling_settings = web_server_settings.get("polling", {})
+    # Fallback to the old key for backward compatibility
+    refresh_interval = polling_settings.get("interval_seconds") or web_server_settings.get("data_refresh_interval_seconds", 3600)
+    time_since_last_fetch = float('inf')
+
+    if fetcher.CACHE_FILE.exists():
+        last_modified_time = fetcher.CACHE_FILE.stat().st_mtime
+        time_since_last_fetch = time.time() - last_modified_time
+
+    if time_since_last_fetch >= refresh_interval:
+        logging.info("Cache is stale or missing. Triggering immediate data fetch.")
+        asyncio.create_task(schedule_fetch())
+    else:
+        wait_time = refresh_interval - time_since_last_fetch
+        logging.info(f"Cache is fresh. Scheduling first fetch in {int(wait_time)} seconds.")
+        
+        async def delayed_schedule_fetch():
+            await asyncio.sleep(wait_time)
+            await schedule_fetch()
+
+        asyncio.create_task(delayed_schedule_fetch())
+
+@app.get("/", response_class=HTMLResponse)
+async def read_root(request: Request):
+    """Serve the main HTML page."""
+    # Add a cache-busting query parameter for development
+    cache_buster = int(time.time())
+    return templates.TemplateResponse("index.html", {"request": request, "cache_buster": cache_buster})
+
+@app.get("/settings", response_class=HTMLResponse)
+async def read_settings(request: Request):
+    """Serve the settings page."""
+    # Add a cache-busting query parameter for development
+    cache_buster = int(time.time())
+    return templates.TemplateResponse("settings.html", {"request": request, "cache_buster": cache_buster})
+
+@app.get("/trips", response_class=HTMLResponse)
+async def read_trips(request: Request):
+    """Serve the trip history page."""
+    # Add a cache-busting query parameter for development
+    cache_buster = int(time.time())
+    return templates.TemplateResponse("trips.html", {"request": request, "cache_buster": cache_buster})
+
+@app.get("/api/vehicles")
+async def get_vehicle_data():
+    """API endpoint to get the cached vehicle data."""
+    async with fetcher.CACHE_LOCK:
+        if not fetcher.CACHE_FILE.exists():
+            # Return an empty list if the cache file doesn't exist yet.
+            # This provides a better frontend experience than a 404 error.
+            return []
+        async with aiofiles.open(fetcher.CACHE_FILE, 'r') as f:
+            content = await f.read()
+            vehicles_data = json.loads(content)
+
+        # Augment vehicle data with all-time statistics from the database
+        db = database.SessionLocal()
+        try:
+            from sqlalchemy import func
+            for vehicle in vehicles_data:
+                vin = vehicle.get("vin")
+                if not vin:
+                    continue
+                
+                stats = db.query(
+                    func.sum(database.Trip.distance_km).label("total_distance"),
+                    func.sum(database.Trip.ev_distance_km).label("total_ev_distance"),
+                    func.sum(database.Trip.fuel_consumption_l_100km * database.Trip.distance_km / 100).label("total_fuel")
+                ).filter(database.Trip.vin == vin).first()
+                
+                logging.debug(f"--- Overall Stats for VIN: {vin} ---")
+                logging.debug(f"Raw DB stats: total_distance={stats.total_distance}, total_ev_distance={stats.total_ev_distance}, total_fuel={stats.total_fuel}")
+
+                vehicle["statistics"]["overall"] = {}
+                if stats and stats.total_distance is not None:
+                    total_distance = stats.total_distance
+                    # If the sum is NULL (no EV trips), it will be None. Default to 0.
+                    total_ev_distance = stats.total_ev_distance or 0.0
+                    total_fuel = stats.total_fuel or 0.0
+                    logging.debug(f"Processing stats: total_distance={total_distance}, total_ev_distance={total_ev_distance}, total_fuel={total_fuel}")
+
+                    
+                    vehicle["statistics"]["overall"]["total_ev_distance_km"] = round(total_ev_distance)
+
+                    if total_distance > 0:
+                        vehicle["statistics"]["overall"]["ev_ratio_percent"] = round((total_ev_distance / total_distance) * 100, 1)
+
+                    if total_distance > 0 and total_fuel > 0:
+                        vehicle["statistics"]["overall"]["fuel_consumption_l_100km"] = round((total_fuel / total_distance) * 100, 2)
+                    logging.debug(f"Final overall stats object: {vehicle['statistics']['overall']}")
+                else:
+                    logging.debug("No trip data found for this VIN, skipping overall stats calculation.")
+        finally:
+            db.close()
+
+        return vehicles_data
+
+@app.get("/api/vehicles/{vin}/history")
+def get_vehicle_history(vin: str, days: int = 30):
+    """API endpoint to get historical data for a vehicle."""
+    db = database.SessionLocal()
+    try:
+        start_date = datetime.datetime.utcnow() - datetime.timedelta(days=days)
+        readings = db.query(database.VehicleReading).filter(
+            database.VehicleReading.vin == vin,
+            database.VehicleReading.timestamp >= start_date
+        ).order_by(database.VehicleReading.timestamp.asc()).all()
+        return readings
+    finally:
+        db.close()
+
+@app.get("/api/vehicles/{vin}/daily_summary")
+def get_daily_summary(vin: str, days: int = 30):
+    """
+    API endpoint to get a summary of distance and fuel consumption per day,
+    combining data from real-time polls and imported trips.
+    """
+    db = database.SessionLocal()
+    try:
+        from sqlalchemy import func
+        start_date = datetime.datetime.utcnow() - datetime.timedelta(days=days)
+
+        # For historical charts, we rely on the aggregated trip data as the source of truth.
+        trips_query = db.query(
+            func.date(database.Trip.start_timestamp).label("day"),
+            func.sum(database.Trip.distance_km).label("distance"),
+            func.sum(database.Trip.fuel_consumption_l_100km * database.Trip.distance_km / 100).label("fuel"),
+            func.sum(database.Trip.ev_distance_km).label("ev_distance"),
+            func.sum(database.Trip.ev_duration_seconds).label("ev_duration"),
+            func.avg(database.Trip.score_global).label("avg_score"),
+            func.sum(database.Trip.duration_seconds).label("total_duration")
+        ).filter(
+            database.Trip.vin == vin,
+            database.Trip.start_timestamp >= start_date
+        ).group_by(func.date(database.Trip.start_timestamp)).all()
+
+        logging.debug(f"--- Daily Summary for VIN: {vin} (last {days} days) ---")
+        logging.debug(f"Found {len(trips_query)} days with trip data in the database.")
+        if trips_query:
+            logging.debug(f"Sample trip data row: {trips_query[0]}")
+
+        # Combine and process the results
+        # First, create a dictionary with default zero values for every day in the requested range.
+        # This ensures the graph has a continuous timeline.
+        daily_data = {}
+        # Use UTC for the end date to match the start_date's timezone basis.
+        end_date = datetime.datetime.utcnow().date()
+        start_date_only = start_date.date()
+        num_days_in_range = (end_date - start_date_only).days + 1
+        # Safeguard against any timezone-related edge cases that could make the range negative.
+        if num_days_in_range < 0: num_days_in_range = 0
+        for i in range(num_days_in_range):
+            current_date = start_date_only + datetime.timedelta(days=i)
+            day_str = current_date.isoformat()
+            daily_data[day_str] = {"distance": 0.0, "fuel": 0.0, "ev_distance": 0.0, "ev_duration": 0, "score": None, "duration_seconds": 0}
+
+        # Now, update the dictionary with the actual trip data.
+        for r in trips_query:
+            day_str = r.day  # func.date() with SQLite returns a string
+            if day_str in daily_data:
+                daily_data[day_str]["distance"] = r.distance or 0.0
+                daily_data[day_str]["fuel"] = r.fuel or 0.0
+                daily_data[day_str]["ev_distance"] = r.ev_distance or 0.0
+                daily_data[day_str]["ev_duration"] = r.ev_duration or 0
+                daily_data[day_str]["score"] = r.avg_score
+                daily_data[day_str]["duration_seconds"] = r.total_duration or 0
+        
+        logging.debug(f"Final daily_data object contains {len(daily_data)} days before being sent to chart.")
+
+        return [
+            {
+                "date": day,
+                "distance_km": round(data["distance"], 2),
+                "fuel_consumption_l_100km": round((data["fuel"] / data["distance"]) * 100, 2) if data["fuel"] > 0 and data["distance"] > 0 else 0.0,
+                "ev_distance_km": round(data.get("ev_distance", 0), 2),
+                "ev_duration_seconds": data.get("ev_duration", 0),
+                "score_global": round(data["score"], 0) if data.get("score") is not None else None,
+                "duration_seconds": data.get("duration_seconds", 0),
+                "average_speed_kmh": round(data["distance"] / (data["duration_seconds"] / 3600), 2) if data.get("duration_seconds", 0) > 0 and data["distance"] > 0 else 0.0
+            }
+            for day, data in sorted(daily_data.items())
+        ]
+    finally:
+        db.close()
+
+@app.get("/api/trips")
+def get_trips(vin: str, sort_by: str = "start_timestamp", sort_direction: str = "desc"):
+    """API endpoint to get all imported trips for a vehicle, with sorting."""
+    db = database.SessionLocal()
+    try:
+        # Define available sorting options and their corresponding columns
+        sortable_columns = {
+            "start_timestamp": database.Trip.start_timestamp,
+            "distance_km": database.Trip.distance_km,
+            "fuel_consumption_l_100km": database.Trip.fuel_consumption_l_100km,
+            "duration_seconds": database.Trip.duration_seconds,
+            "score_global": database.Trip.score_global,
+            "average_speed_kmh": database.Trip.average_speed_kmh,
+            "ev_distance_km": database.Trip.ev_distance_km,
+            "ev_duration_seconds": database.Trip.ev_duration_seconds,
+        }
+
+        # Validate the sort_by parameter against available columns
+        if sort_by not in sortable_columns:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid sort_by parameter. Available columns: {', '.join(sortable_columns.keys())}"
+            )
+
+        # Determine the sorting direction
+        column = sortable_columns[sort_by]
+        if sort_direction == "asc":
+            sort_expression = column.asc()
+        elif sort_direction == "desc":
+            sort_expression = column.desc()
+        else:
+            raise HTTPException(
+                status_code=400, detail="Invalid sort_direction parameter. Use 'asc' or 'desc'."
+            )
+
+        trips = db.query(database.Trip).filter(database.Trip.vin == vin).order_by(
+            sort_expression
+        ).all()
+        return trips
+    finally:
+        db.close()
+
+@app.post("/api/force_poll")
+async def force_poll():
+    """Manually triggers a data fetch."""
+    try:
+        logging.info("Manual poll triggered via API.")
+        await fetcher.fetch_and_save_data()
+        return {"message": "Data poll completed successfully."}
+    except Exception as e:
+        logging.error(f"Error during manual poll: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred during the data poll.")
+
+@app.post("/api/force_status_poll")
+async def force_status_poll():
+    """Manually triggers a data fetch for live status only."""
+    try:
+        logging.info("Manual status-only poll triggered via API.")
+        await fetcher.fetch_and_save_status_only()
+        return {"message": "Status poll completed successfully."}
+    except Exception as e:
+        logging.error(f"Error during manual status poll: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred during the status poll.")
+@app.get("/api/credentials")
+def get_stored_username():
+    """API endpoint to get the stored username."""
+    username = get_username()
+    return {"username": username or ""}
+
+@app.post("/api/credentials")
+def update_credentials(creds: dict = Body(...)):
+    """API endpoint to update and save credentials."""
+    username = creds.get("username")
+    password = creds.get("password")
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="Username and password are required.")
+    try:
+        save_credentials(username, password)
+        return {"message": "Credentials saved successfully."}
+    except Exception as e:
+        logging.error(f"Error saving credentials: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to save credentials.")
+@app.get("/api/config")
+def get_config():
+    """API endpoint to get the current configuration."""
+    return settings
+
+@app.post("/api/config")
+def update_config(new_settings: dict = Body(...)):
+    """API endpoint to update the configuration file."""
+    try:
+        # Read the whole config file to preserve structure and comments
+        with open(CONFIG_PATH, 'r') as f:
+            current_config = yaml.safe_load(f)
+
+        # Update polling settings
+        if 'polling' in new_settings.get('web_server', {}):
+            current_config['web_server']['polling'] = new_settings['web_server']['polling']
+            if 'data_refresh_interval_seconds' in current_config.get('web_server', {}):
+                del current_config['web_server']['data_refresh_interval_seconds']
+
+        # Update other settings
+        current_config['api_retries'] = new_settings['api_retries']
+        current_config['api_retry_delay_seconds'] = new_settings['api_retry_delay_seconds']
+
+        # Write the updated config back to the file
+        with open(CONFIG_PATH, 'w') as f:
+            yaml.dump(current_config, f, default_flow_style=False, sort_keys=False)
+
+        # Reload the configuration into memory so the changes are reflected immediately.
+        load_config()
+
+        return {"message": "Settings saved successfully. Changes will be applied on the next poll."}
+    except Exception as e:
+        logging.error(f"Error updating config file: {e}")
+        raise HTTPException(status_code=500, detail="Failed to write to configuration file.")
+
+@app.post("/api/vehicles/{vin}/fetch_trips")
+async def trigger_trip_fetch(vin: str, period_data: dict = Body(...)):
+    """Triggers a manual, on-demand fetch of historical trip data."""
+    period = period_data.get("period")
+    if not period:
+        raise HTTPException(status_code=400, detail="Missing 'period' in request body.")
+    
+    try:
+        result = await fetcher.backfill_trips(vin=vin, period=period)
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+        return result
+    except Exception as e:
+        logging.error(f"Error during manual trip backfill for VIN {vin}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred during the trip fetch.")
+
+@app.post("/api/import/trips")
+async def import_trips_from_csv(file: UploadFile = File(...)):
+    """
+    Imports historical trip data from a CSV file exported from the Toyota app.
+    The filename is expected to contain the VIN (e.g., 'VIN_YYYY-MM-DD_YYYY-MM-DD.csv').
+    """
+    filename = file.filename
+    try:
+        vin = filename.split('_')[0]
+        if not (vin.startswith("SB") or vin.startswith("JT")) or len(vin) < 17: # Basic VIN check
+             raise ValueError("Filename does not appear to contain a valid VIN.")
+    except (IndexError, ValueError) as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid filename format. Expected 'VIN_start-date_end-date.csv'. Error: {e}"
+        )
+
+    content = await file.read()
+    content_text = content.decode('utf-8')
+    file_like_object = io.StringIO(content_text)
+    reader = csv.reader(file_like_object, delimiter=';')
+    
+    db = database.SessionLocal()
+    imported_count = 0
+    updated_count = 0
+    skipped_count = 0
+    
+    try:
+        next(reader)  # Skip header
+        for row in reader:
+            try:
+                if len(row) < 6:
+                    skipped_count += 1
+                    continue
+
+                # Parse all data from the CSV row first
+                start_address_csv = row[0]
+                end_address_csv = row[2]
+                distance_csv = float(row[4].replace(',', '.'))
+                start_ts_utc = datetime.datetime.fromisoformat(row[1]).astimezone(datetime.timezone.utc)
+                end_ts_utc = datetime.datetime.fromisoformat(row[3]).astimezone(datetime.timezone.utc)
+                fuel_consumption_csv = float(row[5].replace(',', '.'))
+
+                # --- Content-Based Deduplication Logic ---
+                # Find a trip with the same addresses and a very similar distance.
+                distance_tolerance = 0.1  # 100 meters tolerance for small variations
+
+                existing_trip = db.query(database.Trip).filter(
+                    database.Trip.vin == vin,
+                    database.Trip.start_address == start_address_csv,
+                    database.Trip.end_address == end_address_csv,
+                    database.Trip.distance_km.between(distance_csv - distance_tolerance, distance_csv + distance_tolerance)
+                ).first()
+
+                if existing_trip:
+                    # This is a duplicate trip, so we skip it.
+                    skipped_count += 1
+                else:
+                    # This is a unique trip, so we insert it.
+                    new_trip = database.Trip(
+                        vin=vin,
+                        start_timestamp=start_ts_utc,
+                        end_timestamp=end_ts_utc,
+                        start_address=start_address_csv,
+                        end_address=end_address_csv,
+                        distance_km=distance_csv,
+                        fuel_consumption_l_100km=fuel_consumption_csv
+                    )
+                    db.add(new_trip)
+                    imported_count += 1
+            except (ValueError, IndexError):
+                skipped_count += 1
+        
+        db.commit() # Commit the entire transaction once at the end.
+        return {"message": "Import complete.", "imported": imported_count, "updated": updated_count, "skipped_duplicates_or_errors": skipped_count}
+    except Exception as e:
+        db.rollback()
+        logging.error(f"Error during CSV import transaction: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="A critical error occurred during import. The entire operation was rolled back.")
+    finally:
+        db.close()

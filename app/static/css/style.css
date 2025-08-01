@@ -1,0 +1,130 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: #f4f7f9;
+    color: #333;
+    margin: 0;
+    padding: 20px;
+}
+
+header, footer {
+    text-align: center;
+    color: #666;
+}
+
+header nav {
+    margin-top: 10px;
+    font-size: 1.1em;
+}
+
+#vehicle-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.card {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    padding: 20px;
+    width: 320px;
+    transition: transform 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+}
+
+.card h2 {
+    margin-top: 0;
+    color: #00529b;
+}
+
+.details {
+    margin: 15px 0;
+    display: grid;
+    gap: 10px;
+}
+
+.metric strong {
+    color: #555;
+}
+
+.vin {
+    font-size: 0.8em;
+    color: #999;
+    text-align: center;
+    margin-top: 20px;
+}
+
+.status-panel {
+    width: 250px; /* A bit smaller than the main card */
+}
+
+.car-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto auto;
+    grid-template-areas:
+        "hood hood"
+        "front-left front-right"
+        "rear-left rear-right"
+        "trunk trunk";
+    gap: 5px;
+    justify-items: center;
+    align-items: center;
+    margin-top: 20px;
+}
+
+.status-indicator {
+    transition: all 0.3s ease;
+}
+
+.status-indicator svg {
+    stroke: #ccc;
+    stroke-width: 2;
+    fill: #f0f0f0;
+}
+
+.status-indicator.hood { grid-area: hood; width: 150px; }
+.status-indicator.trunk { grid-area: trunk; width: 150px; }
+.status-indicator.front-left { grid-area: front-left; width: 50px; }
+.status-indicator.front-right { grid-area: front-right; width: 50px; }
+.status-indicator.rear-left { grid-area: rear-left; width: 50px; }
+.status-indicator.rear-right { grid-area: rear-right; width: 50px; }
+
+/* States */
+.status-indicator.open svg {
+    fill: #f8d7da; /* Light Red */
+    stroke: #721c24;
+}
+
+.status-indicator.closed svg {
+    fill: #d4edda; /* Light Green */
+    stroke: #155724;
+}
+
+.status-indicator .lock-icon {
+    display: none; /* Hide lock by default */
+    fill: #333;
+    stroke: none;
+}
+
+.status-indicator.locked .lock-icon {
+    display: block;
+}
+
+.chart-container {
+    margin-top: 20px;
+    height: 150px; /* Give the chart a defined height */
+}
+
+.chart-title {
+    text-align: center;
+    font-size: 0.8em;
+    color: #666;
+    margin-bottom: 5px;
+    margin-top: 15px;
+}

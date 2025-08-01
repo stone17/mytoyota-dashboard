@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+PyYAML
+pytoyoda
+aiofiles
+httpx
+Jinja2
+loguru
+aiohttp
+SQLAlchemy
+python-multipart
+geopy
+cryptography

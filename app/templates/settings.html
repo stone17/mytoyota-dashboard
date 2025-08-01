@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - MyToyota Dashboard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        main { max-width: 800px; margin: 20px auto; }
+        .settings-section {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            margin-bottom: 30px;
+        }
+        .settings-section h2 { margin-top: 0; color: #00529b; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-group input[type="text"],
+        .form-group input[type="password"],
+        .form-group input[type="number"],
+        .form-group input[type="time"],
+        .form-group input[type="file"] { width: 100%; padding: 8px; box-sizing: border-box; max-width: 450px; }
+        .form-group p { font-size: 0.9em; color: #666; margin-top: 5px; }
+        .status-message { margin-top: 15px; padding: 10px; border-radius: 4px; display: none; }
+        .status-message.success { background-color: #d4edda; color: #155724; }
+        .status-message.error { background-color: #f8d7da; color: #721c24; }
+        .status-message.info { background-color: #cce5ff; color: #004085; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Settings</h1>
+        <nav><a href="/">Dashboard</a> | <a href="/trips">Trip History</a></nav>
+    </header>
+
+    <main>
+        <section class="settings-section">
+            <h2>Credentials Management</h2>
+            <p>Securely store your MyToyota username and password. These are encrypted and stored locally.</p>
+            <form id="credentials-form">
+                <div class="form-group">
+                    <label for="username">MyToyota Username (Email)</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">MyToyota Password</label>
+                    <input type="password" id="password" name="password" placeholder="Enter new password to update">
+                </div>
+                <button type="submit">Save Credentials</button>
+                <p id="credentials-message" class="status-message"></p>
+            </form>
+        </section>
+
+        <section class="settings-section">
+            <h2>Polling Settings</h2>
+            <p>Configure how often the application fetches data from the Toyota API.</p>
+            <form id="settings-form">
+                <div class="form-group">
+                    <label><input type="radio" name="poll_mode" value="interval" checked> Poll at an interval</label>
+                    <div id="interval-settings">
+                        <label for="refresh-interval">Interval (seconds)</label>
+                        <input type="number" id="refresh-interval" name="interval_seconds">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label><input type="radio" name="poll_mode" value="fixed_time"> Poll at a fixed time each day</label>
+                    <div id="fixed-time-settings" style="display: none;">
+                        <label for="fixed-time">Time (24h format)</label>
+                        <input type="time" id="fixed-time" name="fixed_time">
+                    </div>
+                </div>
+                
+                <h3>API Retries</h3>
+                <div class="form-group">
+                    <label for="api-retries">Retry Attempts</label>
+                    <input type="number" id="api-retries" name="api_retries">
+                </div>
+                <div class="form-group">
+                    <label for="api-retry-delay">Retry Delay (seconds)</label>
+                    <input type="number" id="api-retry-delay" name="api_retry_delay_seconds">
+                </div>
+
+                <button type="submit">Save Settings</button>
+                <p id="status-message" class="status-message"></p>
+            </form>
+        </section>
+
+        <section class="settings-section">
+            <h2>Import Trip History</h2>
+            <p>Upload a trip history CSV file exported from the Toyota app. The filename must start with the vehicle's VIN (e.g., <code>SB1..._2024-01-01_2024-12-31.csv</code>).</p>
+            <form id="import-form">
+                <div class="form-group">
+                    <label for="csv-file">CSV File</label>
+                    <input type="file" id="csv-file" name="csv_file" accept=".csv">
+                </div>
+                <button type="submit">Import Trips</button>
+                <p id="import-status-message" class="status-message"></p>
+            </form>
+        </section>
+
+    </main>
+
+    <script src="/static/js/settings.js?v={{ cache_buster }}"></script>
+</body>
+</html>
