@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trip History - MyToyota Dashboard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+
+        .page-layout {
+            display: flex;
+            gap: 20px;
+            margin: 20px auto;
+            max-width: 1600px;
+        }
+
+        .sidebar {
+            flex: 0 0 250px; /* Sidebar width */
+        }
+        .sidebar .form-group { margin-bottom: 15px; }
+        .sidebar .form-group label { font-weight: bold; margin-bottom: 5px; display: block; }
+        .sidebar .form-group select { width: 100%; padding: 8px; font-size: 1em; }
+        .sidebar #column-selector label { display: block; margin-bottom: 5px; }
+
+        .sidebar-panel {
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .sidebar-panel:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+        }
+        .sidebar-panel h3 {
+            margin-top: 0;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+            font-size: 1.1em;
+        }
+
+        .backfill-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: flex-start;
+        }
+        .backfill-buttons button { width: 150px; text-align: left; }
+
+        .status-message { margin-top: 15px; padding: 10px; border-radius: 4px; display: none; }
+        .status-message.success { background-color: #d4edda; color: #155724; }
+        .status-message.error { background-color: #f8d7da; color: #721c24; }
+        .status-message.info { background-color: #cce5ff; color: #004085; }
+
+        /* Custom Checkbox Styles */
+        #column-selector input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 1.1em;
+            height: 1.1em;
+            border: 1px solid #999;
+            border-radius: 3px;
+            vertical-align: middle;
+            margin-right: 8px;
+            position: relative;
+            cursor: pointer;
+            background-color: #f9f9f9;
+        }
+        #column-selector input[type="checkbox"]:checked {
+            background-color: #00529b;
+            border-color: #00529b;
+        }
+        #column-selector input[type="checkbox"]:checked::after {
+            content: '✔';
+            color: white;
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 0.8em;
+        }
+
+        .main-content {
+            flex: 1;
+            min-width: 0; /* Prevents flexbox from overflowing */
+        }
+
+        .scroll-hint {
+            text-align: center;
+            color: #888;
+            font-style: italic;
+            margin-bottom: 15px;
+        }
+
+        .trips-layout {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+
+        .trips-list-container {
+            flex: 1 1 60%;
+            max-height: 70vh; /* Set a max height */
+            overflow-y: auto; /* Enable vertical scrolling */
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+
+        .trips-list-container table { width: 100%; border-collapse: collapse; }
+        .trips-list-container th, .trips-list-container td { padding: 12px; border-bottom: 1px solid #ddd; text-align: left; }
+        .trips-list-container th.sortable { cursor: pointer; }
+        .trips-list-container th.sortable:hover { background-color: #e9e9e9; }
+        .trips-list-container th .sort-indicator {
+            display: inline-block;
+        }
+        .trips-list-container .unit {
+            font-size: 0.8em;
+            color: #666;
+        }
+        .trips-list-container th { background-color: #f4f7f9; position: sticky; top: 0; }
+        .trips-list-container tr:nth-child(even) { background-color: #f9f9f9; }
+        .trips-list-container tbody tr:hover { background-color: #eef4f8; cursor: pointer; }
+
+        #map-panel {
+            flex: 1 1 40%;
+            position: sticky;
+            top: 20px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        #map-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 15px;
+            background-color: #f4f7f9;
+            border-bottom: 1px solid #ddd;
+        }
+        #map-panel-header h3 { margin: 0; color: #00529b; }
+        #close-map-panel-btn { background: none; border: none; font-size: 1.5em; cursor: pointer; color: #666; }
+        #map-panel-content iframe { width: 100%; height: 500px; border: none; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Trip History</h1>
+        <nav><a href="/">Dashboard</a> | <a href="/settings">Settings</a></nav>
+    </header>
+
+
+    <div class="page-layout">
+        <aside class="sidebar">
+            <div class="form-group vin-selector">
+                <label for="vin-select">Select Vehicle:</label>
+                <select id="vin-select"></select>
+            </div>
+            <div class="form-group view-options sidebar-panel">
+                <h3>Visible Columns</h3>
+                <div id="column-selector">
+                    <label><input type="checkbox" data-column="start-time" checked> Start Time</label>
+                    <label><input type="checkbox" data-column="end-time" checked> End Time</label>
+                    <label><input type="checkbox" data-column="distance" checked> Distance</label>
+                    <label><input type="checkbox" data-column="consumption" checked> Consumption</label>
+                    <label><input type="checkbox" data-column="start-address" checked> Start Address</label>
+                    <label><input type="checkbox" data-column="end-address" checked> End Address</label>
+                    <label><input type="checkbox" data-column="duration"> Duration</label>
+                    <label><input type="checkbox" data-column="avg-speed"> Avg. Speed</label>
+                    <label><input type="checkbox" data-column="ev-dist"> EV Distance</label>
+                    <label><input type="checkbox" data-column="ev-dur"> EV Duration</label>
+                    <label><input type="checkbox" data-column="score"> Score</label>
+                </div>
+            </div>
+            <div class="sidebar-panel">
+                <h3>Backfill Trip History</h3>
+                <p style="font-size: 0.9em; color: #666;">Fetch trip summaries from the Toyota API for the selected vehicle.</p>
+                <div class="backfill-buttons">
+                    <button data-period="week">Fetch Last Week</button>
+                    <button data-period="month">Fetch Last Month</button>
+                    <button data-period="year">Fetch Last Year</button>
+                    <button data-period="all">Fetch All (can be slow)</button>
+                </div>
+                <p id="backfill-status-message" class="status-message"></p>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <p class="scroll-hint">Click a trip to see the map. The trip list is scrollable. Drag column headers to reorder.</p>
+            <div class="trips-layout">
+                <div class="trips-list-container">
+                    <table>
+                        <thead>
+                            <tr id="trip-table-header-row">
+                            <th class="sortable" data-column="start-time" data-sort="start_timestamp">Start Time<span class="sort-indicator"></span></th>
+                            <th data-column="end-time">End Time</th>
+                            <th class="sortable" data-column="distance" data-sort="distance_km">Distance<span class="sort-indicator"></span><br><span class="unit">(km)</span></th>
+                            <th class="sortable" data-column="consumption" data-sort="fuel_consumption_l_100km">Consumption<span class="sort-indicator"></span><br><span class="unit">(L/100km)</span></th>
+                            <th data-column="start-address">Start Address</th>
+                            <th data-column="end-address">End Address</th>
+                            <th class="sortable" data-column="duration" data-sort="duration_seconds">Duration<span class="sort-indicator"></span></th>
+                            <th class="sortable" data-column="avg-speed" data-sort="average_speed_kmh">Avg. Speed<span class="sort-indicator"></span><br><span class="unit">(km/h)</span></th>
+                            <th class="sortable" data-column="ev-dist" data-sort="ev_distance_km">EV Dist.<span class="sort-indicator"></span><br><span class="unit">(km)</span></th>
+                            <th class="sortable" data-column="ev-dur" data-sort="ev_duration_seconds">EV Duration<span class="sort-indicator"></span></th>
+                            <th class="sortable" data-column="score" data-sort="score_global">Score<span class="sort-indicator"></span></th>
+                        </tr>
+                    </thead>
+                        <tbody id="trips-table-body">
+                            <!-- Rows will be populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="map-panel" style="display: none;">
+                    <div id="map-panel-header">
+                        <h3 id="map-panel-title">Trip Map</h3>
+                        <button id="close-map-panel-btn">&times;</button>
+                    </div>
+                    <div id="map-panel-content"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/js/trips.js?v={{ cache_buster }}"></script>
+</body>
+</html>

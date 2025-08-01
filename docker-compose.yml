@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  mytoyota_dashboard:
+    build: .
+    container_name: mytoyota_dashboard
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist all application data in a single volume
+      - ./data:/app/data
+    # Preferred: Use web interface to set credentials for better security
+    # Optional: Uncomment the following lines to set environment variables for credentials as plaintext
+    #   - MYT_USERNAME=your_email@example.com
+    #   - MYT_PASSWORD=your_super_secret_password
+    restart: unless-stopped
