@@ -17,8 +17,6 @@ A self-hosted web dashboard to visualize your Toyota vehicle's data, including l
 
 ![Dashboard Screenshot](placeholder.png "MyToyota Dashboard Interface")
 
-*(Replace `placeholder.png` with an actual screenshot of the dashboard)*
-
 ---
 
 ## How It Works
@@ -57,26 +55,20 @@ Using Docker is the easiest and most reliable way to run the application.
     cd mytoyota-dashboard # Or your project's folder name
     ```
 
-2.  **Create the configuration file:**
-    *   Create a `data` directory: `mkdir data`
-    *   Copy the example configuration file into the `data` directory:
-        ```bash
-        cp mytoyota_config.yaml.example data/mytoyota_config.yaml
-        ```
-    *   (Optional) Edit `data/mytoyota_config.yaml` to change the logging level or polling interval.
-
-3.  **Build and run the container:**
+2.  **Build and run the container:**
     ```bash
     docker-compose up -d --build
     ```
 
-4.  **Access the Dashboard:**
+34.  **Access the Dashboard:**
     Open your web browser and navigate to `http://localhost:8000`.
 
-5.  **First-Time Setup:**
+4.  **First-Time Setup:**
     *   Go to the **Settings** page.
     *   Enter your MyToyota username and password in the "Credentials Management" section and click "Save Credentials".
     *   The application will now be able to fetch your vehicle data.
+    *   Configure the polling intervall.
+    *   Go to the **Trip History** page and click *Fetch all* to retrieve your full trip history
 
 **Updating the Application:**
 
@@ -112,20 +104,16 @@ docker-compose up -d --build
     pip install -r requirements.txt
     ```
 
-4.  **Create the configuration file:**
-    *   Create a `data` directory: `mkdir data`
-    *   Copy the example configuration: `cp mytoyota_config.yaml.example data/mytoyota_config.yaml`
-
-5.  **Run the application:**
+4.  **Run the application:**
     ```bash
     uvicorn app.main:app --reload
     ```
 
-6.  **Access the Dashboard** at `http://localhost:8000` and complete the first-time setup as described in the Docker instructions.
+5.  **Access the Dashboard** at `http://localhost:8000` and complete the first-time setup as described in the Docker instructions.
 
 ## Configuration
 
-All application settings are managed in the `data/mytoyota_config.yaml` file.
+All application settings can be set in the **Settings** and are stored in the `data/mytoyota_config.yaml` file.
 
 *   `logging_level`: Set the verbosity of the logs (e.g., `DEBUG`, `INFO`, `WARNING`).
 *   `api_retries`: Number of times to retry a failing API call.
@@ -133,4 +121,3 @@ All application settings are managed in the `data/mytoyota_config.yaml` file.
     *   `mode`: Can be `interval` (poll every X seconds) or `fixed_time` (poll once per day at a specific time).
     *   `interval_seconds`: The interval for `interval` mode.
     *   `fixed_time`: The time for `fixed_time` mode (e.g., `"07:00"`).
-
