@@ -15,8 +15,8 @@ A self-hosted web dashboard to visualize your Toyota vehicle's data, including l
 
 ## Screenshot
 
-![Dashboard Screenshot](placeholder.png "MyToyota Dashboard Interface")
-
+![Dashboard Screenshot](interface1.png "MyToyota Dashboard Interface")
+![Trip History Screenshot](interface2.png "MyToyota Dashboard Interface")
 ---
 
 ## How It Works
