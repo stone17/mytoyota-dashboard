@@ -329,44 +329,42 @@ def get_trips(vin: str, sort_by: str = "start_timestamp", sort_direction: str = 
     """API endpoint to get all imported trips for a vehicle, with robust, unit-aware server-side sorting."""
     db = database.SessionLocal()
     try:
+        from sqlalchemy import text
 
-        # Define available sorting options and their corresponding columns
-        sortable_columns = {
-            "start_timestamp": database.Trip.start_timestamp,
-            "distance_km": database.Trip.distance_km,
-            "fuel_consumption_l_100km": database.Trip.fuel_consumption_l_100km,
-            "duration_seconds": database.Trip.duration_seconds,
-            "score_global": database.Trip.score_global,
-            "average_speed_kmh": database.Trip.average_speed_kmh,
-            "ev_distance_km": database.Trip.ev_distance_km,
-            "ev_duration_seconds": database.Trip.ev_duration_seconds,
-        }
-
-        if sort_by not in sortable_columns:
+        if sort_by not in ["start_timestamp", "distance_km", "fuel_consumption_l_100km", "duration_seconds", "score_global", "average_speed_kmh", "ev_distance_km", "ev_duration_seconds"]:
             raise HTTPException(status_code=400, detail=f"Invalid sort_by parameter.")
 
-        column = sortable_columns[sort_by]
+        # Determine the actual database column name based on the selected unit system
+        sort_column_name = {
+            "distance_km": "distance_mi" if unit_system.startswith('imperial') else "distance_km",
+            "fuel_consumption_l_100km": "mpg_uk" if unit_system == 'imperial_uk' else ("mpg" if unit_system == 'imperial_us' else "fuel_consumption_l_100km"),
+            "average_speed_kmh": "average_speed_mph" if unit_system.startswith('imperial') else "average_speed_kmh",
+            "ev_distance_km": "ev_distance_mi" if unit_system.startswith('imperial') else "ev_distance_km",
+        }.get(sort_by, sort_by)
 
-        # Determine the correct column and direction for sorting
+        sort_expression = None
         if sort_by == "fuel_consumption_l_100km":
-            if unit_system == 'imperial':
-                # For imperial, sort by the calculated 'mpg' property. High MPG is best.
-                sort_column = database.Trip.mpg
-                sort_expression = sort_column.desc() if sort_direction == "desc" else sort_column.asc()
-            else: # unit_system == 'metric'
-                # For metric, sort by L/100km. Low L/100km is best.
-                sort_column = column
-                # Invert direction: 'best first' (desc) means sorting L/100km ascending.
-                if sort_direction == "desc":
-                    sort_expression = sort_column.asc()
-                else:
-                    sort_expression = sort_column.desc()
+            if unit_system.startswith('imperial'):
+                # Sorting by MPG (US or UK), higher is better. 0 is worst.
+                if sort_direction == "desc":  # Best first
+                    # Sort descending, but push 0s and NULLs to the end.
+                    sort_expression = text(f"CASE WHEN {sort_column_name} IS NULL OR {sort_column_name} = 0 THEN 1 ELSE 0 END, {sort_column_name} DESC")
+                else:  # Worst first
+                    # Sort ascending, but push 0s and NULLs to the front.
+                    sort_expression = text(f"CASE WHEN {sort_column_name} IS NULL OR {sort_column_name} = 0 THEN 0 ELSE 1 END, {sort_column_name} ASC")
+            else:  # Metric
+                # Sorting by L/100km, lower is better. 0 is best.
+                if sort_direction == "desc":  # Best first
+                    sort_expression = text(f"CASE WHEN {sort_column_name} IS NULL THEN 1 ELSE 0 END, {sort_column_name} ASC")
+                else:  # Worst first
+                    sort_expression = text(f"CASE WHEN {sort_column_name} IS NULL THEN 1 ELSE 0 END, {sort_column_name} DESC")
         else:
             # Standard sorting for all other columns
-            sort_expression = column.desc() if sort_direction == "desc" else column.asc()
+            direction_sql = "DESC" if sort_direction == "desc" else "ASC"
+            sort_expression = text(f"{sort_column_name} {direction_sql} NULLS LAST")
 
         trips = db.query(database.Trip).filter(database.Trip.vin == vin).order_by(
-            sort_expression.nullslast() # Always push NULL values to the bottom
+            sort_expression
         ).all()
         return trips
     finally:
@@ -546,8 +544,8 @@ def backfill_imperial_units():
     db = database.SessionLocal()
     try:
         _LOGGER.info("Starting backfill process for imperial units...")
-        # Find all trips where imperial units haven't been calculated yet
-        trips_to_update = db.query(database.Trip).filter(database.Trip.mpg == None).all()
+        # Find all trips where UK MPG hasn't been calculated yet
+        trips_to_update = db.query(database.Trip).filter(database.Trip.mpg_uk == None).all()
         
         if not trips_to_update:
             return {"message": "No trips needed backfilling. All data is up to date."}
@@ -561,6 +559,7 @@ def backfill_imperial_units():
             if trip.average_speed_kmh is not None:
                 trip.average_speed_mph = trip.average_speed_kmh * KM_TO_MI
             trip.mpg = (235.214 / trip.fuel_consumption_l_100km) if trip.fuel_consumption_l_100km and trip.fuel_consumption_l_100km > 0 else 0.0
+            trip.mpg_uk = (282.481 / trip.fuel_consumption_l_100km) if trip.fuel_consumption_l_100km and trip.fuel_consumption_l_100km > 0 else 0.0
         
         db.commit()
         _LOGGER.info(f"Successfully backfilled imperial units for {len(trips_to_update)} trips.")

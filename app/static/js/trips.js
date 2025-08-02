@@ -72,11 +72,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             // Update table headers with correct units before fetching data
-            const isImperial = appConfig.unit_system === 'imperial';
+            const isImperial = appConfig.unit_system.startsWith('imperial');
+            const isUk = appConfig.unit_system === 'imperial_uk';
             const units = {
                 distance: isImperial ? '(mi)' : '(km)',
-                consumption: isImperial ? '(MPG)' : '(L/100km)',
-                speed: isImperial ? '(mph)' : '(km/h)'
+                consumption: isImperial ? (isUk ? '(UK MPG)' : '(US MPG)') : '(L/100km)',
+                speed: isImperial ? '(mph)' : '(km/h)',
             };
             document.querySelectorAll('.unit').forEach(span => {
                 const unitType = span.dataset.unitType;
@@ -97,7 +98,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderTable(trips) {
-        const isImperial = appConfig.unit_system === 'imperial';
+        const isImperial = appConfig.unit_system.startsWith('imperial');
+        const isUk = appConfig.unit_system === 'imperial_uk';
         tripsTableBody.innerHTML = ''; // Clear existing rows
 
         if (trips.length === 0) {
@@ -129,10 +131,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 return parts.join(' ');
             };
 
-            const distance = isImperial ? trip.distance_mi : trip.distance_km;
-            const consumption = isImperial ? trip.mpg : trip.fuel_consumption_l_100km;
-            const avgSpeed = isImperial ? trip.average_speed_mph : trip.average_speed_kmh;
-            const evDistance = isImperial ? trip.ev_distance_mi : trip.ev_distance_km;
+            let distance, consumption, avgSpeed, evDistance;
+            if (isImperial) {
+                distance = trip.distance_mi;
+                consumption = isUk ? trip.mpg_uk : trip.mpg;
+                avgSpeed = trip.average_speed_mph;
+                evDistance = trip.ev_distance_mi;
+            } else {
+                distance = trip.distance_km;
+                consumption = trip.fuel_consumption_l_100km;
+                avgSpeed = trip.average_speed_kmh;
+                evDistance = trip.ev_distance_km;
+            }
 
             row.innerHTML = `
                 <td data-column="start-time">${formatTimestamp(trip.start_timestamp)}</td>
