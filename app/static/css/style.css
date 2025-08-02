@@ -68,3 +68,23 @@ body {
     font-style: italic;
     opacity: 0.9;
 }
+
+/* --- Responsive Design for Mobile --- */
+@media (max-width: 768px) {
+    .main-header {
+        padding: 0 10px; /* Reduce horizontal padding on smaller screens */
+        justify-content: flex-start; /* Align items to the left */
+        gap: 10px; /* Add space between title and nav icons */
+    }
+
+    /* Hide the text label next to the icon */
+    .nav-link span {
+        display: none;
+    }
+
+    /* Adjust link for icon-only display */
+    .nav-link {
+        padding: 15px;
+        gap: 0;
+    }
+}
