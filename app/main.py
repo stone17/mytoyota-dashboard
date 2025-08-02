@@ -25,6 +25,7 @@ from sqlalchemy.exc import IntegrityError
 
 # Configure logging at the very beginning of the application startup
 setup_logging()
+_LOGGER = logging.getLogger(__name__)
 
 # --- Live Log Streaming Setup ---
 # Get the desired log history size from config, with a sensible default.
@@ -324,11 +325,10 @@ def get_daily_summary(vin: str, days: int = 30):
         db.close()
 
 @app.get("/api/trips")
-def get_trips(vin: str, sort_by: str = "start_timestamp", sort_direction: str = "desc"):
-    """API endpoint to get all imported trips for a vehicle, with robust server-side sorting."""
+def get_trips(vin: str, sort_by: str = "start_timestamp", sort_direction: str = "desc", unit_system: str = "metric"):
+    """API endpoint to get all imported trips for a vehicle, with robust, unit-aware server-side sorting."""
     db = database.SessionLocal()
     try:
-        from sqlalchemy import text
 
         # Define available sorting options and their corresponding columns
         sortable_columns = {
@@ -347,19 +347,26 @@ def get_trips(vin: str, sort_by: str = "start_timestamp", sort_direction: str = 
 
         column = sortable_columns[sort_by]
 
-        # Special handling for consumption sorting, as "best" is inverted between L/100km and MPG
+        # Determine the correct column and direction for sorting
         if sort_by == "fuel_consumption_l_100km":
-            if sort_direction == "desc":  # Best first (low L/100km or high MPG)
-                sort_expression = column.asc()
-            else:  # Worst first (high L/100km or low MPG)
-                # 0 is best, so it should be last when sorting for worst. NULLs also last.
-                sort_expression = text("CASE WHEN fuel_consumption_l_100km IS NULL OR fuel_consumption_l_100km = 0 THEN 1 ELSE 0 END, fuel_consumption_l_100km DESC")
+            if unit_system == 'imperial':
+                # For imperial, sort by the calculated 'mpg' property. High MPG is best.
+                sort_column = database.Trip.mpg
+                sort_expression = sort_column.desc() if sort_direction == "desc" else sort_column.asc()
+            else: # unit_system == 'metric'
+                # For metric, sort by L/100km. Low L/100km is best.
+                sort_column = column
+                # Invert direction: 'best first' (desc) means sorting L/100km ascending.
+                if sort_direction == "desc":
+                    sort_expression = sort_column.asc()
+                else:
+                    sort_expression = sort_column.desc()
         else:
             # Standard sorting for all other columns
             sort_expression = column.desc() if sort_direction == "desc" else column.asc()
 
         trips = db.query(database.Trip).filter(database.Trip.vin == vin).order_by(
-            sort_expression
+            sort_expression.nullslast() # Always push NULL values to the bottom
         ).all()
         return trips
     finally:
@@ -530,5 +537,37 @@ async def import_trips_from_csv(file: UploadFile = File(...)):
         db.rollback()
         logging.error(f"Error during CSV import transaction: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="A critical error occurred during import. The entire operation was rolled back.")
+    finally:
+        db.close()
+
+@app.post("/api/backfill_units")
+def backfill_imperial_units():
+    """One-off utility to calculate and save imperial units for all existing trips."""
+    db = database.SessionLocal()
+    try:
+        _LOGGER.info("Starting backfill process for imperial units...")
+        # Find all trips where imperial units haven't been calculated yet
+        trips_to_update = db.query(database.Trip).filter(database.Trip.mpg == None).all()
+        
+        if not trips_to_update:
+            return {"message": "No trips needed backfilling. All data is up to date."}
+
+        KM_TO_MI = 0.621371
+        for trip in trips_to_update:
+            if trip.distance_km is not None:
+                trip.distance_mi = trip.distance_km * KM_TO_MI
+            if trip.ev_distance_km is not None:
+                trip.ev_distance_mi = trip.ev_distance_km * KM_TO_MI
+            if trip.average_speed_kmh is not None:
+                trip.average_speed_mph = trip.average_speed_kmh * KM_TO_MI
+            trip.mpg = (235.214 / trip.fuel_consumption_l_100km) if trip.fuel_consumption_l_100km and trip.fuel_consumption_l_100km > 0 else 0.0
+        
+        db.commit()
+        _LOGGER.info(f"Successfully backfilled imperial units for {len(trips_to_update)} trips.")
+        return {"message": f"Successfully backfilled imperial units for {len(trips_to_update)} trips."}
+    except Exception as e:
+        db.rollback()
+        _LOGGER.error(f"Error during imperial unit backfill: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An error occurred during the backfill process.")
     finally:
         db.close()

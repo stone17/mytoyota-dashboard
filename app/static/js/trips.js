@@ -86,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             // Fetch the pre-sorted list of trips from the server
-            const response = await fetch(`/api/trips?vin=${selectedVin}&sort_by=${currentSort.by}&sort_direction=${currentSort.direction}`);
+            const response = await fetch(`/api/trips?vin=${selectedVin}&sort_by=${currentSort.by}&sort_direction=${currentSort.direction}&unit_system=${appConfig.unit_system}`);
             const trips = await response.json();
 
             renderTable(trips); // Render the sorted trips
@@ -129,10 +129,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 return parts.join(' ');
             };
 
-            const distance = isImperial ? (trip.distance_km * KM_TO_MI) : trip.distance_km;
-            const consumption = isImperial ? l100kmToMpg(trip.fuel_consumption_l_100km) : trip.fuel_consumption_l_100km;
-            const avgSpeed = isImperial ? (trip.average_speed_kmh * KM_TO_MI) : trip.average_speed_kmh;
-            const evDistance = isImperial ? (trip.ev_distance_km * KM_TO_MI) : trip.ev_distance_km;
+            const distance = isImperial ? trip.distance_mi : trip.distance_km;
+            const consumption = isImperial ? trip.mpg : trip.fuel_consumption_l_100km;
+            const avgSpeed = isImperial ? trip.average_speed_mph : trip.average_speed_kmh;
+            const evDistance = isImperial ? trip.ev_distance_mi : trip.ev_distance_km;
 
             row.innerHTML = `
                 <td data-column="start-time">${formatTimestamp(trip.start_timestamp)}</td>
