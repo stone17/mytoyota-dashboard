@@ -70,9 +70,34 @@
         .small-btn:hover { background-color: #5a6268; }
         .small-btn:disabled { background-color: #aaa; cursor: not-allowed; }
 
-        .vehicle-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
-        .stat h3 { margin: 0 0 5px 0; font-size: 0.9em; color: #666; text-transform: uppercase; }
-        .stat p { margin: 0; font-size: 1.4em; font-weight: bold; }
+        .vehicle-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr; /* Two-column layout */
+            gap: 0; /* Remove gaps for a table-like feel */
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden; /* Clip children to rounded corners */
+            margin-bottom: 20px;
+        }
+        .stat {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        /* Add a vertical divider between columns */
+        .stat:nth-child(odd) {
+            border-right: 1px solid #e0e0e0;
+        }
+        /* Create alternating row colors */
+        .stat:nth-child(4n-1),
+        .stat:nth-child(4n) {
+            background-color: #f9f9f9;
+        }
+        /* Remove bottom border from the last row of stats */
+        .stat:nth-last-child(-n+2) {
+            border-bottom: none;
+        }
+        .stat h3 { margin: 0 0 4px 0; font-size: 0.8em; color: #666; text-transform: uppercase; }
+        .stat p { margin: 0; font-size: 1.3em; font-weight: bold; }
         .charts { display: grid; grid-template-columns: 1fr; gap: 20px; }
         .charts { height: 350px; }
 
@@ -207,32 +232,6 @@
         </div>
     </header>
 
-    <div class="summary-panel" id="fleet-summary-panel" style="display: none;">
-        <h2>Total Fleet Statistics</h2>
-        <div class="summary-stats">
-            <div class="summary-stat">
-                <h3>Total Vehicles</h3>
-                <p id="summary-total-vehicles">-</p>
-            </div>
-            <div class="summary-stat">
-                <h3>Total Distance</h3>
-                <p><span id="summary-total-distance">-</span> km</p>
-            </div>
-            <div class="summary-stat">
-                <h3>Total EV Distance</h3>
-                <p><span id="summary-total-ev-distance">-</span> km</p>
-            </div>
-            <div class="summary-stat">
-                <h3>Overall EV Ratio</h3>
-                <p><span id="summary-ev-ratio">-</span> %</p>
-            </div>
-            <div class="summary-stat">
-                <h3>Overall Consumption</h3>
-                <p><span id="summary-fuel-consumption">-</span> L/100km</p>
-            </div>
-        </div>
-    </div>
-
     <main id="vehicle-container">
         <!-- Vehicle cards will be inserted here by main.js -->
     </main>
@@ -253,29 +252,37 @@
                         <button class="small-btn refresh-btn">Refresh</button>
                     </div>
                     <div class="vehicle-stats">
-                        <div class="stat">
-                            <h3>Odometer (km)</h3>
+                        <div class="stat stat-odometer">
+                            <h3>Odometer</h3>
                             <p><span class="odometer"></span></p>
                         </div>
-                        <div class="stat">
-                            <h3>Range Left (km)</h3>
+                        <div class="stat stat-range">
+                            <h3>Range Left</h3>
                             <p><span class="total_range"></span></p>
                         </div>
-                        <div class="stat">
-                            <h3>Total EV Distance (km)</h3>
+                        <div class="stat stat-ev-distance">
+                            <h3>Total EV Distance</h3>
                             <p><span class="total_ev_distance_km"></span> (<span class="ev_ratio_percent"></span>%)</p>
                         </div>
-                        <div class="stat">
+                        <div class="stat stat-fuel-level">
                             <h3>Fuel Level (%)</h3>
                             <p><span class="fuel_level"></span></p>
                         </div>
-                        <div class="stat">
-                            <h3>Today's Distance (km)</h3>
+                        <div class="stat stat-daily-distance">
+                            <h3>Today's Distance</h3>
                             <p><span class="daily_distance"></span></p>
                         </div>
-                        <div class="stat">
-                            <h3>Overall Consumption</h3>
-                            <p><span class="overall_fuel_consumption"></span> L/100km</p>
+                        <div class="stat stat-consumption">
+                            <h3>Consumption</h3>
+                            <p><span class="overall_fuel_consumption"></span></p>
+                        </div>
+                        <div class="stat stat-total-fuel">
+                            <h3>Total Fuel</h3>
+                            <p><span class="total_fuel_l"></span></p>
+                        </div>
+                        <div class="stat stat-duration">
+                            <h3>Time Driven (h)</h3>
+                            <p><span class="total_duration"></span></p>
                         </div>
                     </div>
                     <h3 class="map-title">Current Location of Car</h3>

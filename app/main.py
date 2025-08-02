@@ -177,7 +177,8 @@ async def get_vehicle_data():
                 stats = db.query(
                     func.sum(database.Trip.distance_km).label("total_distance"),
                     func.sum(database.Trip.ev_distance_km).label("total_ev_distance"),
-                    func.sum(database.Trip.fuel_consumption_l_100km * database.Trip.distance_km / 100).label("total_fuel")
+                    func.sum(database.Trip.fuel_consumption_l_100km * database.Trip.distance_km / 100).label("total_fuel"),
+                    func.sum(database.Trip.duration_seconds).label("total_duration_seconds")
                 ).filter(database.Trip.vin == vin).first()
                 
                 logging.debug(f"--- Overall Stats for VIN: {vin} ---")
@@ -189,10 +190,13 @@ async def get_vehicle_data():
                     # If the sum is NULL (no EV trips), it will be None. Default to 0.
                     total_ev_distance = stats.total_ev_distance or 0.0
                     total_fuel = stats.total_fuel or 0.0
-                    logging.debug(f"Processing stats: total_distance={total_distance}, total_ev_distance={total_ev_distance}, total_fuel={total_fuel}")
+                    total_duration_seconds = stats.total_duration_seconds or 0
+                    logging.debug(f"Processing stats: total_distance={total_distance}, total_ev_distance={total_ev_distance}, total_fuel={total_fuel}, total_duration={total_duration_seconds}")
 
                     
                     vehicle["statistics"]["overall"]["total_ev_distance_km"] = round(total_ev_distance)
+                    vehicle["statistics"]["overall"]["total_fuel_l"] = round(total_fuel, 2)
+                    vehicle["statistics"]["overall"]["total_duration_seconds"] = total_duration_seconds
 
                     if total_distance > 0:
                         vehicle["statistics"]["overall"]["ev_ratio_percent"] = round((total_ev_distance / total_distance) * 100, 1)
@@ -206,46 +210,6 @@ async def get_vehicle_data():
             db.close()
 
         return vehicles_data
-
-@app.get("/api/summary")
-async def get_fleet_summary():
-    """API endpoint to get combined statistics for all vehicles."""
-    db = database.SessionLocal()
-    try:
-        from sqlalchemy import func
-        
-        # Get total stats from the database across all trips
-        stats = db.query(
-            func.sum(database.Trip.distance_km).label("total_distance"),
-            func.sum(database.Trip.ev_distance_km).label("total_ev_distance"),
-            func.sum(database.Trip.fuel_consumption_l_100km * database.Trip.distance_km / 100).label("total_fuel")
-        ).first()
-
-        if not stats or stats.total_distance is None:
-            return {"total_vehicles": 0, "total_distance_km": 0, "total_ev_distance_km": 0, "overall_fuel_consumption_l_100km": 0, "overall_ev_ratio_percent": 0}
-
-        total_distance = stats.total_distance or 0.0
-        total_ev_distance = stats.total_ev_distance or 0.0
-        total_fuel = stats.total_fuel or 0.0
-
-        # Get total number of vehicles from cache
-        total_vehicles = 0
-        if fetcher.CACHE_FILE.exists():
-            async with aiofiles.open(fetcher.CACHE_FILE, 'r') as f:
-                content = await f.read()
-                vehicles_data = json.loads(content)
-                total_vehicles = len(vehicles_data)
-
-        summary = {
-            "total_vehicles": total_vehicles,
-            "total_distance_km": round(total_distance),
-            "total_ev_distance_km": round(total_ev_distance),
-            "overall_fuel_consumption_l_100km": round((total_fuel / total_distance) * 100, 2) if total_distance > 0 and total_fuel > 0 else 0.0,
-            "overall_ev_ratio_percent": round((total_ev_distance / total_distance) * 100, 1) if total_distance > 0 else 0.0
-        }
-        return summary
-    finally:
-        db.close()
 
 async def log_stream_generator(request: Request):
     """Yields historical and then live log messages as Server-Sent Events."""
@@ -361,9 +325,11 @@ def get_daily_summary(vin: str, days: int = 30):
 
 @app.get("/api/trips")
 def get_trips(vin: str, sort_by: str = "start_timestamp", sort_direction: str = "desc"):
-    """API endpoint to get all imported trips for a vehicle, with sorting."""
+    """API endpoint to get all imported trips for a vehicle, with robust server-side sorting."""
     db = database.SessionLocal()
     try:
+        from sqlalchemy import text
+
         # Define available sorting options and their corresponding columns
         sortable_columns = {
             "start_timestamp": database.Trip.start_timestamp,
@@ -376,23 +342,21 @@ def get_trips(vin: str, sort_by: str = "start_timestamp", sort_direction: str = 
             "ev_duration_seconds": database.Trip.ev_duration_seconds,
         }
 
-        # Validate the sort_by parameter against available columns
         if sort_by not in sortable_columns:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid sort_by parameter. Available columns: {', '.join(sortable_columns.keys())}"
-            )
+            raise HTTPException(status_code=400, detail=f"Invalid sort_by parameter.")
 
-        # Determine the sorting direction
         column = sortable_columns[sort_by]
-        if sort_direction == "asc":
-            sort_expression = column.asc()
-        elif sort_direction == "desc":
-            sort_expression = column.desc()
+
+        # Special handling for consumption sorting, as "best" is inverted between L/100km and MPG
+        if sort_by == "fuel_consumption_l_100km":
+            if sort_direction == "desc":  # Best first (low L/100km or high MPG)
+                sort_expression = column.asc()
+            else:  # Worst first (high L/100km or low MPG)
+                # 0 is best, so it should be last when sorting for worst. NULLs also last.
+                sort_expression = text("CASE WHEN fuel_consumption_l_100km IS NULL OR fuel_consumption_l_100km = 0 THEN 1 ELSE 0 END, fuel_consumption_l_100km DESC")
         else:
-            raise HTTPException(
-                status_code=400, detail="Invalid sort_direction parameter. Use 'asc' or 'desc'."
-            )
+            # Standard sorting for all other columns
+            sort_expression = column.desc() if sort_direction == "desc" else column.asc()
 
         trips = db.query(database.Trip).filter(database.Trip.vin == vin).order_by(
             sort_expression
@@ -453,6 +417,8 @@ def update_config(new_settings: dict = Body(...)):
         # Update other settings
         current_config['api_retries'] = new_settings['api_retries']
         current_config['api_retry_delay_seconds'] = new_settings['api_retry_delay_seconds']
+        if 'unit_system' in new_settings:
+            current_config['unit_system'] = new_settings['unit_system']
         if 'log_history_size' in new_settings:
             # Ensure it's a positive integer
             current_config['log_history_size'] = max(10, int(new_settings['log_history_size']))
