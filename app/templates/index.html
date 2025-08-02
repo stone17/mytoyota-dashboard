@@ -193,12 +193,6 @@
             flex: 1;
             min-width: 150px; /* Prevent stats from getting too squished */
         }
-        .summary-stat h3 {
-            font-size: 1em;
-            font-weight: normal;
-            margin: 0 0 5px 0;
-            opacity: 0.8;
-        }
         .summary-stat p {
             font-size: 2em;
             font-weight: bold;
@@ -219,7 +213,7 @@
                 <span>Trip History</span>
             </a>
             <a href="/settings" class="nav-link">
-                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c-.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24-.42.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69-.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c-.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
                 <span>Settings</span>
             </a>
             <a href="/logs" class="nav-link">
@@ -229,6 +223,7 @@
         </nav>
         <div class="header-extra">
             <p class="last-updated">Last updated: <span id="last-updated">Never</span></p>
+            <button id="force-poll-main" class="small-btn">Refresh Data</button>
         </div>
     </header>
 
@@ -240,8 +235,11 @@
     <template id="vehicle-template">
         <div class="vehicle-wrapper">
             <div class="vehicle-header">
-                <h2 class="alias"></h2>
-                <p class="model-name"></p>
+                <div class="vehicle-title-group">
+                    <h2 class="alias"></h2>
+                    <p class="model-name"></p>
+                </div>
+                
             </div>
 
             <div class="panels-container">
@@ -249,45 +247,44 @@
                 <div class="panel stats-panel">
                     <div class="panel-header">
                         <h3>Current Statistics</h3>
-                        <button class="small-btn refresh-btn">Refresh</button>
                     </div>
                     <div class="vehicle-stats">
                         <div class="stat stat-odometer">
                             <h3>Odometer</h3>
-                            <p><span class="odometer"></span></p>
+                            <p><span class="odometer">N/A</span></p>
                         </div>
                         <div class="stat stat-range">
                             <h3>Range Left</h3>
-                            <p><span class="total_range"></span></p>
+                            <p><span class="total_range">N/A</span></p>
                         </div>
                         <div class="stat stat-ev-distance">
                             <h3>Total EV Distance</h3>
-                            <p><span class="total_ev_distance_km"></span> (<span class="ev_ratio_percent"></span>%)</p>
+                            <p><span class="total_ev_distance_km">N/A</span> (<span class="ev_ratio_percent">N/A</span>%)</p>
                         </div>
                         <div class="stat stat-fuel-level">
                             <h3>Fuel Level (%)</h3>
-                            <p><span class="fuel_level"></span></p>
+                            <p><span class="fuel_level">N/A</span></p>
                         </div>
                         <div class="stat stat-daily-distance">
                             <h3>Today's Distance</h3>
-                            <p><span class="daily_distance"></span></p>
+                            <p><span class="daily_distance">N/A</span></p>
                         </div>
                         <div class="stat stat-consumption">
                             <h3>Consumption</h3>
-                            <p><span class="overall_fuel_consumption"></span></p>
+                            <p><span class="overall_fuel_consumption">N/A</span></p>
                         </div>
                         <div class="stat stat-total-fuel">
                             <h3>Total Fuel</h3>
-                            <p><span class="total_fuel_l"></span></p>
+                            <p><span class="total_fuel_l">N/A</span></p>
                         </div>
                         <div class="stat stat-duration">
                             <h3>Time Driven (h)</h3>
-                            <p><span class="total_duration"></span></p>
+                            <p><span class="total_duration">N/A</span></p>
                         </div>
                     </div>
                     <h3 class="map-title">Current Location of Car</h3>
                     <div class="location-map-container">
-                        <!-- Map will be inserted here by JS -->
+                        <p style="text-align: center; padding-top: 50px; color: #888;">Location data not available.</p>
                     </div>
                 </div>
 
@@ -341,21 +338,21 @@
                         <h3>Vehicle Status</h3>
                     </div>
                     <ul class="status-list">
-                        <li data-status-key="doors.front_left"><span>Front Left Door</span><span class="status-icon"></span></li>
-                        <li data-status-key="doors.front_right"><span>Front Right Door</span><span class="status-icon"></span></li>
-                        <li data-status-key="doors.rear_left"><span>Rear Left Door</span><span class="status-icon"></span></li>
-                        <li data-status-key="doors.rear_right"><span>Rear Right Door</span><span class="status-icon"></span></li>
-                        <li data-status-key="windows.front_left"><span>Front Left Window</span><span class="status-icon"></span></li>
-                        <li data-status-key="windows.front_right"><span>Front Right Window</span><span class="status-icon"></span></li>
-                        <li data-status-key="windows.rear_left"><span>Rear Left Window</span><span class="status-icon"></span></li>
-                        <li data-status-key="windows.rear_right"><span>Rear Right Window</span><span class="status-icon"></span></li>
-                        <li data-status-key="trunk"><span>Trunk</span><span class="status-icon"></span></li>
-                        <li data-status-key="hood"><span>Hood</span><span class="status-icon"></span></li>
+                        <li data-status-key="doors.front_left"><span>Front Left Door</span><span class="status-icon">N/A</span></li>
+                        <li data-status-key="doors.front_right"><span>Front Right Door</span><span class="status-icon">N/A</span></li>
+                        <li data-status-key="doors.rear_left"><span>Rear Left Door</span><span class="status-icon">N/A</span></li>
+                        <li data-status-key="doors.rear_right"><span>Rear Right Door</span><span class="status-icon">N/A</span></li>
+                        <li data-status-key="windows.front_left"><span>Front Left Window</span><span class="status-icon">N/A</span></li>
+                        <li data-status-key="windows.front_right"><span>Front Right Window</span><span class="status-icon">N/A</span></li>
+                        <li data-status-key="windows.rear_left"><span>Rear Left Window</span><span class="status-icon">N/A</span></li>
+                        <li data-status-key="windows.rear_right"><span>Rear Right Window</span><span class="status-icon">N/A</span></li>
+                        <li data-status-key="trunk"><span>Trunk</span><span class="status-icon">N/A</span></li>
+                        <li data-status-key="hood"><span>Hood</span><span class="status-icon">N/A</span></li>
                     </ul>
                 </div>
             </div>
 
-            <p class="vin">VIN: <span></span></p>
+            <p class="vin">VIN: <span>N/A</span></p>
         </div>
     </template>
 

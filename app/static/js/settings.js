@@ -5,8 +5,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const passwordInput = document.getElementById('password');
     const credentialsMessage = document.getElementById('credentials-message');
 
-    const settingsForm = document.getElementById('settings-form');
-    const statusMessage = document.getElementById('status-message');
+    const pollingSettingsForm = document.getElementById('polling-settings-form');
+    const apiRetriesForm = document.getElementById('api-retries-form');
+    const displaySettingsForm = document.getElementById('display-settings-form');
+    const loggingSettingsForm = document.getElementById('logging-settings-form');
+    const geocodingSettingsForm = document.getElementById('geocoding-settings-form');
+
+    const pollingStatusMessage = document.getElementById('polling-status-message');
+    const apiRetriesStatusMessage = document.getElementById('api-retries-status-message');
+    const displayStatusMessage = document.getElementById('display-status-message');
+    const loggingStatusMessage = document.getElementById('logging-status-message');
+    const geocodingStatusMessage = document.getElementById('geocoding-status-message');
+
     const intervalSettingsDiv = document.getElementById('interval-settings');
     const fixedTimeSettingsDiv = document.getElementById('fixed-time-settings');
 
@@ -15,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const backfillUnitsBtn = document.getElementById('backfill-units-btn');
     const backfillUnitsMessage = document.getElementById('backfill-units-message');
+    const backfillGeocodeBtn = document.getElementById('backfill-geocode-btn');
 
     // --- Helper to display status messages ---
     function showMessage(element, message, type = 'info') {
@@ -57,6 +68,21 @@ document.addEventListener('DOMContentLoaded', () => {
             if (response.ok) {
                 showMessage(credentialsMessage, result.message, 'success');
                 passwordInput.value = ''; // Clear password field after successful save
+
+                // --- Trigger a data poll after saving credentials ---
+                // Show an immediate feedback message
+                showMessage(credentialsMessage, 'Credentials saved. Triggering data fetch...', 'info');
+                try {
+                    const pollResponse = await fetch('/api/force_poll', { method: 'POST' });
+                    const pollResult = await pollResponse.json();
+                    if (pollResponse.ok) {
+                        showMessage(credentialsMessage, 'Data fetch completed successfully!', 'success');
+                    } else {
+                        throw new Error(pollResult.detail || 'Polling failed.');
+                    }
+                } catch (pollError) {
+                    showMessage(credentialsMessage, `Data fetch failed: ${pollError.message}`, 'error');
+                }
             } else {
                 throw new Error(result.detail || 'An unknown error occurred.');
             }
@@ -65,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- Polling and General Settings ---
+    // --- Load Settings ---
     async function loadSettings() {
         try {
             const response = await fetch('/api/config');
@@ -88,8 +114,12 @@ document.addEventListener('DOMContentLoaded', () => {
             // Log History Size
             document.getElementById('log-history-size').value = config.log_history_size || 200;
 
+            // Geocoding
+            document.getElementById('reverse-geocode-enabled').checked = config.reverse_geocode_enabled !== false; // Default to true if not present
+
         } catch (error) {
-            showMessage(statusMessage, `Failed to load settings: ${error.message}`, 'error');
+            console.error(`Failed to load settings: ${error.message}`);
+            showMessage(pollingStatusMessage, `Failed to load settings: ${error.message}`, 'error');
         }
     }
 
@@ -103,9 +133,10 @@ document.addEventListener('DOMContentLoaded', () => {
         radio.addEventListener('change', togglePollingInputs);
     });
 
-    settingsForm.addEventListener('submit', async (e) => {
+    // --- Save Settings Event Listeners ---
+    pollingSettingsForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const formData = new FormData(settingsForm);
+        const formData = new FormData(pollingSettingsForm);
         const newSettings = {
             web_server: {
                 polling: {
@@ -113,13 +144,48 @@ document.addEventListener('DOMContentLoaded', () => {
                     interval_seconds: parseInt(formData.get('interval_seconds'), 10),
                     fixed_time: formData.get('fixed_time'),
                 }
-            },
+            }
+        };
+        await saveConfig(newSettings, pollingStatusMessage);
+    });
+
+    apiRetriesForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(apiRetriesForm);
+        const newSettings = {
             api_retries: parseInt(formData.get('api_retries'), 10),
             api_retry_delay_seconds: parseInt(formData.get('api_retry_delay_seconds'), 10),
+        };
+        await saveConfig(newSettings, apiRetriesStatusMessage);
+    });
+
+    displaySettingsForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(displaySettingsForm);
+        const newSettings = {
             unit_system: formData.get('unit_system'),
+        };
+        await saveConfig(newSettings, displayStatusMessage);
+    });
+
+    loggingSettingsForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(loggingSettingsForm);
+        const newSettings = {
             log_history_size: parseInt(formData.get('log_history_size'), 10),
         };
+        await saveConfig(newSettings, loggingStatusMessage);
+    });
 
+    geocodingSettingsForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const newSettings = {
+            reverse_geocode_enabled: document.getElementById('reverse-geocode-enabled').checked,
+        };
+        await saveConfig(newSettings, geocodingStatusMessage);
+    });
+
+    async function saveConfig(newSettings, messageElement) {
         try {
             const response = await fetch('/api/config', {
                 method: 'POST',
@@ -128,14 +194,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const result = await response.json();
             if (response.ok) {
-                showMessage(statusMessage, result.message, 'success');
+                showMessage(messageElement, result.message, 'success');
             } else {
                 throw new Error(result.detail || 'An unknown error occurred.');
             }
         } catch (error) {
-            showMessage(statusMessage, `Error: ${error.message}`, 'error');
+            showMessage(messageElement, `Error: ${error.message}`, 'error');
         }
-    });
+    }
 
     // --- CSV Import ---
     importForm.addEventListener('submit', async (e) => {
@@ -166,6 +232,29 @@ document.addEventListener('DOMContentLoaded', () => {
             } finally {
                 backfillUnitsBtn.disabled = false;
                 backfillUnitsBtn.textContent = 'Backfill Imperial Units';
+            }
+        });
+    }
+
+    if (backfillGeocodeBtn) {
+        backfillGeocodeBtn.addEventListener('click', async () => {
+            backfillGeocodeBtn.disabled = true;
+            backfillGeocodeBtn.textContent = 'Queuing...';
+            showMessage(geocodingStatusMessage, 'Starting geocoding backfill. This may take some time.', 'info');
+
+            try {
+                const response = await fetch('/api/backfill_geocoding', { method: 'POST' });
+                const result = await response.json();
+                if (response.ok) {
+                    showMessage(geocodingStatusMessage, result.message, 'success');
+                } else {
+                    throw new Error(result.detail || 'Unknown error');
+                }
+            } catch (error) {
+                showMessage(geocodingStatusMessage, `Error: ${error.message}`, 'error');
+            } finally {
+                backfillGeocodeBtn.disabled = false;
+                backfillGeocodeBtn.textContent = 'Geocode Missing Addresses';
             }
         });
     }

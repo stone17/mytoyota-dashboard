@@ -122,3 +122,17 @@ def add_reading(vehicle_data: dict):
             db.refresh(reading)
     finally:
         db.close()
+
+def get_latest_trip_timestamp(vin: str) -> datetime.datetime | None:
+    """Gets the start timestamp of the most recent trip for a given VIN."""
+    db = SessionLocal()
+    try:
+        latest_trip = db.query(Trip).filter(
+            Trip.vin == vin
+        ).order_by(Trip.start_timestamp.desc()).first()
+        
+        if latest_trip:
+            return latest_trip.start_timestamp
+        return None
+    finally:
+        db.close()

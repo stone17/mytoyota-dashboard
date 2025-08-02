@@ -1,23 +1,19 @@
 document.addEventListener('DOMContentLoaded', () => {
     const vehicleContainer = document.getElementById('vehicle-container');
     const vehicleTemplate = document.getElementById('vehicle-template');
-    const lastUpdatedSpan = document.getElementById('last-updated');
 
-    // This is a safeguard. If the script is on a page without the required
-    // elements, it will stop execution gracefully instead of crashing.
-    if (!vehicleContainer || !vehicleTemplate || !lastUpdatedSpan) {
-        console.error("Dashboard UI elements are missing. This script should only run on the main dashboard page.");
+    if (!vehicleContainer || !vehicleTemplate) {
+        console.error("Dashboard UI elements are missing.");
         return;
     }
 
     let appConfig = {
-        unit_system: 'metric' // Default value
+        unit_system: 'metric'
     };
 
-    // --- Unit Conversion Helpers ---
     const KM_TO_MI = 0.621371;
-    const L_TO_GAL_US = 0.264172; // US Gallons
-    const L_TO_GAL_UK = 0.219969; // UK Gallons
+    const L_TO_GAL_US = 0.264172;
+    const L_TO_GAL_UK = 0.219969;
     function l100kmToMpg(l100km, isUk = false) {
         if (l100km <= 0) return 0;
         const factor = isUk ? 282.481 : 235.214;
@@ -33,11 +29,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    let vehicleCharts = {}; // To hold chart instances, keyed by VIN
+    let vehicleCharts = {};
 
     async function renderHistoryChart(vin, canvas, metric1, metric2, period) {
         try {
-            // Destroy existing chart for this VIN if it exists to prevent memory leaks
             if (vehicleCharts[vin]) {
                 vehicleCharts[vin].destroy();
             }
@@ -46,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const isImperial = appConfig.unit_system.startsWith('imperial');
             const isUk = appConfig.unit_system === 'imperial_uk';
-            const labels = dailyData.map(d => new Date(d.date).getDate()); // Just the day number
+            const labels = dailyData.map(d => new Date(d.date).getDate());
 
             const metricConfig = {
                 distance_km: { 
@@ -80,7 +75,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const datasets = [];
             const yAxes = {};
 
-            // Function to create a dataset
             const createDataset = (metric, yAxisID) => {
                 if (!metric || metric === 'none') return null;
 
@@ -107,7 +101,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
             };
 
-            // Left Axis (y)
             const dataset1 = createDataset(metric1, 'y');
             if (dataset1) {
                 datasets.push(dataset1);
@@ -121,7 +114,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
             }
 
-            // Right Axis (y1)
             const dataset2 = createDataset(metric2, 'y1');
             if (dataset2) {
                 datasets.push(dataset2);
@@ -131,16 +123,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     display: true,
                     position: 'right',
                     title: { display: true, text: `${config2.label} (${config2.unit[isImperial ? 'imperial' : 'metric']})` },
-                    grid: { drawOnChartArea: false } // Don't draw grid lines for the second axis
+                    grid: { drawOnChartArea: false }
                 };
             }
 
-            // If only one axis is active, ensure it's displayed
             if (datasets.length === 1 && !yAxes.y) {
                 yAxes.y = { display: true, position: 'left' };
             }
             if (datasets.length === 0) {
-                // Handle case where no metrics are selected
                 yAxes.y = { display: true, beginAtZero: true };
             }
 
@@ -164,7 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ...yAxes
                     },
                     plugins: { 
-                        legend: { display: datasets.length > 1 }, // Show legend only for multiple datasets
+                        legend: { display: datasets.length > 1 },
                         tooltip: {
                             callbacks: {
                                 title: function(tooltipItems) {
@@ -190,10 +180,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            // Store the new chart instance
             vehicleCharts[vin] = chart;
 
-            // --- Calculate and display averages ---
             const summaryContainer = canvas.closest('.charts-panel').querySelector('.chart-summary');
             if (!summaryContainer) {
                 console.error("Chart summary container not found!");
@@ -252,22 +240,21 @@ document.addEventListener('DOMContentLoaded', () => {
             let statusClass = 'unknown';
     
             if (isClosed === false) {
-                statusSymbol = '●'; // A simple dot for open, color will handle the warning
+                statusSymbol = '●';
                 statusClass = 'open';
             } else if (isClosed === true) {
                 if (isLocked === true) {
                     statusSymbol = '🔒';
                     statusClass = 'locked';
-                } else { // isLocked is false or null (for windows/hood)
+                } else {
                     statusSymbol = '●';
                     statusClass = 'closed';
                 }
             }
             statusIconElement.textContent = statusSymbol;
-            liElement.className = statusClass; // Reset and set the new class for styling
+            liElement.className = statusClass;
         };
     
-        // Doors
         if (vehicleStatus.doors) {
             updateItem('doors.front_left', vehicleStatus.doors.front_left?.closed, vehicleStatus.doors.front_left?.locked);
             updateItem('doors.front_right', vehicleStatus.doors.front_right?.closed, vehicleStatus.doors.front_right?.locked);
@@ -275,7 +262,6 @@ document.addEventListener('DOMContentLoaded', () => {
             updateItem('doors.rear_right', vehicleStatus.doors.rear_right?.closed, vehicleStatus.doors.rear_right?.locked);
         }
 
-        // Windows
         if (vehicleStatus.windows) {
             updateItem('windows.front_left', vehicleStatus.windows.front_left?.closed, null);
             updateItem('windows.front_right', vehicleStatus.windows.front_right?.closed, null);
@@ -283,9 +269,8 @@ document.addEventListener('DOMContentLoaded', () => {
             updateItem('windows.rear_right', vehicleStatus.windows.rear_right?.closed, null);
         }
         
-        // Trunk & Hood
         updateItem('trunk', vehicleStatus.trunk_closed, vehicleStatus.trunk_locked);
-        updateItem('hood', vehicleStatus.hood_closed, null); // Hood doesn't have a lock status
+        updateItem('hood', vehicleStatus.hood_closed, null);
     }
 
     async function loadVehicleData() {
@@ -300,144 +285,143 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const vehicles = await response.json();
 
-            // Clear previous entries
             vehicleContainer.innerHTML = '';
 
+            let vehicleToRender;
             if (vehicles.length === 0) {
-                vehicleContainer.innerHTML = `<p>No vehicle data found.</p>`;
+                // Create a dummy vehicle object for the placeholder
+                vehicleToRender = {
+                    vin: "N/A",
+                    alias: "<a href=\"/settings\">Please enter credentials</a>",
+                    model_name: "",
+                    dashboard: {},
+                    statistics: { overall: {}, daily: {} },
+                    status: {}
+                };
+            } else {
+                vehicleToRender = vehicles[0]; // Assuming only one vehicle for now
             }
 
-            vehicles.forEach(vehicle => {
-                const vehicleFragment = vehicleTemplate.content.cloneNode(true);
-                const vehicleCard = vehicleFragment.querySelector('.vehicle-wrapper');
-                
-                // Helper to safely get nested properties
-                const get = (obj, path, def = 'N/A') => path.split('.').reduce((o, k) => (o && o[k] != null) ? o[k] : def, obj);
-                
-                // --- Update Labels based on Unit System ---
-                const distanceUnit = isImperial ? 'mi' : 'km';
-                const consumptionUnit = isImperial ? (isUk ? 'UK MPG' : 'US MPG') : 'L/100km';
-                const fuelUnit = isImperial ? (isUk ? 'UK gal' : 'US gal') : 'L';
+            const vehicleFragment = vehicleTemplate.content.cloneNode(true);
+            const vehicleCard = vehicleFragment.querySelector('.vehicle-wrapper');
+            
+            const get = (obj, path, def = 'N/A') => path.split('.').reduce((o, k) => (o && o[k] != null) ? o[k] : def, obj);
+            
+            const distanceUnit = isImperial ? 'mi' : 'km';
+            const consumptionUnit = isImperial ? (isUk ? 'UK MPG' : 'US MPG') : 'L/100km';
+            const fuelUnit = isImperial ? (isUk ? 'UK gal' : 'US gal') : 'L';
 
-                vehicleCard.querySelector('.stat-odometer h3').textContent = `Odometer (${distanceUnit})`;
-                vehicleCard.querySelector('.stat-range h3').textContent = `Range Left (${distanceUnit})`;
-                vehicleCard.querySelector('.stat-ev-distance h3').textContent = `Total EV Distance (${distanceUnit})`;
-                vehicleCard.querySelector('.stat-daily-distance h3').textContent = `Today's Distance (${distanceUnit})`;
-                vehicleCard.querySelector('.stat-consumption h3').textContent = `Consumption (${consumptionUnit})`;
-                vehicleCard.querySelector('.stat-total-fuel h3').textContent = `Total Fuel (${fuelUnit})`;
+            vehicleCard.querySelector('.stat-odometer h3').textContent = `Odometer (${distanceUnit})`;
+            vehicleCard.querySelector('.stat-range h3').textContent = `Range Left (${distanceUnit})`;
+            vehicleCard.querySelector('.stat-ev-distance h3').textContent = `Total EV Distance (${distanceUnit})`;
+            vehicleCard.querySelector('.stat-daily-distance h3').textContent = `Today\'s Distance (${distanceUnit})`;
+            vehicleCard.querySelector('.stat-consumption h3').textContent = `Consumption (${consumptionUnit})`;
+            vehicleCard.querySelector('.stat-total-fuel h3').textContent = `Total Fuel (${fuelUnit})`;
 
-                // --- Get Metric Values ---
-                const odometerKm = get(vehicle, 'dashboard.odometer', 0);
-                const rangeKm = get(vehicle, 'dashboard.total_range', 0);
-                const evDistanceKm = get(vehicle, 'statistics.overall.total_ev_distance_km', 0);
-                const dailyDistanceKm = get(vehicle, 'statistics.daily.distance', 0);
-                const consumptionL100km = get(vehicle, 'statistics.overall.fuel_consumption_l_100km', 0);
-                const totalFuelL = get(vehicle, 'statistics.overall.total_fuel_l', 0);
+            const odometerKm = get(vehicleToRender, 'dashboard.odometer', 0);
+            const rangeKm = get(vehicleToRender, 'dashboard.total_range', 0);
+            const evDistanceKm = get(vehicleToRender, 'statistics.overall.total_ev_distance_km', 0);
+            const dailyDistanceKm = get(vehicleToRender, 'statistics.daily.distance', 0);
+            const consumptionL100km = get(vehicleToRender, 'statistics.overall.fuel_consumption_l_100km', 0);
+            const totalFuelL = get(vehicleToRender, 'statistics.overall.total_fuel_l', 0);
 
-                // --- Set Unconverted/Static Values ---
-                vehicleCard.querySelector('.alias').textContent = get(vehicle, 'alias');
-                vehicleCard.querySelector('.model-name').textContent = get(vehicle, 'model_name');
-                vehicleCard.querySelector('.fuel_level').textContent = get(vehicle, 'dashboard.fuel_level', 'N/A');
-                vehicleCard.querySelector('.ev_ratio_percent').textContent = get(vehicle, 'statistics.overall.ev_ratio_percent', 'N/A');
-                const totalSeconds = get(vehicle, 'statistics.overall.total_duration_seconds', 0);
-                const totalHours = Math.round(totalSeconds / 3600);
-                vehicleCard.querySelector('.total_duration').textContent = totalHours;
+            vehicleCard.querySelector('.alias').innerHTML = vehicleToRender.alias;
+            vehicleCard.querySelector('.model-name').textContent = vehicleToRender.model_name;
+            vehicleCard.querySelector('.fuel_level').textContent = get(vehicleToRender, 'dashboard.fuel_level', 'N/A');
+            vehicleCard.querySelector('.ev_ratio_percent').textContent = get(vehicleToRender, 'statistics.overall.ev_ratio_percent', 'N/A');
+            const totalSeconds = get(vehicleToRender, 'statistics.overall.total_duration_seconds', 0);
+            const totalHours = Math.round(totalSeconds / 3600);
+            vehicleCard.querySelector('.total_duration').textContent = totalHours;
 
-                // --- Set Converted Values ---
-                if (isImperial) {
-                    vehicleCard.querySelector('.odometer').textContent = Math.round(odometerKm * KM_TO_MI);
-                    vehicleCard.querySelector('.total_range').textContent = Math.round(rangeKm * KM_TO_MI);
-                    vehicleCard.querySelector('.total_ev_distance_km').textContent = Math.round(evDistanceKm * KM_TO_MI);
-                    vehicleCard.querySelector('.daily_distance').textContent = (dailyDistanceKm * KM_TO_MI).toFixed(1);
-                    vehicleCard.querySelector('.overall_fuel_consumption').textContent = l100kmToMpg(consumptionL100km, isUk).toFixed(1);
-                    const gal_factor = isUk ? L_TO_GAL_UK : L_TO_GAL_US;
-                    vehicleCard.querySelector('.total_fuel_l').textContent = (totalFuelL * gal_factor).toFixed(2);
-                } else {
-                    vehicleCard.querySelector('.odometer').textContent = Math.round(odometerKm);
-                    vehicleCard.querySelector('.total_range').textContent = Math.round(rangeKm);
-                    vehicleCard.querySelector('.total_ev_distance_km').textContent = Math.round(evDistanceKm);
-                    vehicleCard.querySelector('.daily_distance').textContent = dailyDistanceKm.toFixed(1);
-                    vehicleCard.querySelector('.overall_fuel_consumption').textContent = consumptionL100km.toFixed(1);
-                    vehicleCard.querySelector('.total_fuel_l').textContent = totalFuelL.toFixed(2);
+            if (isImperial) {
+                vehicleCard.querySelector('.odometer').textContent = Math.round(odometerKm * KM_TO_MI);
+                vehicleCard.querySelector('.total_range').textContent = Math.round(rangeKm * KM_TO_MI);
+                vehicleCard.querySelector('.total_ev_distance_km').textContent = Math.round(evDistanceKm * KM_TO_MI);
+                vehicleCard.querySelector('.daily_distance').textContent = (dailyDistanceKm * KM_TO_MI).toFixed(1);
+                vehicleCard.querySelector('.overall_fuel_consumption').textContent = l100kmToMpg(consumptionL100km, isUk).toFixed(1);
+                const gal_factor = isUk ? L_TO_GAL_UK : L_TO_GAL_US;
+                vehicleCard.querySelector('.total_fuel_l').textContent = (totalFuelL * gal_factor).toFixed(2);
+            } else {
+                vehicleCard.querySelector('.odometer').textContent = Math.round(odometerKm);
+                vehicleCard.querySelector('.total_range').textContent = Math.round(rangeKm);
+                vehicleCard.querySelector('.total_ev_distance_km').textContent = Math.round(evDistanceKm);
+                vehicleCard.querySelector('.daily_distance').textContent = dailyDistanceKm.toFixed(1);
+                vehicleCard.querySelector('.overall_fuel_consumption').textContent = consumptionL100km.toFixed(1);
+                vehicleCard.querySelector('.total_fuel_l').textContent = totalFuelL.toFixed(2);
+            }
+            
+            vehicleCard.querySelector('.vin span').textContent = get(vehicleToRender, 'vin');
+
+            const lat = get(vehicleToRender, 'dashboard.latitude', null);
+            const lon = get(vehicleToRender, 'dashboard.longitude', null);
+            const mapContainer = vehicleCard.querySelector('.location-map-container');
+
+            if (lat && lon) {
+                const embedUrl = `https://maps.google.com/maps?q=${lat},${lon}&z=15&output=embed`;
+                mapContainer.innerHTML = `<iframe src="${embedUrl}"></iframe>`;
+            } else {
+                mapContainer.innerHTML = '<p style="text-align: center; padding-top: 50px; color: #888;">Location data not available.</p>';
+            }
+
+            const vehicleStatus = get(vehicleToRender, 'status', null);
+            updateStatusPanel(vehicleCard, vehicleStatus);
+
+            // Attach event listener to the refresh button within this specific vehicle card
+            const refreshBtn = vehicleCard.querySelector('.header-extra #force-poll-main');
+            const lastUpdatedSpan = vehicleCard.querySelector('.header-extra #last-updated span');
+
+            if (refreshBtn && lastUpdatedSpan) {
+                refreshBtn.addEventListener('click', (e) => handlePollRequest('/api/force_poll', e.target, lastUpdatedSpan));
+            }
+
+            const metricSelects = vehicleCard.querySelectorAll('.chart-metric-select');
+            const periodSelect = vehicleCard.querySelector('.chart-period-select');
+            const chartCanvas = vehicleCard.querySelector('.history-chart');
+
+            const settingsKey = `chartSettings-${vehicleToRender.vin}`;
+
+            const savedSettings = localStorage.getItem(settingsKey);
+            if (savedSettings) {
+                try {
+                    const settings = JSON.parse(savedSettings);
+                    vehicleCard.querySelector('.chart-metric-select[data-axis="left"]').value = settings.metric1;
+                    vehicleCard.querySelector('.chart-metric-select[data-axis="right"]').value = settings.metric2;
+                    periodSelect.value = settings.period;
+                } catch (e) {
+                    console.error(`Error parsing saved chart settings for ${vehicleToRender.vin}:`, e);
+                    localStorage.removeItem(settingsKey);
                 }
-                
-                vehicleCard.querySelector('.vin span').textContent = get(vehicle, 'vin');
+            }
 
-                // Add current location map
-                const lat = get(vehicle, 'dashboard.latitude', null);
-                const lon = get(vehicle, 'dashboard.longitude', null);
-                const mapContainer = vehicleCard.querySelector('.location-map-container');
+            const updateChart = () => {
+                const metric1 = vehicleCard.querySelector('.chart-metric-select[data-axis="left"]').value;
+                const metric2 = vehicleCard.querySelector('.chart-metric-select[data-axis="right"]').value;
+                const period = vehicleCard.querySelector('.chart-period-select').value;
+                localStorage.setItem(settingsKey, JSON.stringify({ metric1, metric2, period }));
+                renderHistoryChart(vehicleToRender.vin, chartCanvas, metric1, metric2, period);
+            };
 
-                if (lat && lon) {
-                    const embedUrl = `https://maps.google.com/maps?q=${lat},${lon}&z=15&output=embed`;
-                    mapContainer.innerHTML = `<iframe src="${embedUrl}"></iframe>`;
-                } else {
-                    mapContainer.innerHTML = '<p style="text-align: center; padding-top: 50px; color: #888;">Location data not available.</p>';
-                }
+            metricSelects.forEach(select => select.addEventListener('change', updateChart));
+            periodSelect.addEventListener('change', updateChart);
 
-                // Populate and update the status panel
-                const vehicleStatus = get(vehicle, 'status', null);
-                updateStatusPanel(vehicleCard, vehicleStatus);
+            updateChart();
+            
+            vehicleContainer.appendChild(vehicleFragment);
 
-                // --- Refresh Button ---
-                const refreshBtn = vehicleCard.querySelector('.refresh-btn');
-                if (refreshBtn) {
-                    refreshBtn.addEventListener('click', (e) => handlePollRequest('/api/force_poll', e.target));
-                }
-
-                // --- New Chart Logic ---
-                const metricSelects = vehicleCard.querySelectorAll('.chart-metric-select');
-                const periodSelect = vehicleCard.querySelector('.chart-period-select');
-                const chartCanvas = vehicleCard.querySelector('.history-chart');
-
-                // Define a unique key for this vehicle's chart settings in localStorage.
-                const settingsKey = `chartSettings-${vehicle.vin}`;
-
-                // Load saved chart settings from localStorage, if they exist.
-                const savedSettings = localStorage.getItem(settingsKey);
-                if (savedSettings) {
-                    try {
-                        const settings = JSON.parse(savedSettings);
-                        vehicleCard.querySelector('.chart-metric-select[data-axis="left"]').value = settings.metric1;
-                        vehicleCard.querySelector('.chart-metric-select[data-axis="right"]').value = settings.metric2;
-                        periodSelect.value = settings.period;
-                    } catch (e) {
-                        console.error(`Error parsing saved chart settings for ${vehicle.vin}:`, e);
-                        localStorage.removeItem(settingsKey); // Clear corrupted data
-                    }
-                }
-
-                const updateChart = () => {
-                    const metric1 = vehicleCard.querySelector('.chart-metric-select[data-axis="left"]').value;
-                    const metric2 = vehicleCard.querySelector('.chart-metric-select[data-axis="right"]').value;
-                    const period = vehicleCard.querySelector('.chart-period-select').value;
-                    // Save the current selections to localStorage for persistence.
-                    localStorage.setItem(settingsKey, JSON.stringify({ metric1, metric2, period }));
-                    renderHistoryChart(vehicle.vin, chartCanvas, metric1, metric2, period);
-                };
-
-                metricSelects.forEach(select => select.addEventListener('change', updateChart));
-                periodSelect.addEventListener('change', updateChart);
-
-                // Initial chart render
-                updateChart();
-                
-                vehicleContainer.appendChild(vehicleFragment);
-            });
-
-            lastUpdatedSpan.textContent = new Date().toLocaleString();
         } catch (error) {
             vehicleContainer.innerHTML = `<p class="error">Failed to fetch data. Is the backend running? Error: ${error.message}</p>`;
         }
     }
 
-    async function handlePollRequest(url, clickedButton) {
-        const allPollButtons = document.querySelectorAll('.refresh-btn');
+    async function handlePollRequest(url, clickedButton, lastUpdatedElement) {
+        const allPollButtons = document.querySelectorAll('.refresh-btn, #force-poll-main');
         allPollButtons.forEach(btn => btn.disabled = true);
 
         const originalText = clickedButton.textContent;
         clickedButton.textContent = 'Updating...';
-        lastUpdatedSpan.textContent = 'Polling now...';
+        if (lastUpdatedElement) {
+            lastUpdatedElement.textContent = 'Polling now...';
+        }
 
         try {
             const response = await fetch(url, { method: 'POST' });
@@ -445,17 +429,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 await loadVehicleData();
             } else {
                 const result = await response.json();
-                lastUpdatedSpan.textContent = `Error: ${result.detail}`;
+                if (lastUpdatedElement) {
+                    lastUpdatedElement.textContent = `Error: ${result.detail}`;
+                }
             }
         } catch (error) {
-            lastUpdatedSpan.textContent = `Error: ${error.message}`;
+            if (lastUpdatedElement) {
+                lastUpdatedElement.textContent = `Error: ${error.message}`;
+            }
         } finally {
             allPollButtons.forEach(btn => btn.disabled = false);
             clickedButton.textContent = originalText;
         }
     }
 
-    // --- Initial Page Load ---
     async function init() {
         await loadConfig();
         await loadVehicleData();
