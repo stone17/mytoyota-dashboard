@@ -9,4 +9,4 @@ web_server:
     interval_seconds: 3600
     fixed_time: 07:00
 log_history_size: 200
-unit_system: imperial
+unit_system: metric

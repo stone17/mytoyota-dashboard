@@ -75,18 +75,25 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
             end_address = end_location.address if end_location else "Unknown"
 
             # Extract and convert primary metrics
-            distance = trip.distance if hasattr(trip, 'distance') and trip.distance is not None else 0.0
+            distance_km = trip.distance if hasattr(trip, 'distance') and trip.distance is not None else 0.0
             fuel_consumption_l_100km = trip.average_fuel_consumed if hasattr(trip, 'average_fuel_consumed') and trip.average_fuel_consumed is not None else 0.0
 
             # Extract detailed metrics, with fallbacks for missing data
             duration_seconds = trip.duration.total_seconds() if hasattr(trip, 'duration') and trip.duration else 0
-            average_speed_kmh = (distance / (duration_seconds / 3600)) if duration_seconds > 0 and distance > 0 else 0.0
+            average_speed_kmh = (distance_km / (duration_seconds / 3600)) if duration_seconds > 0 and distance_km > 0 else 0.0
             max_speed_kmh = None  # Not available in this summary object
             ev_distance_km = trip.ev_distance if hasattr(trip, 'ev_distance') and trip.ev_distance is not None else 0.0
             ev_duration_seconds = trip.ev_duration.total_seconds() if hasattr(trip, 'ev_duration') and trip.ev_duration else 0
             score_acceleration = None
             score_braking = None
             score_global = trip.score if hasattr(trip, 'score') else None
+
+            # --- Pre-calculate Imperial Units ---
+            KM_TO_MI = 0.621371
+            distance_mi = distance_km * KM_TO_MI
+            ev_distance_mi = ev_distance_km * KM_TO_MI
+            average_speed_mph = average_speed_kmh * KM_TO_MI
+            mpg = (235.214 / fuel_consumption_l_100km) if fuel_consumption_l_100km > 0 else 0.0
 
             if existing_trip: # This means it was incomplete (e.g., from CSV import)
                 existing_trip.start_address = start_address
@@ -101,6 +108,10 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
                 existing_trip.ev_distance_km = ev_distance_km
                 existing_trip.ev_duration_seconds = ev_duration_seconds
                 existing_trip.score_global = score_global
+                existing_trip.distance_mi = distance_mi
+                existing_trip.mpg = mpg
+                existing_trip.average_speed_mph = average_speed_mph
+                existing_trip.ev_distance_mi = ev_distance_mi
                 updated_trips_count += 1
             else: # This is a brand new trip
                 new_trip = database.Trip(
@@ -113,7 +124,7 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
                     end_address=end_address,
                     end_lat=trip.locations.end.lat,
                     end_lon=trip.locations.end.lon,
-                    distance_km=distance,
+                    distance_km=distance_km,
                     fuel_consumption_l_100km=fuel_consumption_l_100km,
                     duration_seconds=duration_seconds,
                     average_speed_kmh=average_speed_kmh,
@@ -122,7 +133,11 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
                     ev_duration_seconds=ev_duration_seconds,
                     score_acceleration=score_acceleration,
                     score_braking=score_braking,
-                    score_global=score_global
+                    score_global=score_global,
+                    distance_mi=distance_mi,
+                    mpg=mpg,
+                    average_speed_mph=average_speed_mph,
+                    ev_distance_mi=ev_distance_mi
                 )
                 db_session.add(new_trip)
                 new_trips_count += 1

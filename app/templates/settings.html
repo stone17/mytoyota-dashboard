@@ -132,6 +132,16 @@
             </form>
         </section>
 
+        <section class="settings-section">
+            <h2>Data Utilities</h2>
+            <p>Perform one-time maintenance tasks on your data.</p>
+            <div class="form-group">
+                <button id="backfill-units-btn">Backfill Imperial Units</button>
+                <p>If you've just updated, click this to calculate imperial units (miles, MPG) for all your existing trips. This is a one-time operation.</p>
+            </div>
+            <p id="backfill-units-message" class="status-message"></p>
+        </section>
+
     </main>
 
     <script src="/static/js/settings.js?v={{ cache_buster }}"></script>
