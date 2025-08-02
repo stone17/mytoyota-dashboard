@@ -10,3 +10,4 @@ web_server:
     fixed_time: 07:00
 log_history_size: 200
 unit_system: metric
+reverse_geocode_enabled: true

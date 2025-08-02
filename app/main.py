@@ -324,6 +324,17 @@ def get_daily_summary(vin: str, days: int = 30):
     finally:
         db.close()
 
+@app.get("/api/geocode_status")
+def get_geocode_status():
+    """API endpoint to get the number of trips pending geocoding."""
+    db = database.SessionLocal()
+    try:
+        pending_count = db.query(database.Trip).filter(database.Trip.start_address == "Geocoding...").count()
+        total_count = db.query(database.Trip).count()
+        return {"pending": pending_count, "total": total_count}
+    finally:
+        db.close()
+
 @app.get("/api/trips")
 def get_trips(vin: str, sort_by: str = "start_timestamp", sort_direction: str = "desc", unit_system: str = "metric"):
     """API endpoint to get all imported trips for a vehicle, with robust, unit-aware server-side sorting."""
@@ -375,7 +386,7 @@ async def force_poll():
     """Manually triggers a data fetch."""
     try:
         logging.info("Manual poll triggered via API.")
-        await fetcher.fetch_and_save_data()
+        await fetcher.fetch_and_save_daily_data()
         return {"message": "Data poll completed successfully."}
     except Exception as e:
         logging.error(f"Error during manual poll: {e}", exc_info=True)
@@ -427,6 +438,8 @@ def update_config(new_settings: dict = Body(...)):
         if 'log_history_size' in new_settings:
             # Ensure it's a positive integer
             current_config['log_history_size'] = max(10, int(new_settings['log_history_size']))
+        if 'reverse_geocode_enabled' in new_settings:
+            current_config['reverse_geocode_enabled'] = new_settings['reverse_geocode_enabled']
 
         # Write the updated config back to the file
         with open(CONFIG_PATH, 'w') as f:
@@ -537,6 +550,18 @@ async def import_trips_from_csv(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail="A critical error occurred during import. The entire operation was rolled back.")
     finally:
         db.close()
+
+@app.post("/api/backfill_geocoding")
+async def trigger_geocoding_backfill():
+    """Triggers a manual, on-demand backfill of missing geocoding data."""
+    try:
+        result = await fetcher.backfill_geocoding()
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+        return result
+    except Exception as e:
+        logging.error(f"Error during manual geocoding backfill: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred during the geocoding backfill.")
 
 @app.post("/api/backfill_units")
 def backfill_imperial_units():

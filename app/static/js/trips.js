@@ -10,12 +10,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const columnSelector = document.getElementById('column-selector');
     const backfillControls = document.querySelector('.backfill-buttons');
     const backfillStatusMessage = document.getElementById('backfill-status-message');
+    const geocodeProgressContainer = document.getElementById('geocode-progress-container');
+    const geocodeProgressBar = document.getElementById('geocode-progress-bar');
+    const geocodeProgressText = document.getElementById('geocode-progress-text');
     let currentSort = {
         by: 'start_timestamp',
         direction: 'desc'
     };
-    // No longer need to store all trips on the client
     let appConfig = { unit_system: 'metric' };
+    let geocodeInterval;
 
     // --- Unit Conversion Helpers ---
     const KM_TO_MI = 0.621371;
@@ -71,7 +74,6 @@ document.addEventListener('DOMContentLoaded', () => {
         updateSortIndicators();
 
         try {
-            // Update table headers with correct units before fetching data
             const isImperial = appConfig.unit_system.startsWith('imperial');
             const isUk = appConfig.unit_system === 'imperial_uk';
             const units = {
@@ -86,11 +88,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            // Fetch the pre-sorted list of trips from the server
             const response = await fetch(`/api/trips?vin=${selectedVin}&sort_by=${currentSort.by}&sort_direction=${currentSort.direction}&unit_system=${appConfig.unit_system}`);
             const trips = await response.json();
 
-            renderTable(trips); // Render the sorted trips
+            renderTable(trips);
         } catch (e) {
             console.error("Failed to load trips:", e);
             tripsTableBody.innerHTML = '<tr><td colspan="11">Error loading trips.</td></tr>';
@@ -100,7 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderTable(trips) {
         const isImperial = appConfig.unit_system.startsWith('imperial');
         const isUk = appConfig.unit_system === 'imperial_uk';
-        tripsTableBody.innerHTML = ''; // Clear existing rows
+        tripsTableBody.innerHTML = '';
 
         if (trips.length === 0) {
             tripsTableBody.innerHTML = '<tr><td colspan="11">No trips found for this vehicle.</td></tr>';
@@ -172,12 +173,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateSortIndicators() {
-        // Remove indicators from all headers
         tableHeaderRow.querySelectorAll('th.sortable .sort-indicator').forEach(span => {
             span.textContent = '';
         });
 
-        // Add indicator to the active column
         const activeHeader = tableHeaderRow.querySelector(`th[data-sort="${currentSort.by}"]`);
         if (activeHeader) {
             const indicator = activeHeader.querySelector('.sort-indicator');
@@ -185,8 +184,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-
-    // --- Column Visibility Functions ---
     const COLUMN_PREF_KEY = 'mytoyota_trip_columns';
 
     function updateColumnVisibility() {
@@ -194,7 +191,6 @@ document.addEventListener('DOMContentLoaded', () => {
         checkboxes.forEach(checkbox => {
             const column = checkbox.dataset.column;
             const display = checkbox.checked ? '' : 'none';
-            // Select all table headers and cells for this column
             const cells = document.querySelectorAll(`[data-column="${column}"]`);
             cells.forEach(cell => {
                 cell.style.display = display;
@@ -216,20 +212,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (preferences) {
             const checkboxes = columnSelector.querySelectorAll('input[type="checkbox"]');
             checkboxes.forEach(checkbox => {
-                // If a preference exists for this column, use it. Otherwise, default to checked.
                 checkbox.checked = preferences[checkbox.dataset.column] !== false;
             });
         }
         updateColumnVisibility();
     }
 
-    // --- Column Drag-and-Drop Functions ---
     const COLUMN_ORDER_KEY = 'mytoyota_trip_column_order';
 
     function reorderTableBody(order) {
         const bodyRows = Array.from(tripsTableBody.children);
         bodyRows.forEach(row => {
-            // Guard against empty/placeholder rows
             if (row.children.length > 1) {
                 const cells = Array.from(row.children);
                 const rowFragment = document.createDocumentFragment();
@@ -237,24 +230,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     const cell = cells.find(c => c.dataset.column === columnName);
                     if (cell) rowFragment.appendChild(cell);
                 });
-                row.innerHTML = ''; // Clear existing cells before re-ordering
+                row.innerHTML = '';
                 row.appendChild(rowFragment);
             }
         });
     }
 
     function applyColumnOrder(order) {
-        // Reorder headers
         const headers = Array.from(tableHeaderRow.querySelectorAll('th'));
         const fragment = document.createDocumentFragment();
         order.forEach(columnName => {
             const header = headers.find(h => h.dataset.column === columnName);
             if (header) fragment.appendChild(header);
         });
-        tableHeaderRow.innerHTML = ''; // Clear existing headers
+        tableHeaderRow.innerHTML = '';
         tableHeaderRow.appendChild(fragment);
 
-        // Reorder all body rows
         reorderTableBody(order);
     }
 
@@ -275,6 +266,28 @@ document.addEventListener('DOMContentLoaded', () => {
         backfillStatusMessage.style.display = 'block';
     }
 
+    async function updateGeocodeProgress() {
+        try {
+            const response = await fetch('/api/geocode_status');
+            const data = await response.json();
+
+            if (data.pending > 0) {
+                geocodeProgressContainer.style.display = 'block';
+                const percent = Math.round(((data.total - data.pending) / data.total) * 100);
+                geocodeProgressBar.value = percent;
+                geocodeProgressText.textContent = `${data.total - data.pending} / ${data.total} trips geocoded (${percent}%).`;
+            } else {
+                geocodeProgressContainer.style.display = 'none';
+                if (geocodeInterval) {
+                    clearInterval(geocodeInterval);
+                    geocodeInterval = null;
+                }
+            }
+        } catch (error) {
+            console.error("Failed to get geocode status:", error);
+        }
+    }
+
     closeMapPanelBtn.addEventListener('click', () => {
         mapPanel.style.display = 'none';
     });
@@ -290,7 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
             currentSort.by = sortBy;
             currentSort.direction = 'desc';
         }
-        loadTrips(); // Re-fetch sorted data from the server
+        loadTrips();
     });
 
     vinSelect.addEventListener('change', loadTrips);
@@ -299,7 +312,6 @@ document.addEventListener('DOMContentLoaded', () => {
         saveColumnPreferences();
     });
 
-    // Handle backfill button clicks
     backfillControls.addEventListener('click', async (event) => {
         if (event.target.tagName === 'BUTTON') {
             const vin = vinSelect.value;
@@ -325,7 +337,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const result = await response.json();
                 if (response.ok) {
                     showBackfillStatus(result.message, 'success');
-                    loadTrips(); // Refresh the trip list on success
+                    loadTrips();
+                    if (!geocodeInterval) {
+                        geocodeInterval = setInterval(updateGeocodeProgress, 5000);
+                    }
                 } else {
                     showBackfillStatus(`Error: ${result.detail}`, 'error');
                 }
@@ -338,12 +353,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Initialize SortableJS for column dragging
     new Sortable(tableHeaderRow, {
         animation: 150,
         onEnd: (event) => {
-            // SortableJS has already reordered the headers in the DOM.
-            // We just need to save the new order and reorder the table body to match.
             const headers = Array.from(event.target.querySelectorAll('th'));
             const newOrder = headers.map(th => th.dataset.column);
             localStorage.setItem(COLUMN_ORDER_KEY, JSON.stringify(newOrder));
@@ -356,14 +368,15 @@ document.addEventListener('DOMContentLoaded', () => {
         loadColumnPreferences();
         loadAndApplyColumnOrder();
         await loadVins();
-        // After vehicles are loaded, explicitly load trips for the currently selected one.
         if (vinSelect.value) {
             await loadTrips();
         }
-        // Set initial sort indicator
         const initialSortTh = document.querySelector(`th[data-sort="${currentSort.by}"]`);
         if (initialSortTh) {
             initialSortTh.querySelector('.sort-indicator').textContent = ' ▼';
+        }
+        if (!geocodeInterval) {
+            geocodeInterval = setInterval(updateGeocodeProgress, 5000);
         }
     }
 
