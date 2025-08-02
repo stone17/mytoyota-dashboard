@@ -10,6 +10,27 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
+    let appConfig = {
+        unit_system: 'metric' // Default value
+    };
+
+    // --- Unit Conversion Helpers ---
+    const KM_TO_MI = 0.621371;
+    const L_TO_GAL = 0.264172; // US Gallons
+    function l100kmToMpg(l100km) {
+        if (l100km <= 0) return 0;
+        return 235.214 / l100km;
+    }
+
+    async function loadConfig() {
+        try {
+            const response = await fetch('/api/config');
+            appConfig = await response.json();
+        } catch (error) {
+            console.error("Failed to load application config, using defaults.", error);
+        }
+    }
+
     let vehicleCharts = {}; // To hold chart instances, keyed by VIN
 
     async function renderHistoryChart(vin, canvas, metric1, metric2, period) {
@@ -21,16 +42,35 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch(`/api/vehicles/${vin}/daily_summary?days=${period}`);
             const dailyData = await response.json();
 
+            const isImperial = appConfig.unit_system === 'imperial';
             const labels = dailyData.map(d => new Date(d.date).getDate()); // Just the day number
 
             const metricConfig = {
-                distance_km: { label: 'Distance', unit: 'km', color: '#00529b' },
-                fuel_consumption_l_100km: { label: 'Consumption', unit: 'L/100km', color: '#d9534f' },
-                ev_distance_km: { label: 'EV Distance', unit: 'km', color: '#5cb85c' },
-                ev_duration_seconds: { label: 'EV Duration', unit: 'minutes', color: '#f0ad4e' },
-                score_global: { label: 'Driving Score', unit: 'Score', color: '#5bc0de' },
-                average_speed_kmh: { label: 'Average Speed', unit: 'km/h', color: '#337ab7' },
-                duration_seconds: { label: 'Trip Duration', unit: 'minutes', color: '#777' },
+                distance_km: { 
+                    label: 'Distance', unit: { metric: 'km', imperial: 'mi' }, color: '#00529b',
+                    convert: (val) => val * KM_TO_MI
+                },
+                fuel_consumption_l_100km: { 
+                    label: 'Consumption', unit: { metric: 'L/100km', imperial: 'MPG' }, color: '#d9534f',
+                    convert: (val) => l100kmToMpg(val)
+                },
+                ev_distance_km: { 
+                    label: 'EV Distance', unit: { metric: 'km', imperial: 'mi' }, color: '#5cb85c',
+                    convert: (val) => val * KM_TO_MI
+                },
+                ev_duration_seconds: { 
+                    label: 'EV Duration', unit: { metric: 'minutes', imperial: 'minutes' }, color: '#f0ad4e' 
+                },
+                score_global: { 
+                    label: 'Driving Score', unit: { metric: 'Score', imperial: 'Score' }, color: '#5bc0de' 
+                },
+                average_speed_kmh: { 
+                    label: 'Average Speed', unit: { metric: 'km/h', imperial: 'mph' }, color: '#337ab7',
+                    convert: (val) => val * KM_TO_MI
+                },
+                duration_seconds: { 
+                    label: 'Trip Duration', unit: { metric: 'minutes', imperial: 'minutes' }, color: '#777' 
+                },
                 none: { label: 'None', unit: '', color: '#fff' }
             };
 
@@ -43,6 +83,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 let data = dailyData.map(d => d[metric]);
                 const config = metricConfig[metric];
+
+                if (isImperial && config.convert) {
+                    data = data.map(config.convert);
+                }
 
                 if (metric === 'ev_duration_seconds' || metric === 'duration_seconds') {
                     data = data.map(s => s ? (s / 60).toFixed(1) : 0);
@@ -69,7 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     type: 'linear',
                     display: true,
                     position: 'left',
-                    title: { display: true, text: `${config1.label} (${config1.unit})` },
+                    title: { display: true, text: `${config1.label} (${config1.unit[isImperial ? 'imperial' : 'metric']})` },
                     grid: { color: '#ddd' }
                 };
             }
@@ -83,7 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     type: 'linear',
                     display: true,
                     position: 'right',
-                    title: { display: true, text: `${config2.label} (${config2.unit})` },
+                    title: { display: true, text: `${config2.label} (${config2.unit[isImperial ? 'imperial' : 'metric']})` },
                     grid: { drawOnChartArea: false } // Don't draw grid lines for the second axis
                 };
             }
@@ -132,7 +176,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                         label += ': ';
                                     }
                                     if (context.parsed.y !== null) {
-                                        label += `${context.parsed.y} ${config.unit}`;
+                                        const unit = config.unit[isImperial ? 'imperial' : 'metric'];
+                                        label += `${context.parsed.y.toFixed(1)} ${unit}`;
                                     }
                                     return label;
                                 }
@@ -162,17 +207,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const values = dailyData.map(d => d[metric]).filter(v => v !== null && v > 0);
-                if (values.length === 0) return null;
+                if (values.length === 0) return `Avg ${config.label}: <strong>N/A</strong>`;
                 
                 const sum = values.reduce((a, b) => a + b, 0);
-                const avg = sum / values.length;
+                let avg = sum / values.length;
+
+                const unit = config.unit[isImperial ? 'imperial' : 'metric'];
+
+                if (isImperial && config.convert) {
+                    avg = config.convert(avg);
+                }
                 
                 let formattedAvg;
                 if (metric === 'ev_duration_seconds' || metric === 'duration_seconds') {
                     const totalMinutes = avg / 60;
-                    formattedAvg = `${totalMinutes.toFixed(1)} ${config.unit}`;
+                    formattedAvg = `${totalMinutes.toFixed(1)} ${unit}`;
                 } else {
-                    formattedAvg = `${avg.toFixed(2)} ${config.unit}`;
+                    formattedAvg = `${avg.toFixed(1)} ${unit}`;
                 }
                 return `Avg ${config.label}: <strong>${formattedAvg}</strong>`;
             };
@@ -235,6 +286,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadVehicleData() {
+        const isImperial = appConfig.unit_system === 'imperial';
+
         try {
             const response = await fetch('/api/vehicles');
             if (!response.ok) {
@@ -256,16 +309,53 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // Helper to safely get nested properties
                 const get = (obj, path, def = 'N/A') => path.split('.').reduce((o, k) => (o && o[k] != null) ? o[k] : def, obj);
+                
+                // --- Update Labels based on Unit System ---
+                const distanceUnit = isImperial ? 'mi' : 'km';
+                const consumptionUnit = isImperial ? 'MPG' : 'L/100km';
+                const fuelUnit = isImperial ? 'gal' : 'L';
 
+                vehicleCard.querySelector('.stat-odometer h3').textContent = `Odometer (${distanceUnit})`;
+                vehicleCard.querySelector('.stat-range h3').textContent = `Range Left (${distanceUnit})`;
+                vehicleCard.querySelector('.stat-ev-distance h3').textContent = `Total EV Distance (${distanceUnit})`;
+                vehicleCard.querySelector('.stat-daily-distance h3').textContent = `Today's Distance (${distanceUnit})`;
+                vehicleCard.querySelector('.stat-consumption h3').textContent = `Consumption (${consumptionUnit})`;
+                vehicleCard.querySelector('.stat-total-fuel h3').textContent = `Total Fuel (${fuelUnit})`;
+
+                // --- Get Metric Values ---
+                const odometerKm = get(vehicle, 'dashboard.odometer', 0);
+                const rangeKm = get(vehicle, 'dashboard.total_range', 0);
+                const evDistanceKm = get(vehicle, 'statistics.overall.total_ev_distance_km', 0);
+                const dailyDistanceKm = get(vehicle, 'statistics.daily.distance', 0);
+                const consumptionL100km = get(vehicle, 'statistics.overall.fuel_consumption_l_100km', 0);
+                const totalFuelL = get(vehicle, 'statistics.overall.total_fuel_l', 0);
+
+                // --- Set Unconverted/Static Values ---
                 vehicleCard.querySelector('.alias').textContent = get(vehicle, 'alias');
                 vehicleCard.querySelector('.model-name').textContent = get(vehicle, 'model_name');
-                vehicleCard.querySelector('.odometer').textContent = get(vehicle, 'dashboard.odometer');
-                vehicleCard.querySelector('.fuel_level').textContent = get(vehicle, 'dashboard.fuel_level');
-                vehicleCard.querySelector('.total_range').textContent = get(vehicle, 'dashboard.total_range');
-                vehicleCard.querySelector('.daily_distance').textContent = get(vehicle, 'statistics.daily.distance', 0);
-                vehicleCard.querySelector('.total_ev_distance_km').textContent = get(vehicle, 'statistics.overall.total_ev_distance_km', '0.00');
+                vehicleCard.querySelector('.fuel_level').textContent = get(vehicle, 'dashboard.fuel_level', 'N/A');
                 vehicleCard.querySelector('.ev_ratio_percent').textContent = get(vehicle, 'statistics.overall.ev_ratio_percent', 'N/A');
-                vehicleCard.querySelector('.overall_fuel_consumption').textContent = get(vehicle, 'statistics.overall.fuel_consumption_l_100km', 'N/A');
+                const totalSeconds = get(vehicle, 'statistics.overall.total_duration_seconds', 0);
+                const totalHours = Math.round(totalSeconds / 3600);
+                vehicleCard.querySelector('.total_duration').textContent = totalHours;
+
+                // --- Set Converted Values ---
+                if (isImperial) {
+                    vehicleCard.querySelector('.odometer').textContent = Math.round(odometerKm * KM_TO_MI);
+                    vehicleCard.querySelector('.total_range').textContent = Math.round(rangeKm * KM_TO_MI);
+                    vehicleCard.querySelector('.total_ev_distance_km').textContent = Math.round(evDistanceKm * KM_TO_MI);
+                    vehicleCard.querySelector('.daily_distance').textContent = (dailyDistanceKm * KM_TO_MI).toFixed(1);
+                    vehicleCard.querySelector('.overall_fuel_consumption').textContent = l100kmToMpg(consumptionL100km).toFixed(1);
+                    vehicleCard.querySelector('.total_fuel_l').textContent = (totalFuelL * L_TO_GAL).toFixed(2);
+                } else {
+                    vehicleCard.querySelector('.odometer').textContent = Math.round(odometerKm);
+                    vehicleCard.querySelector('.total_range').textContent = Math.round(rangeKm);
+                    vehicleCard.querySelector('.total_ev_distance_km').textContent = Math.round(evDistanceKm);
+                    vehicleCard.querySelector('.daily_distance').textContent = dailyDistanceKm.toFixed(1);
+                    vehicleCard.querySelector('.overall_fuel_consumption').textContent = consumptionL100km.toFixed(1);
+                    vehicleCard.querySelector('.total_fuel_l').textContent = totalFuelL.toFixed(2);
+                }
+                
                 vehicleCard.querySelector('.vin span').textContent = get(vehicle, 'vin');
 
                 // Add current location map
@@ -360,6 +450,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Load data on page load
-    loadVehicleData();
+    // --- Initial Page Load ---
+    async function init() {
+        await loadConfig();
+        await loadVehicleData();
+    }
+    init();
 });

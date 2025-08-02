@@ -79,6 +79,9 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('api-retries').value = config.api_retries || 3;
             document.getElementById('api-retry-delay').value = config.api_retry_delay_seconds || 20;
 
+            // Display Settings
+            document.querySelector(`input[name="unit_system"][value="${config.unit_system || 'metric'}"]`).checked = true;
+
             // Log History Size
             document.getElementById('log-history-size').value = config.log_history_size || 200;
 
@@ -110,6 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             api_retries: parseInt(formData.get('api_retries'), 10),
             api_retry_delay_seconds: parseInt(formData.get('api_retry_delay_seconds'), 10),
+            unit_system: formData.get('unit_system'),
             log_history_size: parseInt(formData.get('log_history_size'), 10),
         };
 

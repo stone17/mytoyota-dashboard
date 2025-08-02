@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // --- Element Selectors ---
     const vinSelect = document.getElementById('vin-select');
     const tripsTableBody = document.getElementById('trips-table-body');
     const tableHeaderRow = document.getElementById('trip-table-header-row');
@@ -13,6 +14,28 @@ document.addEventListener('DOMContentLoaded', () => {
         by: 'start_timestamp',
         direction: 'desc'
     };
+    // No longer need to store all trips on the client
+    let appConfig = { unit_system: 'metric' };
+
+    // --- Unit Conversion Helpers ---
+    const KM_TO_MI = 0.621371;
+    function l100kmToMpg(l100km) {
+        if (l100km <= 0) return 0;
+        return 235.214 / l100km;
+    }
+
+    async function loadConfig() {
+        try {
+            const response = await fetch('/api/config');
+            if (response.ok) {
+                appConfig = await response.json();
+            } else {
+                console.error("Failed to fetch config, using defaults.");
+            }
+        } catch (error) {
+            console.error("Failed to load application config, using defaults.", error);
+        }
+    }
 
     async function loadVins() {
         try {
@@ -26,8 +49,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     option.textContent = `${vehicle.alias} (${vehicle.vin})`;
                     vinSelect.appendChild(option);
                 });
-                // Automatically load trips for the first vehicle
-                loadTrips();
             } else {
                 vinSelect.innerHTML = '<option>No vehicles found</option>';
                 tripsTableBody.innerHTML = '<tr><td colspan="11">No vehicles found.</td></tr>';
@@ -50,78 +71,94 @@ document.addEventListener('DOMContentLoaded', () => {
         updateSortIndicators();
 
         try {
+            // Update table headers with correct units before fetching data
+            const isImperial = appConfig.unit_system === 'imperial';
+            const units = {
+                distance: isImperial ? '(mi)' : '(km)',
+                consumption: isImperial ? '(MPG)' : '(L/100km)',
+                speed: isImperial ? '(mph)' : '(km/h)'
+            };
+            document.querySelectorAll('.unit').forEach(span => {
+                const unitType = span.dataset.unitType;
+                if (units[unitType]) {
+                    span.textContent = units[unitType];
+                }
+            });
+
+            // Fetch the pre-sorted list of trips from the server
             const response = await fetch(`/api/trips?vin=${selectedVin}&sort_by=${currentSort.by}&sort_direction=${currentSort.direction}`);
             const trips = await response.json();
 
-            tripsTableBody.innerHTML = ''; // Clear loading message
-
-            if (trips.length === 0) {
-                tripsTableBody.innerHTML = '<tr><td colspan="11">No trips found for this vehicle.</td></tr>';
-                return;
-            }
-
-            trips.forEach(trip => {
-                const row = document.createElement('tr');
-
-                // Use a Google Maps URL format that is specifically designed for embedding to avoid "refused to connect" errors.
-                let embedUrl;
-                if (trip.start_lat && trip.start_lon && trip.end_lat && trip.end_lon) {
-                    embedUrl = `https://maps.google.com/maps?saddr=${trip.start_lat},${trip.start_lon}&daddr=${trip.end_lat},${trip.end_lon}&dirflg=c&output=embed`;
-                } else {
-                    embedUrl = `https://maps.google.com/maps?saddr=${encodeURIComponent(trip.start_address)}&daddr=${encodeURIComponent(trip.end_address)}&dirflg=c&output=embed`;
-                }
-
-                const formatTimestamp = (ts) => {
-                    if (!ts) return 'N/A';
-                    const d = new Date(ts);
-                    return `${d.toLocaleDateString()}<br><span class="unit">${d.toLocaleTimeString()}</span>`;
-                };
-                const formatNumber = (num) => {
-                    if (num === null || num === undefined) return 'N/A';
-                    return Number(num).toFixed(2);
-                };
-                const formatDuration = (seconds) => {
-                    if (seconds === null || seconds === undefined || seconds === 0) return 'N/A';
-                    const h = Math.floor(seconds / 3600);
-                    const m = Math.floor((seconds % 3600) / 60);
-                    const s = Math.floor(seconds % 60);
-                    let parts = [];
-                    if (h > 0) parts.push(`${h}h`);
-                    if (m > 0) parts.push(`${m}m`);
-                    if (s > 0 || parts.length === 0) parts.push(`${s}s`);
-                    return parts.join(' ');
-                };
-
-                row.innerHTML = `
-                    <td data-column="start-time">${formatTimestamp(trip.start_timestamp)}</td>
-                    <td data-column="end-time">${formatTimestamp(trip.end_timestamp)}</td>
-                    <td data-column="distance">${formatNumber(trip.distance_km)}</td>
-                    <td data-column="consumption">${formatNumber(trip.fuel_consumption_l_100km)}</td>
-                    <td data-column="start-address">${trip.start_address || 'N/A'}</td>
-                    <td data-column="end-address">${trip.end_address || 'N/A'}</td>
-                    <td data-column="duration">${formatDuration(trip.duration_seconds)}</td>
-                    <td data-column="avg-speed">${formatNumber(trip.average_speed_kmh)}</td>
-                    <td data-column="ev-dist">${formatNumber(trip.ev_distance_km)}</td>
-                    <td data-column="ev-dur">${formatDuration(trip.ev_duration_seconds)}</td>
-                    <td data-column="score">${trip.score_global || 'N/A'}</td>
-                `;
-
-                row.addEventListener('click', () => {
-                    mapPanelTitle.textContent = `Trip from ${formatTimestamp(trip.start_timestamp)}`;
-                    mapPanelContent.innerHTML = `<iframe src="${embedUrl}"></iframe>`;
-                    mapPanel.style.display = 'block';
-                });
-
-                tripsTableBody.appendChild(row);
-            });
-            // Apply column visibility after rows are rendered
-            updateColumnVisibility();
-            // Re-apply the saved column order to the newly rendered rows
-            loadAndApplyColumnOrder();
+            renderTable(trips); // Render the sorted trips
         } catch (e) {
             console.error("Failed to load trips:", e);
             tripsTableBody.innerHTML = '<tr><td colspan="11">Error loading trips.</td></tr>';
         }
+    }
+
+    function renderTable(trips) {
+        const isImperial = appConfig.unit_system === 'imperial';
+        tripsTableBody.innerHTML = ''; // Clear existing rows
+
+        if (trips.length === 0) {
+            tripsTableBody.innerHTML = '<tr><td colspan="11">No trips found for this vehicle.</td></tr>';
+            return;
+        }
+
+        trips.forEach(trip => {
+            const row = document.createElement('tr');
+
+            let embedUrl;
+            if (trip.start_lat && trip.start_lon && trip.end_lat && trip.end_lon) {
+                embedUrl = `https://maps.google.com/maps?saddr=${trip.start_lat},${trip.start_lon}&daddr=${trip.end_lat},${trip.end_lon}&dirflg=c&output=embed`;
+            } else {
+                embedUrl = `https://maps.google.com/maps?saddr=${encodeURIComponent(trip.start_address)}&daddr=${encodeURIComponent(trip.end_address)}&dirflg=c&output=embed`;
+            }
+
+            const formatTimestamp = (ts) => !ts ? 'N/A' : `${new Date(ts).toLocaleDateString()}<br><span class="unit">${new Date(ts).toLocaleTimeString()}</span>`;
+            const formatNumber = (num) => (num === null || num === undefined) ? 'N/A' : Number(num).toFixed(2);
+            const formatDuration = (seconds) => {
+                if (seconds === null || seconds === undefined || seconds === 0) return 'N/A';
+                const h = Math.floor(seconds / 3600);
+                const m = Math.floor((seconds % 3600) / 60);
+                const s = Math.floor(seconds % 60);
+                let parts = [];
+                if (h > 0) parts.push(`${h}h`);
+                if (m > 0) parts.push(`${m}m`);
+                if (s > 0 || parts.length === 0) parts.push(`${s}s`);
+                return parts.join(' ');
+            };
+
+            const distance = isImperial ? (trip.distance_km * KM_TO_MI) : trip.distance_km;
+            const consumption = isImperial ? l100kmToMpg(trip.fuel_consumption_l_100km) : trip.fuel_consumption_l_100km;
+            const avgSpeed = isImperial ? (trip.average_speed_kmh * KM_TO_MI) : trip.average_speed_kmh;
+            const evDistance = isImperial ? (trip.ev_distance_km * KM_TO_MI) : trip.ev_distance_km;
+
+            row.innerHTML = `
+                <td data-column="start-time">${formatTimestamp(trip.start_timestamp)}</td>
+                <td data-column="end-time">${formatTimestamp(trip.end_timestamp)}</td>
+                <td data-column="distance">${formatNumber(distance)}</td>
+                <td data-column="consumption">${formatNumber(consumption)}</td>
+                <td data-column="start-address">${trip.start_address || 'N/A'}</td>
+                <td data-column="end-address">${trip.end_address || 'N/A'}</td>
+                <td data-column="duration">${formatDuration(trip.duration_seconds)}</td>
+                <td data-column="avg-speed">${formatNumber(avgSpeed)}</td>
+                <td data-column="ev-dist">${formatNumber(evDistance)}</td>
+                <td data-column="ev-dur">${formatDuration(trip.ev_duration_seconds)}</td>
+                <td data-column="score">${trip.score_global || 'N/A'}</td>
+            `;
+
+            row.addEventListener('click', () => {
+                mapPanelTitle.textContent = `Trip from ${formatTimestamp(trip.start_timestamp)}`;
+                mapPanelContent.innerHTML = `<iframe src="${embedUrl}"></iframe>`;
+                mapPanel.style.display = 'block';
+            });
+
+            tripsTableBody.appendChild(row);
+        });
+
+        updateColumnVisibility();
+        loadAndApplyColumnOrder();
     }
 
     function updateSortIndicators() {
@@ -243,7 +280,7 @@ document.addEventListener('DOMContentLoaded', () => {
             currentSort.by = sortBy;
             currentSort.direction = 'desc';
         }
-        loadTrips();
+        loadTrips(); // Re-fetch sorted data from the server
     });
 
     vinSelect.addEventListener('change', loadTrips);
@@ -304,7 +341,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    loadColumnPreferences();
-    loadAndApplyColumnOrder();
-    loadVins();
+    async function init() {
+        await loadConfig();
+        loadColumnPreferences();
+        loadAndApplyColumnOrder();
+        await loadVins();
+        // After vehicles are loaded, explicitly load trips for the currently selected one.
+        if (vinSelect.value) {
+            await loadTrips();
+        }
+        // Set initial sort indicator
+        const initialSortTh = document.querySelector(`th[data-sort="${currentSort.by}"]`);
+        if (initialSortTh) {
+            initialSortTh.querySelector('.sort-indicator').textContent = ' ▼';
+        }
+    }
+
+    init();
 });
