@@ -56,6 +56,7 @@ class Trip(Base):
     # --- New columns for pre-calculated imperial units ---
     distance_mi = Column(Float, nullable=True)
     mpg = Column(Float, nullable=True)
+    mpg_uk = Column(Float, nullable=True)
     average_speed_mph = Column(Float, nullable=True)
     ev_distance_mi = Column(Float, nullable=True)
 
@@ -71,6 +72,7 @@ def _add_missing_columns(engine):
     new_columns = {
         'distance_mi': 'FLOAT',
         'mpg': 'FLOAT',
+        'mpg_uk': 'FLOAT',
         'average_speed_mph': 'FLOAT',
         'ev_distance_mi': 'FLOAT'
     }

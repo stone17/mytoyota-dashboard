@@ -16,10 +16,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Unit Conversion Helpers ---
     const KM_TO_MI = 0.621371;
-    const L_TO_GAL = 0.264172; // US Gallons
-    function l100kmToMpg(l100km) {
+    const L_TO_GAL_US = 0.264172; // US Gallons
+    const L_TO_GAL_UK = 0.219969; // UK Gallons
+    function l100kmToMpg(l100km, isUk = false) {
         if (l100km <= 0) return 0;
-        return 235.214 / l100km;
+        const factor = isUk ? 282.481 : 235.214;
+        return factor / l100km;
     }
 
     async function loadConfig() {
@@ -42,7 +44,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch(`/api/vehicles/${vin}/daily_summary?days=${period}`);
             const dailyData = await response.json();
 
-            const isImperial = appConfig.unit_system === 'imperial';
+            const isImperial = appConfig.unit_system.startsWith('imperial');
+            const isUk = appConfig.unit_system === 'imperial_uk';
             const labels = dailyData.map(d => new Date(d.date).getDate()); // Just the day number
 
             const metricConfig = {
@@ -51,8 +54,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     convert: (val) => val * KM_TO_MI
                 },
                 fuel_consumption_l_100km: { 
-                    label: 'Consumption', unit: { metric: 'L/100km', imperial: 'MPG' }, color: '#d9534f',
-                    convert: (val) => l100kmToMpg(val)
+                    label: 'Consumption', unit: { metric: 'L/100km', imperial: isUk ? 'UK MPG' : 'US MPG' }, color: '#d9534f',
+                    convert: (val) => l100kmToMpg(val, isUk)
                 },
                 ev_distance_km: { 
                     label: 'EV Distance', unit: { metric: 'km', imperial: 'mi' }, color: '#5cb85c',
@@ -286,7 +289,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadVehicleData() {
-        const isImperial = appConfig.unit_system === 'imperial';
+        const isImperial = appConfig.unit_system.startsWith('imperial');
+        const isUk = appConfig.unit_system === 'imperial_uk';
 
         try {
             const response = await fetch('/api/vehicles');
@@ -312,8 +316,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // --- Update Labels based on Unit System ---
                 const distanceUnit = isImperial ? 'mi' : 'km';
-                const consumptionUnit = isImperial ? 'MPG' : 'L/100km';
-                const fuelUnit = isImperial ? 'gal' : 'L';
+                const consumptionUnit = isImperial ? (isUk ? 'UK MPG' : 'US MPG') : 'L/100km';
+                const fuelUnit = isImperial ? (isUk ? 'UK gal' : 'US gal') : 'L';
 
                 vehicleCard.querySelector('.stat-odometer h3').textContent = `Odometer (${distanceUnit})`;
                 vehicleCard.querySelector('.stat-range h3').textContent = `Range Left (${distanceUnit})`;
@@ -345,8 +349,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     vehicleCard.querySelector('.total_range').textContent = Math.round(rangeKm * KM_TO_MI);
                     vehicleCard.querySelector('.total_ev_distance_km').textContent = Math.round(evDistanceKm * KM_TO_MI);
                     vehicleCard.querySelector('.daily_distance').textContent = (dailyDistanceKm * KM_TO_MI).toFixed(1);
-                    vehicleCard.querySelector('.overall_fuel_consumption').textContent = l100kmToMpg(consumptionL100km).toFixed(1);
-                    vehicleCard.querySelector('.total_fuel_l').textContent = (totalFuelL * L_TO_GAL).toFixed(2);
+                    vehicleCard.querySelector('.overall_fuel_consumption').textContent = l100kmToMpg(consumptionL100km, isUk).toFixed(1);
+                    const gal_factor = isUk ? L_TO_GAL_UK : L_TO_GAL_US;
+                    vehicleCard.querySelector('.total_fuel_l').textContent = (totalFuelL * gal_factor).toFixed(2);
                 } else {
                     vehicleCard.querySelector('.odometer').textContent = Math.round(odometerKm);
                     vehicleCard.querySelector('.total_range').textContent = Math.round(rangeKm);

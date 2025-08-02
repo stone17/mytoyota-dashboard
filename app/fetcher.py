@@ -93,7 +93,8 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
             distance_mi = distance_km * KM_TO_MI
             ev_distance_mi = ev_distance_km * KM_TO_MI
             average_speed_mph = average_speed_kmh * KM_TO_MI
-            mpg = (235.214 / fuel_consumption_l_100km) if fuel_consumption_l_100km > 0 else 0.0
+            mpg_us = (235.214 / fuel_consumption_l_100km) if fuel_consumption_l_100km > 0 else 0.0
+            mpg_uk = (282.481 / fuel_consumption_l_100km) if fuel_consumption_l_100km > 0 else 0.0
 
             if existing_trip: # This means it was incomplete (e.g., from CSV import)
                 existing_trip.start_address = start_address
@@ -109,7 +110,8 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
                 existing_trip.ev_duration_seconds = ev_duration_seconds
                 existing_trip.score_global = score_global
                 existing_trip.distance_mi = distance_mi
-                existing_trip.mpg = mpg
+                existing_trip.mpg = mpg_us
+                existing_trip.mpg_uk = mpg_uk
                 existing_trip.average_speed_mph = average_speed_mph
                 existing_trip.ev_distance_mi = ev_distance_mi
                 updated_trips_count += 1
@@ -135,7 +137,8 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
                     score_braking=score_braking,
                     score_global=score_global,
                     distance_mi=distance_mi,
-                    mpg=mpg,
+                    mpg=mpg_us,
+                    mpg_uk=mpg_uk,
                     average_speed_mph=average_speed_mph,
                     ev_distance_mi=ev_distance_mi
                 )
