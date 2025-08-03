@@ -47,7 +47,7 @@ async function loadPageData() {
         const vehicle = vehicles[0]; // Assuming one vehicle for this page
         const vin = vehicle.vin;
 
-        // --- 1. Load and Render Notifications (existing logic) ---
+        // --- 1. Load and Render Notifications ---
         let foundNotifications = false;
         if (vehicle.notifications && vehicle.notifications.length > 0) {
             foundNotifications = true;
@@ -55,9 +55,24 @@ async function loadPageData() {
             notificationsList.className = 'notifications-list';
             vehicle.notifications.forEach(notification => {
                 const listItem = document.createElement('li');
-                const messageSpan = document.createElement('span');
-                messageSpan.textContent = notification.message;
-                listItem.appendChild(messageSpan);
+                
+                const contentDiv = document.createElement('div');
+                
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'notification-message';
+                messageDiv.textContent = notification.message;
+                contentDiv.appendChild(messageDiv);
+
+                // --- ADDED: Render the timestamp ---
+                if (notification.date) {
+                    const timeDiv = document.createElement('div');
+                    timeDiv.className = 'notification-time';
+                    timeDiv.textContent = new Date(notification.date).toLocaleString();
+                    contentDiv.appendChild(timeDiv);
+                }
+                
+                listItem.appendChild(contentDiv);
+
                 if (notification.read === null) {
                     const badge = document.createElement('span');
                     badge.className = 'notification-badge';
@@ -80,28 +95,32 @@ async function loadPageData() {
 
         // --- 3. Wire up the Fetch Button ---
         if (fetchBtn) {
-            fetchBtn.addEventListener('click', async function() {
-                fetchBtn.disabled = true;
-                fetchBtn.textContent = 'Fetching...';
-                
-                try {
-                    const fetchResponse = await fetch(`/api/vehicles/${vin}/service_history`, { method: 'POST' });
-                    if (!fetchResponse.ok) {
-                        const errorResult = await fetchResponse.json();
-                        throw new Error(errorResult.detail || 'Failed to fetch service history.');
+            // Prevent adding multiple listeners if this function is ever called more than once
+            if (!fetchBtn.handlerAttached) {
+                fetchBtn.handlerAttached = true;
+                fetchBtn.addEventListener('click', async function() {
+                    fetchBtn.disabled = true;
+                    fetchBtn.textContent = 'Fetching...';
+                    
+                    try {
+                        const fetchResponse = await fetch(`/api/vehicles/${vin}/service_history`, { method: 'POST' });
+                        if (!fetchResponse.ok) {
+                            const errorResult = await fetchResponse.json();
+                            throw new Error(errorResult.detail || 'Failed to fetch service history.');
+                        }
+                        const historyData = await fetchResponse.json();
+                        renderServiceHistory(historyData.service_histories);
+                    } catch (error) {
+                        const placeholder = document.getElementById('service-history-placeholder');
+                        placeholder.textContent = `Error: ${error.message}`;
+                        placeholder.style.color = '#d9534f';
+                        console.error("Service history fetch failed:", error);
+                    } finally {
+                        fetchBtn.disabled = false;
+                        fetchBtn.textContent = 'Fetch History';
                     }
-                    const historyData = await fetchResponse.json();
-                    renderServiceHistory(historyData.service_histories);
-                } catch (error) {
-                    const placeholder = document.getElementById('service-history-placeholder');
-                    placeholder.textContent = `Error: ${error.message}`;
-                    placeholder.style.color = '#d9534f';
-                    console.error("Service history fetch failed:", error);
-                } finally {
-                    fetchBtn.disabled = false;
-                    fetchBtn.textContent = 'Fetch service history';
-                }
-            });
+                });
+            }
         }
 
     } catch (error) {
