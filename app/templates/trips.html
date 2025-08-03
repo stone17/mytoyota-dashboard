@@ -6,6 +6,10 @@
     <title>Trip History - MyToyota Dashboard</title>
     <link rel="stylesheet" href="/static/css/style.css?v={{ cache_buster }}">
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
     <style>
 
         .page-layout {
@@ -118,7 +122,7 @@
             font-size: 0.8em;
             color: #666;
         }
-        .trips-list-container th { background-color: #f4f7f9; position: sticky; top: 0; }
+        .trips-list-container th { background-color: #f4f7f9; position: sticky; top: 0; z-index: 10; }
         .trips-list-container tr:nth-child(even) { background-color: #f9f9f9; }
         .trips-list-container tbody tr:hover { background-color: #eef4f8; cursor: pointer; }
 
@@ -141,7 +145,7 @@
         }
         #map-panel-header h3 { margin: 0; color: #00529b; }
         #close-map-panel-btn { background: none; border: none; font-size: 1.5em; cursor: pointer; color: #666; }
-        #map-panel-content iframe { width: 100%; height: 500px; border: none; }
+        #map { width: 100%; height: 500px; border: none; }
     </style>
 </head>
 <body>
@@ -165,7 +169,7 @@
                 <span>Logs</span>
             </a>
             <a href="/settings" class="nav-link">
-                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24-.42.12-.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69-.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49-1c.23-.09.49 0 .61-.22l2-3.46c-.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61-.25-1.17-.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24-.42.12-.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69-.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49-1c.23-.09.49 0 .61-.22l2-3.46c-.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
                 <span>Settings</span>
             </a>
         </nav>
@@ -240,7 +244,9 @@
                         <h3 id="map-panel-title">Trip Map</h3>
                         <button id="close-map-panel-btn">&times;</button>
                     </div>
-                    <div id="map-panel-content"></div>
+                    <div id="map-panel-content">
+                        <div id="map"></div>
+                    </div>
                 </div>
             </div>
         </main>

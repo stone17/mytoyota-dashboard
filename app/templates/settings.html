@@ -27,6 +27,14 @@
         .status-message.success { background-color: #d4edda; color: #155724; }
         .status-message.error { background-color: #f8d7da; color: #721c24; }
         .status-message.info { background-color: #cce5ff; color: #004085; }
+        .warning-text {
+            color: #8a6d3b;
+            background-color: #fcf8e3;
+            border: 1px solid #faebcc;
+            padding: 8px;
+            border-radius: 4px;
+            margin-top: 8px !important;
+        }
     </style>
 </head>
 <body>
@@ -50,7 +58,7 @@
                 <span>Logs</span>
             </a>
             <a href="/settings" class="nav-link active">
-                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24-.42.12-.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69-.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49-1c.23-.09.49 0 .61-.22l2-3.46c-.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61-.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24-.42.12-.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69-.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49-1c.23-.09.49 0 .61-.22l2-3.46c-.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
                 <span>Settings</span>
             </a>
         </nav>
@@ -145,15 +153,21 @@
         </section>
 
         <section class="settings-section">
-            <h2>Geocoding Settings</h2>
-            <p>Configure how trip addresses are resolved.</p>
+            <h2>Location & GPS Settings</h2>
+            <p>Configure how trip addresses and GPS data are resolved.</p>
             <form id="geocoding-settings-form">
                 <div class="form-group">
                     <label><input type="checkbox" id="reverse-geocode-enabled" name="reverse_geocode_enabled"> Enable Reverse Geocoding</label>
-                    <p>When enabled, the application will use an external service (Nominatim) to convert trip coordinates into street addresses. Disable this if you prefer to only see coordinates or want to reduce external requests.</p>
+                    <p>When enabled, the application will use an external service (Nominatim) to convert trip coordinates into street addresses.</p>
                     <button id="backfill-geocode-btn" type="button">Geocode Missing Addresses</button>
                 </div>
-                <button type="submit">Save Geocoding Settings</button>
+                <div class="form-group">
+                    <label><input type="checkbox" id="fetch-full-route" name="fetch_full_trip_route"> Fetch Full GPS Route for Trips</label>
+                    <p class="warning-text">
+                        <strong>Warning:</strong> Enabling this will significantly increase the time it takes to fetch trips and will use more database storage.
+                    </p>
+                </div>
+                <button type="submit">Save Location Settings</button>
                 <p id="geocoding-status-message" class="status-message"></p>
             </form>
         </section>

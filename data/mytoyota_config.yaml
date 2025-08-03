@@ -11,3 +11,4 @@ web_server:
 log_history_size: 200
 unit_system: metric
 reverse_geocode_enabled: true
+fetch_full_trip_route: true

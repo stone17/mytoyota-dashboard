@@ -67,10 +67,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
             if (response.ok) {
                 showMessage(credentialsMessage, result.message, 'success');
-                passwordInput.value = ''; // Clear password field after successful save
+                passwordInput.value = '';
 
-                // --- Trigger a data poll after saving credentials ---
-                // Show an immediate feedback message
                 showMessage(credentialsMessage, 'Credentials saved. Triggering data fetch...', 'info');
                 try {
                     const pollResponse = await fetch('/api/force_poll', { method: 'POST' });
@@ -97,25 +95,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/api/config');
             const config = await response.json();
 
-            // Polling settings
             const polling = config.web_server?.polling || {};
             document.querySelector(`input[name="poll_mode"][value="${polling.mode || 'interval'}"]`).checked = true;
             document.getElementById('refresh-interval').value = polling.interval_seconds || 3600;
             document.getElementById('fixed-time').value = polling.fixed_time || '07:00';
             togglePollingInputs();
 
-            // API Retries
             document.getElementById('api-retries').value = config.api_retries || 3;
             document.getElementById('api-retry-delay').value = config.api_retry_delay_seconds || 20;
-
-            // Display Settings
             document.querySelector(`input[name="unit_system"][value="${config.unit_system || 'metric'}"]`).checked = true;
-
-            // Log History Size
             document.getElementById('log-history-size').value = config.log_history_size || 200;
+            document.getElementById('reverse-geocode-enabled').checked = config.reverse_geocode_enabled !== false;
+            document.getElementById('fetch-full-route').checked = config.fetch_full_trip_route || false;
 
-            // Geocoding
-            document.getElementById('reverse-geocode-enabled').checked = config.reverse_geocode_enabled !== false; // Default to true if not present
 
         } catch (error) {
             console.error(`Failed to load settings: ${error.message}`);
@@ -179,9 +171,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     geocodingSettingsForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        // --- Start of Targeted Change ---
         const newSettings = {
             reverse_geocode_enabled: document.getElementById('reverse-geocode-enabled').checked,
+            fetch_full_trip_route: document.getElementById('fetch-full-route').checked
         };
+        // --- End of Targeted Change ---
         await saveConfig(newSettings, geocodingStatusMessage);
     });
 
@@ -206,9 +201,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- CSV Import ---
     importForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        // This is a placeholder for the import logic which is already implemented.
-        // The form submission is handled by the browser by default if not prevented.
-        // For AJAX-based submission, the logic would go here.
         showMessage(importStatusMessage, 'Import functionality is handled via a separate endpoint.', 'info');
     });
 

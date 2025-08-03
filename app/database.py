@@ -1,7 +1,7 @@
 # app/database.py
 import datetime
 import logging
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, JSON
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import inspect, text
 
@@ -43,7 +43,6 @@ class Trip(Base):
     end_lon = Column(Float, nullable=True)
     distance_km = Column(Float)
     fuel_consumption_l_100km = Column(Float)
-    # New columns for detailed trip data
     duration_seconds = Column(Integer, nullable=True)
     average_speed_kmh = Column(Float, nullable=True)
     max_speed_kmh = Column(Float, nullable=True)
@@ -53,36 +52,49 @@ class Trip(Base):
     score_braking = Column(Integer, nullable=True)
     score_global = Column(Integer, nullable=True)
 
-    # --- New columns for pre-calculated imperial units ---
+    # --- Columns for pre-calculated imperial units ---
     distance_mi = Column(Float, nullable=True)
     mpg = Column(Float, nullable=True)
     mpg_uk = Column(Float, nullable=True)
     average_speed_mph = Column(Float, nullable=True)
     ev_distance_mi = Column(Float, nullable=True)
+    route = Column(JSON, nullable=True)
 
 def _add_missing_columns(engine):
-    """Checks for and adds missing columns to the trips table without dropping data."""
+    """
+    Compares the columns in the live 'trips' table with the columns in the
+    SQLAlchemy model and adds any that are missing.
+    """
     inspector = inspect(engine)
     try:
-        columns = [c['name'] for c in inspector.get_columns('trips')]
+        # Get the set of column names from the actual database table
+        db_columns = {c['name'] for c in inspector.get_columns('trips')}
     except Exception:
-        # The table probably doesn't exist yet, let create_all handle it.
+        # Table probably doesn't exist yet, create_all will handle it.
         return
     
-    new_columns = {
-        'distance_mi': 'FLOAT',
-        'mpg': 'FLOAT',
-        'mpg_uk': 'FLOAT',
-        'average_speed_mph': 'FLOAT',
-        'ev_distance_mi': 'FLOAT'
-    }
+    # Get the set of column names from the SQLAlchemy model definition
+    model_columns = {c.name for c in Trip.__table__.columns}
+    
+    # Find which columns are defined in the model but not in the database
+    missing_columns = model_columns - db_columns
 
-    with engine.connect() as connection:
-        for col_name, col_type in new_columns.items():
-            if col_name not in columns:
-                _LOGGER.info(f"Adding missing column '{col_name}' to 'trips' table.")
-                connection.execute(text(f'ALTER TABLE trips ADD COLUMN {col_name} {col_type}'))
-        connection.commit()
+    if missing_columns:
+        _LOGGER.info(f"Found missing database columns: {', '.join(missing_columns)}. Updating schema.")
+        with engine.connect() as connection:
+            for col_name in missing_columns:
+                try:
+                    # Get the full column object from the model to determine its type
+                    model_column = Trip.__table__.columns[col_name]
+                    # Compile the SQLAlchemy type into a raw SQL type for the ALTER statement
+                    col_type = model_column.type.compile(engine.dialect)
+                    _LOGGER.info(f"Adding missing column '{col_name}' with type '{col_type}' to 'trips' table.")
+                    # Use a transaction to ensure the operation is atomic
+                    with connection.begin():
+                        connection.execute(text(f'ALTER TABLE trips ADD COLUMN {col_name} {col_type}'))
+                except Exception as e:
+                    _LOGGER.error(f"Failed to add column '{col_name}': {e}")
+            connection.commit()
 
 def init_db():
     """Initializes the database and creates tables if they don't exist."""

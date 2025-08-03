@@ -13,28 +13,109 @@ document.addEventListener('DOMContentLoaded', () => {
     const geocodeProgressContainer = document.getElementById('geocode-progress-container');
     const geocodeProgressBar = document.getElementById('geocode-progress-bar');
     const geocodeProgressText = document.getElementById('geocode-progress-text');
-    let currentSort = {
-        by: 'start_timestamp',
-        direction: 'desc'
-    };
+    
+    let currentSort = { by: 'start_timestamp', direction: 'desc' };
     let appConfig = { unit_system: 'metric' };
     let geocodeInterval;
 
-    // --- Unit Conversion Helpers ---
-    const KM_TO_MI = 0.621371;
-    function l100kmToMpg(l100km) {
-        if (l100km <= 0) return 0;
-        return 235.214 / l100km;
+    // --- Map variables ---
+    let map;
+    let currentMapLayers = [];
+
+    // --- Custom Map Icons ---
+    const startIcon = new L.Icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+    });
+    const endIcon = new L.Icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+    });
+
+    // --- Initialize the map with layer control ---
+    function initMap() {
+        const streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        });
+
+        const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 19,
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+        });
+        
+        const dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        	attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        	subdomains: 'abcd',
+        	maxZoom: 20
+        });
+
+        map = L.map('map', {
+            center: [55.7, 13.2],
+            zoom: 9,
+            layers: [streets] // Set the default layer
+        });
+
+        const baseMaps = {
+            "Streets": streets,
+            "Satellite": satellite,
+            "Dark": dark
+        };
+
+        L.control.layers(baseMaps).addTo(map);
+    }
+
+    // --- Function to clear map and plot a detailed GPS route ---
+    function plotGpsRoute(routePoints) {
+        currentMapLayers.forEach(layer => map.removeLayer(layer));
+        currentMapLayers = [];
+        const latLngs = routePoints.map(p => [p.lat, p.lon]);
+        
+        const polyline = L.polyline(latLngs, { color: '#00529b', weight: 5 }).addTo(map);
+        currentMapLayers.push(polyline);
+        
+        const startMarker = L.marker(latLngs[0], {icon: startIcon}).addTo(map).bindPopup('<b>Start of Trip</b>');
+        currentMapLayers.push(startMarker);
+        
+        const endMarker = L.marker(latLngs[latLngs.length - 1], {icon: endIcon}).addTo(map).bindPopup('<b>End of Trip</b>');
+        currentMapLayers.push(endMarker);
+        
+        map.fitBounds(polyline.getBounds().pad(0.1));
+    }
+
+    // --- Function to plot an estimated route ---
+    function plotEstimatedRoute(startLat, startLon, endLat, endLon) {
+        currentMapLayers.forEach(layer => map.removeLayer(layer));
+        currentMapLayers = [];
+        if (!startLat || !startLon || !endLat || !endLon) return;
+
+        const startLatLng = [startLat, startLon];
+        const endLatLng = [endLat, endLon];
+        
+        const polyline = L.polyline([startLatLng, endLatLng], { color: '#d9534f', weight: 3, dashArray: '10, 10' }).addTo(map);
+        currentMapLayers.push(polyline);
+
+        const startMarker = L.marker(startLatLng, {icon: startIcon}).addTo(map).bindPopup('<b>Trip Start</b><br>(Estimated Route)');
+        currentMapLayers.push(startMarker);
+
+        const endMarker = L.marker(endLatLng, {icon: endIcon}).addTo(map).bindPopup('<b>Trip End</b><br>(Estimated Route)');
+        currentMapLayers.push(endMarker);
+
+        map.fitBounds([startLatLng, endLatLng], { padding: [50, 50] });
     }
 
     async function loadConfig() {
         try {
             const response = await fetch('/api/config');
-            if (response.ok) {
-                appConfig = await response.json();
-            } else {
-                console.error("Failed to fetch config, using defaults.");
-            }
+            appConfig = response.ok ? await response.json() : { unit_system: 'metric' };
         } catch (error) {
             console.error("Failed to load application config, using defaults.", error);
         }
@@ -44,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch('/api/vehicles');
             const vehicles = await response.json();
-            vinSelect.innerHTML = ''; // Clear
+            vinSelect.innerHTML = '';
             if (vehicles.length > 0) {
                 vehicles.forEach(vehicle => {
                     const option = document.createElement('option');
@@ -69,8 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         tripsTableBody.innerHTML = '<tr><td colspan="11">Loading...</td></tr>';
-        mapPanel.style.display = 'none'; // Hide map when loading new trips
-
+        mapPanel.style.display = 'none';
         updateSortIndicators();
 
         try {
@@ -83,14 +163,11 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             document.querySelectorAll('.unit').forEach(span => {
                 const unitType = span.dataset.unitType;
-                if (units[unitType]) {
-                    span.textContent = units[unitType];
-                }
+                if (units[unitType]) span.textContent = units[unitType];
             });
 
             const response = await fetch(`/api/trips?vin=${selectedVin}&sort_by=${currentSort.by}&sort_direction=${currentSort.direction}&unit_system=${appConfig.unit_system}`);
             const trips = await response.json();
-
             renderTable(trips);
         } catch (e) {
             console.error("Failed to load trips:", e);
@@ -110,40 +187,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         trips.forEach(trip => {
             const row = document.createElement('tr');
-
-            let embedUrl;
-            if (trip.start_lat && trip.start_lon && trip.end_lat && trip.end_lon) {
-                embedUrl = `https://maps.google.com/maps?saddr=${trip.start_lat},${trip.start_lon}&daddr=${trip.end_lat},${trip.end_lon}&dirflg=c&output=embed`;
-            } else {
-                embedUrl = `https://maps.google.com/maps?saddr=${encodeURIComponent(trip.start_address)}&daddr=${encodeURIComponent(trip.end_address)}&dirflg=c&output=embed`;
-            }
-
             const formatTimestamp = (ts) => !ts ? 'N/A' : `${new Date(ts).toLocaleDateString()}<br><span class="unit">${new Date(ts).toLocaleTimeString()}</span>`;
             const formatNumber = (num) => (num === null || num === undefined) ? 'N/A' : Number(num).toFixed(2);
             const formatDuration = (seconds) => {
-                if (seconds === null || seconds === undefined || seconds === 0) return 'N/A';
+                if (!seconds) return 'N/A';
                 const h = Math.floor(seconds / 3600);
                 const m = Math.floor((seconds % 3600) / 60);
                 const s = Math.floor(seconds % 60);
-                let parts = [];
-                if (h > 0) parts.push(`${h}h`);
-                if (m > 0) parts.push(`${m}m`);
-                if (s > 0 || parts.length === 0) parts.push(`${s}s`);
-                return parts.join(' ');
+                return [h > 0 ? `${h}h` : '', m > 0 ? `${m}m` : '', s > 0 || (!h && !m) ? `${s}s` : ''].filter(Boolean).join(' ');
             };
 
-            let distance, consumption, avgSpeed, evDistance;
-            if (isImperial) {
-                distance = trip.distance_mi;
-                consumption = isUk ? trip.mpg_uk : trip.mpg;
-                avgSpeed = trip.average_speed_mph;
-                evDistance = trip.ev_distance_mi;
-            } else {
-                distance = trip.distance_km;
-                consumption = trip.fuel_consumption_l_100km;
-                avgSpeed = trip.average_speed_kmh;
-                evDistance = trip.ev_distance_km;
-            }
+            let distance = isImperial ? trip.distance_mi : trip.distance_km;
+            let consumption = isImperial ? (isUk ? trip.mpg_uk : trip.mpg) : trip.fuel_consumption_l_100km;
+            let avgSpeed = isImperial ? trip.average_speed_mph : trip.average_speed_kmh;
+            let evDistance = isImperial ? trip.ev_distance_mi : trip.ev_distance_km;
 
             row.innerHTML = `
                 <td data-column="start-time">${formatTimestamp(trip.start_timestamp)}</td>
@@ -160,78 +217,66 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
 
             row.addEventListener('click', () => {
-                mapPanelTitle.textContent = `Trip from ${formatTimestamp(trip.start_timestamp)}`;
-                mapPanelContent.innerHTML = `<iframe src="${embedUrl}"></iframe>`;
+                mapPanelTitle.textContent = `Trip on ${new Date(trip.start_timestamp).toLocaleDateString()}`;
                 mapPanel.style.display = 'block';
+                setTimeout(() => {
+                    map.invalidateSize();
+                    if (trip.route && trip.route.length > 0) {
+                        plotGpsRoute(trip.route);
+                    } else {
+                        plotEstimatedRoute(trip.start_lat, trip.start_lon, trip.end_lat, trip.end_lon);
+                    }
+                }, 10);
             });
-
             tripsTableBody.appendChild(row);
         });
-
         updateColumnVisibility();
         loadAndApplyColumnOrder();
     }
 
     function updateSortIndicators() {
-        tableHeaderRow.querySelectorAll('th.sortable .sort-indicator').forEach(span => {
-            span.textContent = '';
-        });
-
+        tableHeaderRow.querySelectorAll('th.sortable .sort-indicator').forEach(span => span.textContent = '');
         const activeHeader = tableHeaderRow.querySelector(`th[data-sort="${currentSort.by}"]`);
         if (activeHeader) {
-            const indicator = activeHeader.querySelector('.sort-indicator');
-            indicator.textContent = currentSort.direction === 'asc' ? ' ▲' : ' ▼';
+            activeHeader.querySelector('.sort-indicator').textContent = currentSort.direction === 'asc' ? ' ▲' : ' ▼';
         }
     }
 
     const COLUMN_PREF_KEY = 'mytoyota_trip_columns';
-
     function updateColumnVisibility() {
-        const checkboxes = columnSelector.querySelectorAll('input[type="checkbox"]');
-        checkboxes.forEach(checkbox => {
+        columnSelector.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
             const column = checkbox.dataset.column;
             const display = checkbox.checked ? '' : 'none';
-            const cells = document.querySelectorAll(`[data-column="${column}"]`);
-            cells.forEach(cell => {
-                cell.style.display = display;
-            });
+            document.querySelectorAll(`[data-column="${column}"]`).forEach(cell => cell.style.display = display);
         });
     }
 
     function saveColumnPreferences() {
         const preferences = {};
-        const checkboxes = columnSelector.querySelectorAll('input[type="checkbox"]');
-        checkboxes.forEach(checkbox => {
-            preferences[checkbox.dataset.column] = checkbox.checked;
-        });
+        columnSelector.querySelectorAll('input[type="checkbox"]').forEach(cb => preferences[cb.dataset.column] = cb.checked);
         localStorage.setItem(COLUMN_PREF_KEY, JSON.stringify(preferences));
     }
 
     function loadColumnPreferences() {
         const preferences = JSON.parse(localStorage.getItem(COLUMN_PREF_KEY));
         if (preferences) {
-            const checkboxes = columnSelector.querySelectorAll('input[type="checkbox"]');
-            checkboxes.forEach(checkbox => {
-                checkbox.checked = preferences[checkbox.dataset.column] !== false;
-            });
+            columnSelector.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = preferences[cb.dataset.column] !== false);
         }
         updateColumnVisibility();
     }
 
     const COLUMN_ORDER_KEY = 'mytoyota_trip_column_order';
-
     function reorderTableBody(order) {
-        const bodyRows = Array.from(tripsTableBody.children);
-        bodyRows.forEach(row => {
+        tripsTableBody.querySelectorAll('tr').forEach(row => {
             if (row.children.length > 1) {
                 const cells = Array.from(row.children);
-                const rowFragment = document.createDocumentFragment();
+                const fragment = document.createDocumentFragment();
                 order.forEach(columnName => {
                     const cell = cells.find(c => c.dataset.column === columnName);
-                    if (cell) rowFragment.appendChild(cell);
+                    if (cell) fragment.appendChild(cell);
                 });
                 row.innerHTML = '';
-                row.appendChild(rowFragment);
+                row.appendChild(fragment);
             }
         });
     }
@@ -245,18 +290,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         tableHeaderRow.innerHTML = '';
         tableHeaderRow.appendChild(fragment);
-
         reorderTableBody(order);
     }
 
     function loadAndApplyColumnOrder() {
         const savedOrder = localStorage.getItem(COLUMN_ORDER_KEY);
         if (savedOrder) {
-            try {
-                applyColumnOrder(JSON.parse(savedOrder));
-            } catch (e) {
-                console.error("Failed to apply saved column order.", e);
-            }
+            try { applyColumnOrder(JSON.parse(savedOrder)); }
+            catch (e) { console.error("Failed to apply saved column order.", e); }
         }
     }
 
@@ -270,10 +311,9 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch('/api/geocode_status');
             const data = await response.json();
-
             if (data.pending > 0) {
                 geocodeProgressContainer.style.display = 'block';
-                const percent = Math.round(((data.total - data.pending) / data.total) * 100);
+                const percent = data.total > 0 ? Math.round(((data.total - data.pending) / data.total) * 100) : 0;
                 geocodeProgressBar.value = percent;
                 geocodeProgressText.textContent = `${data.total - data.pending} / ${data.total} trips geocoded (${percent}%).`;
             } else {
@@ -288,14 +328,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    closeMapPanelBtn.addEventListener('click', () => {
-        mapPanel.style.display = 'none';
-    });
-
+    // --- Event Listeners ---
+    closeMapPanelBtn.addEventListener('click', () => mapPanel.style.display = 'none');
     tableHeaderRow.addEventListener('click', (event) => {
         const headerCell = event.target.closest('th.sortable');
         if (!headerCell) return;
-
         const sortBy = headerCell.dataset.sort;
         if (currentSort.by === sortBy) {
             currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
@@ -305,7 +342,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         loadTrips();
     });
-
     vinSelect.addEventListener('change', loadTrips);
     columnSelector.addEventListener('change', () => {
         updateColumnVisibility();
@@ -313,71 +349,55 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     backfillControls.addEventListener('click', async (event) => {
-        if (event.target.tagName === 'BUTTON') {
-            const vin = vinSelect.value;
-            const period = event.target.dataset.period;
-
-            if (!vin) {
-                showBackfillStatus('Please select a vehicle.', 'error');
-                return;
+        if (event.target.tagName !== 'BUTTON') return;
+        const vin = vinSelect.value;
+        const period = event.target.dataset.period;
+        if (!vin) {
+            showBackfillStatus('Please select a vehicle.', 'error');
+            return;
+        }
+        const button = event.target;
+        button.disabled = true;
+        button.textContent = 'Fetching...';
+        showBackfillStatus(`Fetching trips for '${period}'... This may take a moment.`, 'info');
+        try {
+            const response = await fetch(`/api/vehicles/${vin}/fetch_trips`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ period: period })
+            });
+            const result = await response.json();
+            showBackfillStatus(response.ok ? result.message : `Error: ${result.detail}`, response.ok ? 'success' : 'error');
+            if (response.ok) {
+                loadTrips();
+                if (!geocodeInterval) geocodeInterval = setInterval(updateGeocodeProgress, 5000);
             }
-
-            const button = event.target;
-            button.disabled = true;
-            button.textContent = 'Fetching...';
-            showBackfillStatus(`Fetching trips for '${period}'... This may take a moment.`, 'info');
-
-            try {
-                const response = await fetch(`/api/vehicles/${vin}/fetch_trips`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ period: period })
-                });
-
-                const result = await response.json();
-                if (response.ok) {
-                    showBackfillStatus(result.message, 'success');
-                    loadTrips();
-                    if (!geocodeInterval) {
-                        geocodeInterval = setInterval(updateGeocodeProgress, 5000);
-                    }
-                } else {
-                    showBackfillStatus(`Error: ${result.detail}`, 'error');
-                }
-            } catch (error) {
-                showBackfillStatus('An unexpected error occurred during the fetch.', 'error');
-            } finally {
-                button.disabled = false;
-                button.textContent = `Fetch Last ${period.charAt(0).toUpperCase() + period.slice(1)}`;
-            }
+        } catch (error) {
+            showBackfillStatus('An unexpected error occurred during the fetch.', 'error');
+        } finally {
+            button.disabled = false;
+            button.textContent = `Fetch Last ${period.charAt(0).toUpperCase() + period.slice(1)}`;
         }
     });
 
     new Sortable(tableHeaderRow, {
         animation: 150,
         onEnd: (event) => {
-            const headers = Array.from(event.target.querySelectorAll('th'));
-            const newOrder = headers.map(th => th.dataset.column);
+            const newOrder = Array.from(event.target.querySelectorAll('th')).map(th => th.dataset.column);
             localStorage.setItem(COLUMN_ORDER_KEY, JSON.stringify(newOrder));
             reorderTableBody(newOrder);
         }
     });
 
     async function init() {
+        initMap();
         await loadConfig();
         loadColumnPreferences();
         loadAndApplyColumnOrder();
         await loadVins();
-        if (vinSelect.value) {
-            await loadTrips();
-        }
-        const initialSortTh = document.querySelector(`th[data-sort="${currentSort.by}"]`);
-        if (initialSortTh) {
-            initialSortTh.querySelector('.sort-indicator').textContent = ' ▼';
-        }
-        if (!geocodeInterval) {
-            geocodeInterval = setInterval(updateGeocodeProgress, 5000);
-        }
+        if (vinSelect.value) await loadTrips();
+        updateSortIndicators();
+        if (!geocodeInterval) geocodeInterval = setInterval(updateGeocodeProgress, 5000);
     }
 
     init();

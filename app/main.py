@@ -461,10 +461,11 @@ def update_config(new_settings: dict = Body(...)):
         if 'unit_system' in new_settings:
             current_config['unit_system'] = new_settings['unit_system']
         if 'log_history_size' in new_settings:
-            # Ensure it's a positive integer
             current_config['log_history_size'] = max(10, int(new_settings['log_history_size']))
         if 'reverse_geocode_enabled' in new_settings:
             current_config['reverse_geocode_enabled'] = new_settings['reverse_geocode_enabled']
+        if 'fetch_full_trip_route' in new_settings:
+            current_config['fetch_full_trip_route'] = new_settings['fetch_full_trip_route']
 
         # Write the updated config back to the file
         with open(CONFIG_PATH, 'w') as f:

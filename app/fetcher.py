@@ -59,11 +59,13 @@ async def _reverse_geocode_trip(trip_id: int):
         finally:
             db.close()
 
-async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_date, full_route=False):
+async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_date):
     """Helper function to fetch, process, and save trip summaries for a given period."""
     _LOGGER.info(f"Fetching trip summaries for VIN {vehicle.vin} from {from_date} to {to_date}...")
 
-    all_trips = await vehicle.get_trips(from_date=from_date, to_date=to_date)
+    fetch_full_route = settings.get("fetch_full_trip_route", False)
+    all_trips = await vehicle.get_trips(from_date=from_date, to_date=to_date, full_route=fetch_full_route)
+
     if not isinstance(all_trips, list):
         _LOGGER.error(f"Expected a list of trips, but got {type(all_trips)}. Aborting trip fetch.")
         return {"new": 0, "updated": 0, "skipped": 0, "error": "Invalid response from API library"}
@@ -71,6 +73,8 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
     _LOGGER.info(f"API returned a total of {len(all_trips)} trips for the period.")
     new_trips_count = 0
     skipped_trips_count = 0
+    updated_trips_count = 0
+
 
     for trip in all_trips:
         try:
@@ -82,10 +86,21 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
             existing_trip = db_session.query(database.Trip).filter_by(vin=vehicle.vin, start_timestamp=start_ts_utc).first()
 
             if existing_trip:
-                skipped_trips_count += 1
-                continue
+                # Trip already exists. Check if we should update it.
+                route_data = None
+                if fetch_full_route and hasattr(trip, 'route') and trip.route:
+                    route_data = [point.model_dump(mode="json") for point in trip.route]
 
-            # Safely extract trip data with defaults
+                if not existing_trip.route and route_data:
+                    _LOGGER.info(f"Updating existing trip from {start_ts_utc} with new GPS route data.")
+                    existing_trip.route = route_data
+                    db_session.commit()
+                    updated_trips_count += 1
+                else:
+                    skipped_trips_count += 1
+                
+                continue # Move to the next trip
+
             distance_km = getattr(trip, 'distance', 0.0) or 0.0
             fuel_consumption_l_100km = getattr(trip, 'average_fuel_consumed', 0.0) or 0.0
             duration_seconds = getattr(trip, 'duration', datetime.timedelta(0)).total_seconds()
@@ -93,8 +108,12 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
             ev_distance_km = getattr(trip, 'ev_distance', 0.0) or 0.0
             ev_duration_seconds = getattr(trip, 'ev_duration', datetime.timedelta(0)).total_seconds()
             score_global = getattr(trip, 'score', None)
+            
+            route_data = None
+            if fetch_full_route and hasattr(trip, 'route') and trip.route:
+                route_data = [point.model_dump(mode="json") for point in trip.route]
+                print(route_data)
 
-            # Calculate derived units
             KM_TO_MI = 0.621371
             distance_mi = distance_km * KM_TO_MI
             ev_distance_mi = ev_distance_km * KM_TO_MI
@@ -110,7 +129,8 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
                 duration_seconds=duration_seconds, average_speed_kmh=average_speed_kmh,
                 ev_distance_km=ev_distance_km, ev_duration_seconds=ev_duration_seconds,
                 score_global=score_global, distance_mi=distance_mi, mpg=mpg_us, mpg_uk=mpg_uk,
-                average_speed_mph=average_speed_mph, ev_distance_mi=ev_distance_mi
+                average_speed_mph=average_speed_mph, ev_distance_mi=ev_distance_mi,
+                route=route_data 
             )
             db_session.add(new_trip)
             db_session.commit()
@@ -123,8 +143,8 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
             _LOGGER.warning(f"Could not process a trip summary due to an error: {e}. Skipping.", exc_info=True)
             db_session.rollback()
 
-    _LOGGER.info(f"Trip summary fetch for {vehicle.vin} complete. New: {new_trips_count}, Skipped (duplicates): {skipped_trips_count}.")
-    return {"new": 0, "updated": 0, "skipped": skipped_trips_count}
+    _LOGGER.info(f"Trip summary fetch for {vehicle.vin} complete. New: {new_trips_count}, Updated: {updated_trips_count}, Skipped (duplicates): {skipped_trips_count}.")
+    return {"new": new_trips_count, "updated": updated_trips_count, "skipped": skipped_trips_count}
 
 async def _update_vehicle_statistics(vehicle, vehicle_info_dict):
     """Fetches and processes daily driving statistics for the live dashboard tile."""
