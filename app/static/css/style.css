@@ -30,6 +30,7 @@ body {
     display: flex;
     justify-content: center;
     gap: 10px;
+    flex-grow: 1; /* This will center the nav items */
 }
 
 .nav-link {
@@ -53,71 +54,76 @@ body {
 }
 
 .nav-icon {
-    /* This is the critical fix for the oversized icons.
-    We explicitly set width/height and prevent the flex container from resizing it. */
     width: 24px;
     height: 24px;
-    min-width: 24px; /* Ensures the icon does not get stretched wider */
-    flex-shrink: 0;  /* Prevents the icon from shrinking if the container is small */
+    min-width: 24px;
+    flex-shrink: 0;
     fill: currentColor;
 }
 
 .header-extra {
     min-width: 200px;
     text-align: right;
-    font-style: italic;
-    opacity: 0.9;
 }
 
 /* --- Responsive Design for Mobile --- */
 @media (max-width: 768px) {
     .main-header {
-        padding: 0 10px; /* Reduce horizontal padding on smaller screens */
-        justify-content: flex-start; /* Align items to the left */
-        gap: 10px; /* Add space between title and nav icons */
+        padding: 0 10px;
+        justify-content: flex-start;
+        gap: 10px;
     }
 
-    /* Hide the text label next to the icon */
     .nav-link span {
         display: none;
     }
 
-    /* Adjust link for icon-only display */
     .nav-link {
         padding: 15px;
         gap: 0;
     }
 }
 
-        .vehicle-header {
-            border-bottom: 1px solid #eee;
-            padding-bottom: 10px;
-            margin-bottom: 15px;
-            display: flex; /* Added for layout */
-            align-items: center; /* Added for layout */
-            justify-content: space-between; /* Added for layout */
-            flex-wrap: wrap; /* Allow wrapping on smaller screens */
-        }
-        .vehicle-header .vehicle-title-group {
-            display: flex;
-            flex-direction: column;
-        }
-        .vehicle-header .alias {
-            font-size: 1.5em;
-            color: #00529b;
-            margin: 0;
-        }
-        .vehicle-header .model-name {
-            color: #555;
-        }
-        .vehicle-header .header-extra {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            margin-top: 5px; /* Adjust as needed */
-        }
-        .vehicle-header .last-updated {
-            margin: 0;
-            font-size: 0.9em;
-            color: #888;
-        }
+.vehicle-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 20px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+}
+
+.vehicle-title-group {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.vehicle-header .alias {
+    font-size: 1.5em;
+    color: #00529b;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.vehicle-header .model-name {
+    color: #555;
+}
+
+.vehicle-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 5px;
+    flex-shrink: 0;
+}
+
+.vehicle-controls .last-updated {
+    margin: 0;
+    font-size: 0.9em;
+    color: #888;
+    text-align: right;
+}

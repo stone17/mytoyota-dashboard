@@ -367,8 +367,8 @@ document.addEventListener('DOMContentLoaded', () => {
             updateStatusPanel(vehicleCard, vehicleStatus);
 
             // Attach event listener to the refresh button within this specific vehicle card
-            const refreshBtn = vehicleCard.querySelector('.header-extra #force-poll-main');
-            const lastUpdatedSpan = vehicleCard.querySelector('.header-extra #last-updated span');
+            const refreshBtn = vehicleCard.querySelector('.force-poll');
+            const lastUpdatedSpan = vehicleCard.querySelector('.last-updated-time');
 
             if (refreshBtn && lastUpdatedSpan) {
                 refreshBtn.addEventListener('click', (e) => handlePollRequest('/api/force_poll', e.target, lastUpdatedSpan));

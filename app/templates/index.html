@@ -18,14 +18,6 @@
             box-shadow: 0 4px 8px rgba(0,0,0,0.05);
             padding: 20px;
         }
-        .vehicle-header {
-            border-bottom: 1px solid #eee;
-            padding-bottom: 10px;
-            margin-bottom: 15px;
-        }
-        .vehicle-header .alias { font-size: 1.5em; color: #00529b; margin: 0; }
-        .vehicle-header .model-name { color: #555; }
-
         .panels-container {
             display: flex;
             flex-direction: row; /* Horizontal on desktop */
@@ -133,7 +125,6 @@
         }
 
         .vin { font-size: 0.8em; color: #999; text-align: center; margin-top: 20px; }
-        .last-updated { text-align: center; color: #888; font-style: italic; margin-top: 10px; }
 
         /* New Status Panel Styles */
         .status-list { list-style: none; padding: 0; margin: 0; font-size: 0.9em; }
@@ -144,25 +135,6 @@
         .status-list li.closed .status-icon { color: #5cb85c; }
         .status-list li.locked .status-icon { color: #00529b; }
         .status-list li.unknown .status-icon { color: #aaa; }
-
-        .header-controls {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-        .header-controls button {
-            padding: 8px 12px;
-            background-color: #00529b;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .header-controls button:hover { background-color: #003f76; }
-        .header-controls button:disabled { background-color: #aaa; cursor: not-allowed; }
 
         @media (max-width: 900px) {
             .panels-container {
@@ -213,7 +185,7 @@
                 <span>Trip History</span>
             </a>
             <a href="/settings" class="nav-link">
-                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24-.42.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69-.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c-.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24-.42.12-.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69-.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c-.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
                 <span>Settings</span>
             </a>
             <a href="/logs" class="nav-link">
@@ -222,8 +194,6 @@
             </a>
         </nav>
         <div class="header-extra">
-            <p class="last-updated">Last updated: <span id="last-updated">Never</span></p>
-            <button id="force-poll-main" class="small-btn">Refresh Data</button>
         </div>
     </header>
 
@@ -239,7 +209,10 @@
                     <h2 class="alias"></h2>
                     <p class="model-name"></p>
                 </div>
-                
+                <div class="vehicle-controls">
+                    <button class="small-btn force-poll">Refresh Data</button>
+                    <p class="last-updated">Last updated: <span class="last-updated-time">Never</span></p>
+                </div>
             </div>
 
             <div class="panels-container">
