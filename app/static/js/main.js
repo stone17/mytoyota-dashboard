@@ -230,14 +230,22 @@ document.addEventListener('DOMContentLoaded', () => {
             if (summaryContainer) summaryContainer.innerHTML = `<span class="error">Error rendering chart. See console for details.</span>`;
         }
     }
+
     function updateStatusPanel(panel, vehicleStatus) {
         if (!vehicleStatus) return;
+
+        // Select the new text elements
+        const lockStatusText = panel.querySelector('.lock-status-text');
+        const openStatusText = panel.querySelector('.open-status-text');
+
+        let isCompletelyLocked = true;
+        const openItems = [];
 
         const updateItem = (key, isClosed, isLocked) => {
             const liElement = panel.querySelector(`li[data-status-key="${key}"]`);
             if (!liElement) return;
-            const statusIconElement = liElement.querySelector('.status-icon');
 
+            const statusIconElement = liElement.querySelector('.status-icon');
             let statusSymbol = '❔';
             let statusClass = 'unknown';
 
@@ -257,22 +265,58 @@ document.addEventListener('DOMContentLoaded', () => {
             liElement.className = statusClass;
         };
 
+        // Update individual icons and gather overall status
         if (vehicleStatus.doors) {
+            Object.values(vehicleStatus.doors).forEach(door => {
+                if (door.closed === false) openItems.push('door');
+                if (door.locked === false) isCompletelyLocked = false;
+            });
             updateItem('doors.front_left', vehicleStatus.doors.front_left?.closed, vehicleStatus.doors.front_left?.locked);
             updateItem('doors.front_right', vehicleStatus.doors.front_right?.closed, vehicleStatus.doors.front_right?.locked);
             updateItem('doors.rear_left', vehicleStatus.doors.rear_left?.closed, vehicleStatus.doors.rear_left?.locked);
             updateItem('doors.rear_right', vehicleStatus.doors.rear_right?.closed, vehicleStatus.doors.rear_right?.locked);
+        } else {
+            isCompletelyLocked = false; // If no door data, assume not locked
         }
 
         if (vehicleStatus.windows) {
+             Object.values(vehicleStatus.windows).forEach(window => {
+                if (window.closed === false) openItems.push('window');
+            });
             updateItem('windows.front_left', vehicleStatus.windows.front_left?.closed, null);
             updateItem('windows.front_right', vehicleStatus.windows.front_right?.closed, null);
             updateItem('windows.rear_left', vehicleStatus.windows.rear_left?.closed, null);
             updateItem('windows.rear_right', vehicleStatus.windows.rear_right?.closed, null);
         }
 
+        if (vehicleStatus.trunk_closed === false) openItems.push('trunk');
+        if (vehicleStatus.hood_closed === false) openItems.push('hood');
+        if (vehicleStatus.trunk_locked === false) isCompletelyLocked = false;
+        
         updateItem('trunk', vehicleStatus.trunk_closed, vehicleStatus.trunk_locked);
         updateItem('hood', vehicleStatus.hood_closed, null);
+
+
+        // --- Update the new text elements based on overall status ---
+        if (lockStatusText) {
+            if (isCompletelyLocked) {
+                lockStatusText.textContent = '(Locked)';
+                lockStatusText.className = 'lock-status-text locked';
+            } else {
+                lockStatusText.textContent = '(Unlocked)';
+                lockStatusText.className = 'lock-status-text unlocked';
+            }
+        }
+
+        if (openStatusText) {
+            const uniqueOpenItems = [...new Set(openItems)];
+            if (uniqueOpenItems.length > 0) {
+                const message = uniqueOpenItems.map(item => item.charAt(0).toUpperCase() + item.slice(1) + '(s)').join(' & ') + ' open';
+                openStatusText.textContent = `Warning: ${message}`;
+            } else {
+                openStatusText.textContent = '';
+            }
+        }
     }
 
     async function loadVehicleData() {
@@ -369,7 +413,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const mapContainer = vehicleCard.querySelector('.location-map-container');
 
             if (lat && lon) {
-                const embedUrl = `https://maps.google.com/maps?q=${lat},${lon}&z=15&output=embed`;
+                const embedUrl = `https://www.google.com/maps?q=${lat},${lon}&z=15&output=embed`;
                 mapContainer.innerHTML = `<iframe src="${embedUrl}"></iframe>`;
             } else {
                 mapContainer.innerHTML = '<p style="text-align: center; padding-top: 50px; color: #888;">Location data not available.</p>';

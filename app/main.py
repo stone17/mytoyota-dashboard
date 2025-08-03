@@ -68,9 +68,10 @@ async def schedule_fetch():
     """Runs the data fetcher on a schedule."""
     while True:
         try:
-            await fetcher.fetch_and_save_data()
+            # MODIFIED: Call the new unified fetch cycle function.
+            await fetcher.run_fetch_cycle()
         except Exception as e:
-            logging.error(f"Error in scheduled fetch: {e}")
+            logging.error(f"Error in scheduled fetch: {e}", exc_info=True)
 
         web_server_settings = settings.get("web_server", {})
         polling_settings = web_server_settings.get("polling", {})
@@ -241,7 +242,6 @@ async def stream_logs(request: Request):
     return StreamingResponse(log_stream_generator(request), media_type="text/event-stream")
 
 @app.get("/api/vehicles/{vin}/history")
-
 def get_vehicle_history(vin: str, days: int = 30):
     """API endpoint to get historical data for a vehicle."""
     db = database.SessionLocal()
@@ -256,7 +256,6 @@ def get_vehicle_history(vin: str, days: int = 30):
         db.close()
 
 @app.get("/api/vehicles/{vin}/daily_summary")
-
 def get_daily_summary(vin: str, days: int = 30):
     """
     API endpoint to get a summary of distance and fuel consumption per day,
@@ -331,7 +330,6 @@ def get_daily_summary(vin: str, days: int = 30):
         db.close()
 
 @app.get("/api/geocode_status")
-
 def get_geocode_status():
     """API endpoint to get the number of trips pending geocoding."""
     db = database.SessionLocal()
@@ -343,7 +341,6 @@ def get_geocode_status():
         db.close()
 
 @app.get("/api/trips")
-
 def get_trips(vin: str, sort_by: str = "start_timestamp", sort_direction: str = "desc", unit_system: str = "metric"):
     """API endpoint to get all imported trips for a vehicle, with robust, unit-aware server-side sorting."""
     db = database.SessionLocal()
@@ -394,21 +391,20 @@ async def force_poll():
     """Manually triggers a data fetch."""
     try:
         logging.info("Manual poll triggered via API.")
-        await fetcher.fetch_and_save_daily_data()
+        # MODIFIED: Call the new unified fetch cycle function.
+        await fetcher.run_fetch_cycle()
         return {"message": "Data poll completed successfully."}
     except Exception as e:
         logging.error(f"Error during manual poll: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred during the data poll.")
 
 @app.get("/api/credentials")
-
 def get_stored_username():
     """API endpoint to get the stored username."""
     username = get_username()
     return {"username": username or ""}
 
 @app.post("/api/credentials")
-
 def update_credentials(creds: dict = Body(...)):
     """API endpoint to update and save credentials."""
     username = creds.get("username")
@@ -422,13 +418,11 @@ def update_credentials(creds: dict = Body(...)):
         logging.error(f"Error saving credentials: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to save credentials.")
 @app.get("/api/config")
-
 def get_config():
     """API endpoint to get the current configuration."""
     return settings
 
 @app.post("/api/config")
-
 def update_config(new_settings: dict = Body(...)):
     """API endpoint to update the configuration file."""
     try:
@@ -443,8 +437,10 @@ def update_config(new_settings: dict = Body(...)):
                 del current_config['web_server']['data_refresh_interval_seconds']
 
         # Update other settings
-        current_config['api_retries'] = new_settings['api_retries']
-        current_config['api_retry_delay_seconds'] = new_settings['api_retry_delay_seconds']
+        if 'api_retries' in new_settings:
+            current_config['api_retries'] = new_settings['api_retries']
+        if 'api_retry_delay_seconds' in new_settings:
+            current_config['api_retry_delay_seconds'] = new_settings['api_retry_delay_seconds']
         if 'unit_system' in new_settings:
             current_config['unit_system'] = new_settings['unit_system']
         if 'log_history_size' in new_settings:
@@ -576,7 +572,6 @@ async def trigger_geocoding_backfill():
         raise HTTPException(status_code=500, detail="An internal error occurred during the geocoding backfill.")
 
 @app.post("/api/backfill_units")
-
 def backfill_imperial_units():
     """One-off utility to calculate and save imperial units for all existing trips."""
     db = database.SessionLocal()
