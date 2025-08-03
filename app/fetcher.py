@@ -194,11 +194,25 @@ def _build_vehicle_info_dict(vehicle):
                     door_obj = getattr(doors, attr_name)
                     _LOGGER.debug(f"Processing door '{key}': raw closed={door_obj.closed}, raw locked={door_obj.locked}")
                     
-                    # CORRECTED: Interpret None for 'closed' as False (Open)
-                    closed_status = False if door_obj.closed is None else door_obj.closed
-                    locked_status = False if door_obj.locked is None else door_obj.locked
+                    # --- Start of Targeted Change ---
+                    raw_closed = door_obj.closed
+                    raw_locked = door_obj.locked
+
+                    # Determine final status based on the new rule
+                    locked_status = False if raw_locked is None else raw_locked
+                    
+                    if raw_closed is not None:
+                        closed_status = raw_closed
+                    elif locked_status is True:
+                        # If a door is locked but its closed status is None, it must be closed
+                        _LOGGER.debug(f"Door '{key}' has closed=None but locked=True. Interpreting as closed.")
+                        closed_status = True
+                    else:
+                        # Default for any other case where closed is None (e.g., closed=None and locked=False/None)
+                        closed_status = False 
                     
                     doors_status[key] = {"closed": closed_status, "locked": locked_status}
+                    # --- End of Targeted Change ---
                 else:
                     doors_status[key] = {"closed": True, "locked": False}
             
