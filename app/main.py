@@ -160,22 +160,34 @@ async def get_vehicle_data():
     """API endpoint to get the cached vehicle data."""
     async with fetcher.CACHE_LOCK:
         if not fetcher.CACHE_FILE.exists():
-            # Return an empty list if the cache file doesn't exist yet.
-            # This provides a better frontend experience than a 404 error.
             return []
-        async with aiofiles.open(fetcher.CACHE_FILE, 'r') as f:
-            content = await f.read()
-            data = json.loads(content)
-            vehicles_data = data.get("vehicles", [])
-            last_updated = data.get("last_updated", "Never")
+        
+        # --- Start of Targeted Change ---
+        try:
+            async with aiofiles.open(fetcher.CACHE_FILE, 'r') as f:
+                content = await f.read()
+                if not content.strip(): # Handle empty file case
+                    raise json.JSONDecodeError("Empty file content", "", 0)
+                data = json.loads(content)
+        except (json.JSONDecodeError, IOError) as e:
+            _LOGGER.warning(f"Cache file is corrupted or unreadable ({e}). Creating a new one.")
+            data = {"last_updated": None, "vehicles": []}
+            try:
+                async with aiofiles.open(fetcher.CACHE_FILE, 'w') as f:
+                    await f.write(json.dumps(data, indent=2))
+            except IOError as io_e:
+                _LOGGER.error(f"Could not create new cache file: {io_e}")
+        
+        vehicles_data = data.get("vehicles", [])
+        last_updated = data.get("last_updated") or "Never"
+        # --- End of Targeted Change ---
 
         # Augment vehicle data with all-time statistics from the database
         db = database.SessionLocal()
         try:
             from sqlalchemy import func
             for vehicle in vehicles_data:
-                if last_updated:
-                    vehicle["last_updated"] = last_updated
+                vehicle["last_updated"] = last_updated
                 vin = vehicle.get("vin")
                 if not vin:
                     continue
@@ -193,7 +205,6 @@ async def get_vehicle_data():
                 vehicle["statistics"]["overall"] = {}
                 if stats and stats.total_distance is not None:
                     total_distance = stats.total_distance
-                    # If the sum is NULL (no EV trips), it will be None. Default to 0.
                     total_ev_distance = stats.total_ev_distance or 0.0
                     total_fuel = stats.total_fuel or 0.0
                     total_duration_seconds = stats.total_duration_seconds or 0
