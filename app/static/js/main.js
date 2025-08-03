@@ -24,7 +24,8 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch('/api/config');
             appConfig = await response.json();
-        } catch (error) {
+        }
+        catch (error) {
             console.error("Failed to load application config, using defaults.", error);
         }
     }
@@ -44,30 +45,30 @@ document.addEventListener('DOMContentLoaded', () => {
             const labels = dailyData.map(d => new Date(d.date).getDate());
 
             const metricConfig = {
-                distance_km: { 
+                distance_km: {
                     label: 'Distance', unit: { metric: 'km', imperial: 'mi' }, color: '#00529b',
                     convert: (val) => val * KM_TO_MI
                 },
-                fuel_consumption_l_100km: { 
+                fuel_consumption_l_100km: {
                     label: 'Consumption', unit: { metric: 'L/100km', imperial: isUk ? 'UK MPG' : 'US MPG' }, color: '#d9534f',
                     convert: (val) => l100kmToMpg(val, isUk)
                 },
-                ev_distance_km: { 
+                ev_distance_km: {
                     label: 'EV Distance', unit: { metric: 'km', imperial: 'mi' }, color: '#5cb85c',
                     convert: (val) => val * KM_TO_MI
                 },
-                ev_duration_seconds: { 
-                    label: 'EV Duration', unit: { metric: 'minutes', imperial: 'minutes' }, color: '#f0ad4e' 
+                ev_duration_seconds: {
+                    label: 'EV Duration', unit: { metric: 'minutes', imperial: 'minutes' }, color: '#f0ad4e'
                 },
-                score_global: { 
-                    label: 'Driving Score', unit: { metric: 'Score', imperial: 'Score' }, color: '#5bc0de' 
+                score_global: {
+                    label: 'Driving Score', unit: { metric: 'Score', imperial: 'Score' }, color: '#5bc0de'
                 },
-                average_speed_kmh: { 
+                average_speed_kmh: {
                     label: 'Average Speed', unit: { metric: 'km/h', imperial: 'mph' }, color: '#337ab7',
                     convert: (val) => val * KM_TO_MI
                 },
-                duration_seconds: { 
-                    label: 'Trip Duration', unit: { metric: 'minutes', imperial: 'minutes' }, color: '#777' 
+                duration_seconds: {
+                    label: 'Trip Duration', unit: { metric: 'minutes', imperial: 'minutes' }, color: '#777'
                 },
                 none: { label: 'None', unit: '', color: '#fff' }
             };
@@ -148,12 +149,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         intersect: false,
                     },
                     scales: {
-                        x: { 
+                        x: {
                             title: { display: true, text: 'Day of Month' }
                         },
                         ...yAxes
                     },
-                    plugins: { 
+                    plugins: {
                         legend: { display: datasets.length > 1 },
                         tooltip: {
                             callbacks: {
@@ -199,7 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const values = dailyData.map(d => d[metric]).filter(v => v !== null && v > 0);
                 if (values.length === 0) return `Avg ${config.label}: <strong>N/A</strong>`;
-                
+
                 const sum = values.reduce((a, b) => a + b, 0);
                 let avg = sum / values.length;
 
@@ -208,7 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (isImperial && config.convert) {
                     avg = config.convert(avg);
                 }
-                
+
                 let formattedAvg;
                 if (metric === 'ev_duration_seconds' || metric === 'duration_seconds') {
                     const totalMinutes = avg / 60;
@@ -222,7 +223,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const summaryParts = [calculateAverage(metric1), calculateAverage(metric2)].filter(Boolean);
             summaryContainer.innerHTML = summaryParts.join(' | ');
 
-        } catch (error) {
+        }
+        catch (error) {
             console.error(`[renderHistoryChart] CRITICAL ERROR for VIN ${vin}:`, error);
             const summaryContainer = canvas.closest('.charts-panel').querySelector('.chart-summary');
             if (summaryContainer) summaryContainer.innerHTML = `<span class="error">Error rendering chart. See console for details.</span>`;
@@ -230,15 +232,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     function updateStatusPanel(panel, vehicleStatus) {
         if (!vehicleStatus) return;
-    
+
         const updateItem = (key, isClosed, isLocked) => {
             const liElement = panel.querySelector(`li[data-status-key="${key}"]`);
             if (!liElement) return;
             const statusIconElement = liElement.querySelector('.status-icon');
-    
+
             let statusSymbol = '❔';
             let statusClass = 'unknown';
-    
+
             if (isClosed === false) {
                 statusSymbol = '●';
                 statusClass = 'open';
@@ -254,7 +256,7 @@ document.addEventListener('DOMContentLoaded', () => {
             statusIconElement.textContent = statusSymbol;
             liElement.className = statusClass;
         };
-    
+
         if (vehicleStatus.doors) {
             updateItem('doors.front_left', vehicleStatus.doors.front_left?.closed, vehicleStatus.doors.front_left?.locked);
             updateItem('doors.front_right', vehicleStatus.doors.front_right?.closed, vehicleStatus.doors.front_right?.locked);
@@ -268,7 +270,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateItem('windows.rear_left', vehicleStatus.windows.rear_left?.closed, null);
             updateItem('windows.rear_right', vehicleStatus.windows.rear_right?.closed, null);
         }
-        
+
         updateItem('trunk', vehicleStatus.trunk_closed, vehicleStatus.trunk_locked);
         updateItem('hood', vehicleStatus.hood_closed, null);
     }
@@ -296,7 +298,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     model_name: "",
                     dashboard: {},
                     statistics: { overall: {}, daily: {} },
-                    status: {}
+                    status: {},
+                    last_updated: "Never"
                 };
             } else {
                 vehicleToRender = vehicles[0]; // Assuming only one vehicle for now
@@ -304,9 +307,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const vehicleFragment = vehicleTemplate.content.cloneNode(true);
             const vehicleCard = vehicleFragment.querySelector('.vehicle-wrapper');
-            
+
             const get = (obj, path, def = 'N/A') => path.split('.').reduce((o, k) => (o && o[k] != null) ? o[k] : def, obj);
-            
+
             const distanceUnit = isImperial ? 'mi' : 'km';
             const consumptionUnit = isImperial ? (isUk ? 'UK MPG' : 'US MPG') : 'L/100km';
             const fuelUnit = isImperial ? (isUk ? 'UK gal' : 'US gal') : 'L';
@@ -314,7 +317,7 @@ document.addEventListener('DOMContentLoaded', () => {
             vehicleCard.querySelector('.stat-odometer h3').textContent = `Odometer (${distanceUnit})`;
             vehicleCard.querySelector('.stat-range h3').textContent = `Range Left (${distanceUnit})`;
             vehicleCard.querySelector('.stat-ev-distance h3').textContent = `Total EV Distance (${distanceUnit})`;
-            vehicleCard.querySelector('.stat-daily-distance h3').textContent = `Today\'s Distance (${distanceUnit})`;
+            vehicleCard.querySelector('.stat-daily-distance h3').textContent = `Today's Distance (${distanceUnit})`;
             vehicleCard.querySelector('.stat-consumption h3').textContent = `Consumption (${consumptionUnit})`;
             vehicleCard.querySelector('.stat-total-fuel h3').textContent = `Total Fuel (${fuelUnit})`;
 
@@ -349,8 +352,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 vehicleCard.querySelector('.overall_fuel_consumption').textContent = consumptionL100km.toFixed(1);
                 vehicleCard.querySelector('.total_fuel_l').textContent = totalFuelL.toFixed(2);
             }
-            
+
             vehicleCard.querySelector('.vin span').textContent = get(vehicleToRender, 'vin');
+
+            const lastUpdatedSpan = vehicleCard.querySelector('.last-updated-time');
+            const lastUpdated = get(vehicleToRender, 'last_updated', null);
+            if (lastUpdated) {
+                const date = new Date(lastUpdated);
+                lastUpdatedSpan.textContent = date.toLocaleString();
+            } else {
+                lastUpdatedSpan.textContent = "Never";
+            }
 
             const lat = get(vehicleToRender, 'dashboard.latitude', null);
             const lon = get(vehicleToRender, 'dashboard.longitude', null);
@@ -366,12 +378,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const vehicleStatus = get(vehicleToRender, 'status', null);
             updateStatusPanel(vehicleCard, vehicleStatus);
 
-            // Attach event listener to the refresh button within this specific vehicle card
             const refreshBtn = vehicleCard.querySelector('.force-poll');
-            const lastUpdatedSpan = vehicleCard.querySelector('.last-updated-time');
-
-            if (refreshBtn && lastUpdatedSpan) {
-                refreshBtn.addEventListener('click', (e) => handlePollRequest('/api/force_poll', e.target, lastUpdatedSpan));
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', (e) => handlePollRequest('/api/force_poll', e.target));
             }
 
             const metricSelects = vehicleCard.querySelectorAll('.chart-metric-select');
@@ -387,7 +396,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     vehicleCard.querySelector('.chart-metric-select[data-axis="left"]').value = settings.metric1;
                     vehicleCard.querySelector('.chart-metric-select[data-axis="right"]').value = settings.metric2;
                     periodSelect.value = settings.period;
-                } catch (e) {
+                }
+                catch (e) {
                     console.error(`Error parsing saved chart settings for ${vehicleToRender.vin}:`, e);
                     localStorage.removeItem(settingsKey);
                 }
@@ -405,23 +415,21 @@ document.addEventListener('DOMContentLoaded', () => {
             periodSelect.addEventListener('change', updateChart);
 
             updateChart();
-            
+
             vehicleContainer.appendChild(vehicleFragment);
 
-        } catch (error) {
+        }
+        catch (error) {
             vehicleContainer.innerHTML = `<p class="error">Failed to fetch data. Is the backend running? Error: ${error.message}</p>`;
         }
     }
 
-    async function handlePollRequest(url, clickedButton, lastUpdatedElement) {
-        const allPollButtons = document.querySelectorAll('.refresh-btn, #force-poll-main');
+    async function handlePollRequest(url, clickedButton) {
+        const allPollButtons = document.querySelectorAll('.force-poll');
         allPollButtons.forEach(btn => btn.disabled = true);
 
         const originalText = clickedButton.textContent;
         clickedButton.textContent = 'Updating...';
-        if (lastUpdatedElement) {
-            lastUpdatedElement.textContent = 'Polling now...';
-        }
 
         try {
             const response = await fetch(url, { method: 'POST' });
@@ -429,14 +437,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 await loadVehicleData();
             } else {
                 const result = await response.json();
-                if (lastUpdatedElement) {
-                    lastUpdatedElement.textContent = `Error: ${result.detail}`;
-                }
+                console.error("Poll request failed:", result.detail);
             }
-        } catch (error) {
-            if (lastUpdatedElement) {
-                lastUpdatedElement.textContent = `Error: ${error.message}`;
-            }
+        }
+        catch (error) {
+            console.error("Poll request failed:", error);
         } finally {
             allPollButtons.forEach(btn => btn.disabled = false);
             clickedButton.textContent = originalText;

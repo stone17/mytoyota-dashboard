@@ -164,13 +164,17 @@ async def get_vehicle_data():
             return []
         async with aiofiles.open(fetcher.CACHE_FILE, 'r') as f:
             content = await f.read()
-            vehicles_data = json.loads(content)
+            data = json.loads(content)
+            vehicles_data = data.get("vehicles", [])
+            last_updated = data.get("last_updated")
 
         # Augment vehicle data with all-time statistics from the database
         db = database.SessionLocal()
         try:
             from sqlalchemy import func
             for vehicle in vehicles_data:
+                if last_updated:
+                    vehicle["last_updated"] = last_updated
                 vin = vehicle.get("vin")
                 if not vin:
                     continue
@@ -237,6 +241,7 @@ async def stream_logs(request: Request):
     return StreamingResponse(log_stream_generator(request), media_type="text/event-stream")
 
 @app.get("/api/vehicles/{vin}/history")
+
 def get_vehicle_history(vin: str, days: int = 30):
     """API endpoint to get historical data for a vehicle."""
     db = database.SessionLocal()
@@ -251,6 +256,7 @@ def get_vehicle_history(vin: str, days: int = 30):
         db.close()
 
 @app.get("/api/vehicles/{vin}/daily_summary")
+
 def get_daily_summary(vin: str, days: int = 30):
     """
     API endpoint to get a summary of distance and fuel consumption per day,
@@ -325,6 +331,7 @@ def get_daily_summary(vin: str, days: int = 30):
         db.close()
 
 @app.get("/api/geocode_status")
+
 def get_geocode_status():
     """API endpoint to get the number of trips pending geocoding."""
     db = database.SessionLocal()
@@ -336,6 +343,7 @@ def get_geocode_status():
         db.close()
 
 @app.get("/api/trips")
+
 def get_trips(vin: str, sort_by: str = "start_timestamp", sort_direction: str = "desc", unit_system: str = "metric"):
     """API endpoint to get all imported trips for a vehicle, with robust, unit-aware server-side sorting."""
     db = database.SessionLocal()
@@ -393,12 +401,14 @@ async def force_poll():
         raise HTTPException(status_code=500, detail="An internal error occurred during the data poll.")
 
 @app.get("/api/credentials")
+
 def get_stored_username():
     """API endpoint to get the stored username."""
     username = get_username()
     return {"username": username or ""}
 
 @app.post("/api/credentials")
+
 def update_credentials(creds: dict = Body(...)):
     """API endpoint to update and save credentials."""
     username = creds.get("username")
@@ -412,11 +422,13 @@ def update_credentials(creds: dict = Body(...)):
         logging.error(f"Error saving credentials: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to save credentials.")
 @app.get("/api/config")
+
 def get_config():
     """API endpoint to get the current configuration."""
     return settings
 
 @app.post("/api/config")
+
 def update_config(new_settings: dict = Body(...)):
     """API endpoint to update the configuration file."""
     try:
@@ -564,6 +576,7 @@ async def trigger_geocoding_backfill():
         raise HTTPException(status_code=500, detail="An internal error occurred during the geocoding backfill.")
 
 @app.post("/api/backfill_units")
+
 def backfill_imperial_units():
     """One-off utility to calculate and save imperial units for all existing trips."""
     db = database.SessionLocal()

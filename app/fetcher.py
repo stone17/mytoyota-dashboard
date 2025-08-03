@@ -289,7 +289,7 @@ async def fetch_and_save_daily_data():
         async with CACHE_LOCK:
             if all_vehicle_data:
                 async with aiofiles.open(CACHE_FILE, "w") as f:
-                    await f.write(json.dumps(all_vehicle_data, indent=2))
+                    await f.write(json.dumps({"last_updated": datetime.datetime.utcnow().isoformat(), "vehicles": all_vehicle_data}, indent=2))
                 _LOGGER.info(f"Successfully fetched and saved daily data for {len(all_vehicle_data)} vehicle(s).")
 
     except (ToyotaLoginError, ToyotaApiError) as e:
@@ -460,7 +460,7 @@ async def fetch_and_save_data():
             try:
                 if all_vehicle_data:
                     async with aiofiles.open(CACHE_FILE_TMP, "w") as f:
-                        await f.write(json.dumps(all_vehicle_data, indent=2))
+                        await f.write(json.dumps({"last_updated": datetime.datetime.utcnow().isoformat(), "vehicles": all_vehicle_data}, indent=2))
                     
                     await aiofiles.os.replace(CACHE_FILE_TMP, CACHE_FILE)
                     _LOGGER.info(f"Successfully fetched and saved data for {len(all_vehicle_data)} vehicle(s).")
