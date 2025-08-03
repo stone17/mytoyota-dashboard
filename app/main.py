@@ -167,7 +167,7 @@ async def get_vehicle_data():
             content = await f.read()
             data = json.loads(content)
             vehicles_data = data.get("vehicles", [])
-            last_updated = data.get("last_updated")
+            last_updated = data.get("last_updated", "Never")
 
         # Augment vehicle data with all-time statistics from the database
         db = database.SessionLocal()
