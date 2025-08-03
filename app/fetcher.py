@@ -59,7 +59,7 @@ async def _reverse_geocode_trip(trip_id: int):
         finally:
             db.close()
 
-async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_date):
+async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_date, full_route=False):
     """Helper function to fetch, process, and save trip summaries for a given period."""
     _LOGGER.info(f"Fetching trip summaries for VIN {vehicle.vin} from {from_date} to {to_date}...")
 
@@ -248,6 +248,14 @@ def _build_vehicle_info_dict(vehicle):
         "trunk_locked": trunk_locked,
         "last_update_timestamp": last_update_timestamp
     }
+
+    # Add notifications
+    notifications_data = []
+    if hasattr(vehicle, 'notifications') and vehicle.notifications:
+        notifications_data = [
+            notification.model_dump(mode="json") for notification in vehicle.notifications
+        ]
+    vehicle_info["notifications"] = notifications_data
 
     return vehicle_info
 

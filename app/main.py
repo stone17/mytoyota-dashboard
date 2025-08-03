@@ -155,6 +155,12 @@ async def read_logs_page(request: Request):
     cache_buster = int(time.time())
     return templates.TemplateResponse("logs.html", {"request": request, "cache_buster": cache_buster})
 
+@app.get("/notifications", response_class=HTMLResponse)
+async def read_notifications_page(request: Request):
+    """Serve the notifications page."""
+    cache_buster = int(time.time())
+    return templates.TemplateResponse("notifications.html", {"request": request, "cache_buster": cache_buster})
+
 @app.get("/api/vehicles")
 async def get_vehicle_data():
     """API endpoint to get the cached vehicle data."""
