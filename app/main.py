@@ -620,3 +620,41 @@ def backfill_imperial_units():
         raise HTTPException(status_code=500, detail="An error occurred during the backfill process.")
     finally:
         db.close()
+
+@app.post("/api/vehicles/{vin}/service_history")
+async def trigger_service_history_fetch(vin: str):
+    """Fetches service history and updates the vehicle cache."""
+    history_data = await fetcher.fetch_service_history(vin=vin)
+    if "error" in history_data:
+        raise HTTPException(status_code=500, detail=history_data["error"])
+
+    async with fetcher.CACHE_LOCK:
+        try:
+            async with aiofiles.open(fetcher.CACHE_FILE, 'r') as f:
+                content = await f.read()
+                data = json.loads(content)
+        except (IOError, json.JSONDecodeError):
+            _LOGGER.warning("Could not open cache file to save service history, returning live data only.")
+            return history_data
+
+        vehicle_found = False
+        for vehicle in data.get("vehicles", []):
+            if vehicle.get("vin") == vin:
+                vehicle["service_history"] = history_data.get("service_histories", [])
+                vehicle_found = True
+                break
+        
+        if not vehicle_found:
+             _LOGGER.warning(f"VIN {vin} not found in cache file. Unable to save service history.")
+             return history_data
+
+        try:
+            CACHE_FILE_TMP = fetcher.CACHE_FILE.with_suffix(".tmp")
+            async with aiofiles.open(CACHE_FILE_TMP, "w") as f:
+                await f.write(json.dumps(data, indent=2))
+            await aiofiles.os.replace(CACHE_FILE_TMP, fetcher.CACHE_FILE)
+            _LOGGER.info(f"Successfully fetched and saved service history for VIN {vin}.")
+        except IOError as e:
+            _LOGGER.error(f"Failed to write updated cache file with service history: {e}")
+
+    return history_data

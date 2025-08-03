@@ -416,3 +416,27 @@ async def backfill_geocoding():
         return {"message": f"Successfully queued {len(pending_trips)} trips for geocoding."}
     finally:
         db.close()
+
+async def fetch_service_history(vin: str):
+    """Fetches the full service history for a given vehicle."""
+    _LOGGER.info(f"Fetching service history for VIN {vin}...")
+    username, password = load_credentials()
+    if not username or not password:
+        return {"error": "Credentials not found."}
+
+    client = MyT(username=username, password=password, use_metric=True)
+    try:
+        await client.login()
+        history_response = await client._api.get_service_history(vin=vin)
+        
+        if history_response and history_response.payload:
+            return history_response.payload.model_dump(mode="json")
+        else:
+            return {"service_histories": []}
+            
+    except Exception as e:
+        _LOGGER.error(f"Error fetching service history for VIN {vin}: {e}", exc_info=True)
+        return {"error": "An error occurred during the service history fetch."}
+    finally:
+        if client and hasattr(client, "_session") and client._session and not client._session.is_closed:
+            await client._session.aclose()

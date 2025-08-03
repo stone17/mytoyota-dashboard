@@ -6,22 +6,52 @@
     <title>Notifications - MyToyota Dashboard</title>
     <link rel="stylesheet" href="/static/css/style.css?v={{ cache_buster }}">
     <style>
-        /* Basic styling for the notifications list */
+        .panels-container {
+            display: flex;
+            flex-direction: row;
+            gap: 20px;
+        }
+        .panel {
+            flex: 1;
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .panel:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+        }
+        .panel .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        .panel .panel-header h3 {
+            margin: 0;
+            padding: 0;
+            border: none;
+        }
         .notifications-list {
             list-style: none;
             padding: 0;
             margin: 0;
         }
         .notifications-list li {
-            background: #fff;
             padding: 15px;
             border-bottom: 1px solid #eee;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-        .notifications-list li:last-child {
-            border-bottom: none;
+        .notifications-list li:first-child {
+            border-top: 1px solid #eee;
         }
         .notification-badge {
             background-color: #5cb85c;
@@ -30,6 +60,28 @@
             border-radius: 10px;
             font-size: 0.8em;
             font-weight: bold;
+        }
+        .scrollable-panel-content {
+            max-height: 65vh;
+            overflow-y: auto;
+        }
+        .service-history-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .service-history-table th, .service-history-table td {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            text-align: left;
+        }
+        .service-history-table th {
+            font-size: 0.9em;
+            color: #666;
+        }
+        @media (max-width: 900px) {
+            .panels-container {
+                flex-direction: column;
+            }
         }
     </style>
 </head>
@@ -54,7 +106,7 @@
                 <span>Logs</span>
             </a>
             <a href="/settings" class="nav-link">
-                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24-.42.12-.64l2 3.46c.12.22.39.3.61.22l2.49 1c.52.4 1.08.73 1.69-.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c-.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61-.25-1.17-.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24-.42.12-.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69-.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49-1c.23-.09.49 0 .61-.22l2-3.46c-.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
                 <span>Settings</span>
             </a>
         </nav>
@@ -63,13 +115,36 @@
 
     <main class="content-container">
         <div class="page-header">
-            <h1>Notifications</h1>
-            <p>View recent notifications from your vehicle.</p>
+            <h1>Vehicle Data</h1>
         </div>
-
-        <div class="content-panel">
-            <div id="notifications-container">
-                <p>Loading notifications...</p>
+        <div class="panels-container">
+            <div class="panel">
+                <div class="panel-header">
+                    <h3>Notifications</h3>
+                </div>
+                <div id="notifications-container" class="scrollable-panel-content">
+                    <p>Loading...</p>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="panel-header">
+                    <h3>Service History</h3>
+                    <button id="fetch-service-history-btn" class="small-btn">Fetch History</button>
+                </div>
+                <div id="service-history-results" class="scrollable-panel-content">
+                    <table class="service-history-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Mileage</th>
+                                <th>Category</th>
+                            </tr>
+                        </thead>
+                        <tbody id="service-history-tbody">
+                           </tbody>
+                    </table>
+                     <p id="service-history-placeholder" style="text-align: center; color: #888; padding: 20px 0;">No service history loaded.</p>
+                </div>
             </div>
         </div>
     </main>
