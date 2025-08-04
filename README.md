@@ -51,7 +51,7 @@ Using Docker is the easiest and most reliable way to run the application.
 
 1.  **Clone the repository:**
     ```bash
-    git clone <repository_url>
+    git clone https://github.com/stone17/mytoyota-dashboard.git
     cd mytoyota-dashboard # Or your project's folder name
     ```
 
