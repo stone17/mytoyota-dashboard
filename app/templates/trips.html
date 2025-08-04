@@ -8,6 +8,10 @@
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    
     <style>
         .page-layout { margin: 20px auto; max-width: 1600px; }
         .controls-container { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 20px; align-items: flex-start; }
@@ -25,9 +29,6 @@
         #column-selector label { margin-bottom: 0; font-weight: normal; display: flex; align-items: center; }
         .backfill-buttons { display: flex; flex-wrap: wrap; gap: 10px; }
         .backfill-buttons button { flex: 1 1 auto; }
-        .status-message.success { background-color: #d4edda; color: #155724; }
-        .status-message.error { background-color: #f8d7da; color: #721c24; }
-        .status-message.info { background-color: #cce5ff; color: #004085; }
         .main-content { min-width: 0; }
         .scroll-hint { text-align: center; color: #888; font-style: italic; margin-bottom: 15px; }
         .trips-layout { display: flex; gap: 20px; align-items: flex-start; }
@@ -38,7 +39,6 @@
         .trips-list-container td[data-column="start-address"], .trips-list-container td[data-column="end-address"] { font-size: 0.9em; color: #777; line-height: 1.3; }
         .trips-list-container th.sortable { cursor: pointer; }
         .trips-list-container th.sortable:hover { background-color: #e9e9e9; }
-        .trips-list-container th .sort-indicator { display: inline-block; margin-left: 5px; opacity: 0.7; }
         .trips-list-container .unit { font-size: 0.8em; color: #666; font-weight: normal; text-transform: none; }
         .trips-list-container tr:nth-child(even) { background-color: #f9f9f9; }
         .trips-list-container tbody tr:hover { background-color: #eef4f8; cursor: pointer; }
@@ -51,6 +51,10 @@
         #close-map-panel-btn { background: none; border: none; font-size: 1.5em; cursor: pointer; color: #666; }
         #map { width: 100%; height: 500px; border: none; }
         #map-trip-stats { display: none; }
+
+        .area-filter-buttons { display: flex; gap: 10px; margin-top: 15px; }
+        .small-btn { padding: 6px 10px; font-size: 0.9em; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .leaflet-draw-toolbar a { background-image: none !important; background-repeat: no-repeat !important; }
 
         @media (max-width: 1024px) {
             .trips-list-container { flex-basis: 100%; }
@@ -152,6 +156,13 @@
                             <label><input type="checkbox" data-column="ev-dist"> EV Distance</label>
                             <label><input type="checkbox" data-column="ev-dur"> EV Duration</label>
                             <label><input type="checkbox" data-column="score"> Score</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <h4 style="margin-top: 20px;">Filter by Map Area</h4>
+                        <div class="area-filter-buttons">
+                            <button id="filter-by-area-btn" class="small-btn" style="background-color: #5cb85c;">Start Area Select</button>
+                            <button id="clear-area-filter-btn" class="small-btn" style="background-color: #d9534f; display: none;">Clear Area Filter</button>
                         </div>
                     </div>
                 </div>

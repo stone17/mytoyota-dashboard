@@ -16,16 +16,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const geocodeProgressBar = document.getElementById('geocode-progress-bar');
     const geocodeProgressText = document.getElementById('geocode-progress-text');
     const periodSelect = document.getElementById('period-select');
+    const filterByAreaBtn = document.getElementById('filter-by-area-btn');
+    const clearAreaFilterBtn = document.getElementById('clear-area-filter-btn');
     
     let currentSort = { by: 'start_timestamp', direction: 'desc' };
     let appConfig = { unit_system: 'metric' };
     let geocodeInterval;
+    let originalTrips = [];
     let displayedTrips = [];
     let currentTripContext = { tripId: null, rowIndex: -1 };
 
     // --- Map variables ---
     let map;
     let currentMapLayers = [];
+    let drawControl;
+    let drawnItems;
 
     // --- Custom Map Icons ---
     const startIcon = new L.Icon({
@@ -39,13 +44,51 @@ document.addEventListener('DOMContentLoaded', () => {
         iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
     });
 
-    // --- Initialize the map with layer control ---
+    function clearMap() {
+        currentMapLayers.forEach(layer => map.removeLayer(layer));
+        currentMapLayers = [];
+        drawnItems.clearLayers();
+        map.closePopup();
+    }
+    
+    function fitMapToBoundsOfAllTrips() {
+        if (originalTrips.length === 0) {
+            map.setView([55.7, 13.2], 9); // Fallback to Lund
+            return;
+        }
+        const bounds = L.latLngBounds();
+        originalTrips.forEach(trip => {
+            if (trip.start_lat && trip.start_lon) { bounds.extend([trip.start_lat, trip.start_lon]); }
+            if (trip.end_lat && trip.end_lon) { bounds.extend([trip.end_lat, trip.end_lon]); }
+        });
+        if (bounds.isValid()) { map.fitBounds(bounds.pad(0.1)); } 
+        else { map.setView([55.7, 13.2], 9); }
+    }
+
     function initMap() {
         const streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' });
         const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Tiles &copy; Esri' });
         const dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap contributors &copy; CARTO', subdomains: 'abcd', maxZoom: 20 });
         map = L.map('map', { center: [55.7, 13.2], zoom: 9, layers: [streets] });
         L.control.layers({ "Streets": streets, "Satellite": satellite, "Dark": dark }).addTo(map);
+
+        drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
+        drawControl = new L.Control.Draw({
+            draw: {
+                polygon: false, polyline: false, circle: false, marker: false, circlemarker: false,
+                rectangle: { shapeOptions: { color: '#00529b' } }
+            },
+            edit: { featureGroup: drawnItems, remove: false, edit: false }
+        });
+        map.addControl(drawControl);
+        map.on(L.Draw.Event.CREATED, function (e) {
+            const layer = e.layer;
+            drawnItems.clearLayers();
+            drawnItems.addLayer(layer);
+            filterTripsByBounds(layer.getBounds());
+            clearAreaFilterBtn.style.display = 'inline-block';
+        });
     }
 
     function updateUnitHeaders() {
@@ -60,8 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function plotGpsRoute(routePoints) {
-        currentMapLayers.forEach(layer => map.removeLayer(layer));
-        currentMapLayers = [];
+        clearMap();
         const latLngs = routePoints.map(p => [p.lat, p.lon]);
         const polyline = L.polyline(latLngs, { color: '#00529b', weight: 5 }).addTo(map);
         currentMapLayers.push(polyline);
@@ -73,8 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function plotEstimatedRoute(startLat, startLon, endLat, endLon) {
-        currentMapLayers.forEach(layer => map.removeLayer(layer));
-        currentMapLayers = [];
+        clearMap();
         if (!startLat || !startLon || !endLat || !endLon) return;
         const startLatLng = [startLat, startLon];
         const endLatLng = [endLat, endLon];
@@ -123,7 +164,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (startDate) { params.append('start_date', startDate); }
             const response = await fetch(`/api/trips?${params.toString()}`);
             const trips = await response.json();
+            originalTrips = trips;
             renderTable(trips);
+            clearAreaFilterBtn.click();
         } catch (e) { tripsTableBody.innerHTML = `<tr><td colspan="11">Error loading trips: ${e.message}</td></tr>`; }
     }
 
@@ -136,21 +179,27 @@ document.addEventListener('DOMContentLoaded', () => {
         nextTripBtn.disabled = currentTripContext.rowIndex >= displayedTrips.length - 1;
     }
 
+    function filterTripsByBounds(bounds) {
+        const filteredTrips = originalTrips.filter(trip => {
+            const startInBounds = bounds.contains([trip.start_lat, trip.start_lon]);
+            const endInBounds = bounds.contains([trip.end_lat, trip.end_lon]);
+            return startInBounds || endInBounds;
+        });
+        renderTable(filteredTrips);
+    }
+
     async function showTripOnMap(trip, rowIndex) {
         if (!trip) return;
         currentTripContext = { tripId: trip.id, rowIndex: rowIndex };
         mapPanelTitle.textContent = `Trip on ${new Date(trip.start_timestamp).toLocaleDateString()}`;
         if (isMobile()) {
             mapPanel.classList.add('is-overlay');
-            
-            // Calculate and display stats
             const isImperial = appConfig.unit_system.startsWith('imperial');
             const isUk = appConfig.unit_system === 'imperial_uk';
             const distance = isImperial ? trip.distance_mi : trip.distance_km;
             const consumption = isImperial ? (isUk ? trip.mpg_uk : trip.mpg) : trip.fuel_consumption_l_100km;
             const evRatio = (trip.distance_km > 0 && trip.ev_distance_km) ? (trip.ev_distance_km / trip.distance_km * 100) : 0;
             const duration = new Date(trip.duration_seconds * 1000).toISOString().slice(11, 19);
-
             mapTripStats.innerHTML = `
                 <div><span>Time:</span> <strong>${duration}</strong></div>
                 <div><span>Dist:</span> <strong>${distance.toFixed(1)} ${isImperial ? 'mi' : 'km'}</strong></div>
@@ -162,8 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         mapPanel.style.display = isMobile() ? 'flex' : 'block';
         updateNavButtonsState();
-        currentMapLayers.forEach(layer => map.removeLayer(layer));
-        currentMapLayers = [];
+        clearMap();
         const loadingPopup = L.popup().setLatLng(map.getCenter()).setContent('Loading route...').openOn(map);
         setTimeout(async () => {
             map.invalidateSize();
@@ -304,6 +352,32 @@ document.addEventListener('DOMContentLoaded', () => {
         mapPanel.style.display = 'none';
         mapPanel.classList.remove('is-overlay');
     }
+
+    filterByAreaBtn.addEventListener('click', () => {
+        if (mapPanel.style.display === 'none') {
+            clearMap();
+            mapPanelTitle.textContent = "Select Area on Map";
+            mapTripStats.innerHTML = '';
+            if (isMobile()) {
+                mapPanel.classList.add('is-overlay');
+                mapPanel.style.display = 'flex';
+            } else {
+                mapPanel.classList.remove('is-overlay');
+                mapPanel.style.display = 'block';
+            }
+            setTimeout(() => {
+                map.invalidateSize();
+                fitMapToBoundsOfAllTrips();
+            }, 50);
+        }
+        new L.Draw.Rectangle(map, drawControl.options.draw.rectangle).enable();
+    });
+
+    clearAreaFilterBtn.addEventListener('click', () => {
+        drawnItems.clearLayers();
+        renderTable(originalTrips);
+        clearAreaFilterBtn.style.display = 'none';
+    });
 
     closeMapPanelBtn.addEventListener('click', closeMap);
     prevTripBtn.addEventListener('click', () => {
