@@ -128,50 +128,29 @@ document.addEventListener('DOMContentLoaded', () => {
             vinSelect.innerHTML = '';
             if (vehicles.length > 0) {
                 vehicles.forEach(vehicle => {
-                    const option = document.createElement('option');
-                    option.value = vehicle.vin;
-                    option.textContent = `${vehicle.alias} (${vehicle.vin})`;
+                    const option = new Option(`${vehicle.alias} (${vehicle.vin})`, vehicle.vin);
                     vinSelect.appendChild(option);
                 });
             } else {
                 vinSelect.innerHTML = '<option>No vehicles found</option>';
-                tripsTableBody.innerHTML = '<tr><td colspan="11">No vehicles found.</td></tr>';
             }
         } catch (e) {
-            tripsTableBody.innerHTML = '<tr><td colspan="11">Could not load vehicle list.</td></tr>';
+            tripsTableBody.innerHTML = `<tr><td colspan="11">Could not load vehicle list: ${e.message}</td></tr>`;
         }
     }
 
     async function loadTrips() {
         const selectedVin = vinSelect.value;
-        if (!selectedVin) {
-            tripsTableBody.innerHTML = '<tr><td colspan="11">Please select a vehicle.</td></tr>';
-            return;
-        }
-
-        tripsTableBody.innerHTML = '<tr><td colspan="11">Loading...</td></tr>';
+        if (!selectedVin) return;
+        tripsTableBody.innerHTML = '<tr><td colspan="11">Loading trips...</td></tr>';
         mapPanel.style.display = 'none';
         updateSortIndicators();
-
         try {
-            const isImperial = appConfig.unit_system.startsWith('imperial');
-            const isUk = appConfig.unit_system === 'imperial_uk';
-            const units = {
-                distance: isImperial ? '(mi)' : '(km)',
-                consumption: isImperial ? (isUk ? '(UK MPG)' : '(US MPG)') : '(L/100km)',
-                speed: isImperial ? '(mph)' : '(km/h)',
-            };
-            document.querySelectorAll('.unit').forEach(span => {
-                const unitType = span.dataset.unitType;
-                if (units[unitType]) span.textContent = units[unitType];
-            });
-
             const response = await fetch(`/api/trips?vin=${selectedVin}&sort_by=${currentSort.by}&sort_direction=${currentSort.direction}&unit_system=${appConfig.unit_system}`);
             const trips = await response.json();
             renderTable(trips);
         } catch (e) {
-            console.error("Failed to load trips:", e);
-            tripsTableBody.innerHTML = '<tr><td colspan="11">Error loading trips.</td></tr>';
+            tripsTableBody.innerHTML = `<tr><td colspan="11">Error loading trips: ${e.message}</td></tr>`;
         }
     }
 
@@ -179,61 +158,70 @@ document.addEventListener('DOMContentLoaded', () => {
         const isImperial = appConfig.unit_system.startsWith('imperial');
         const isUk = appConfig.unit_system === 'imperial_uk';
         tripsTableBody.innerHTML = '';
-
         if (trips.length === 0) {
             tripsTableBody.innerHTML = '<tr><td colspan="11">No trips found for this vehicle.</td></tr>';
             return;
         }
-
         trips.forEach(trip => {
-            const row = document.createElement('tr');
+            const row = tripsTableBody.insertRow();
             const formatTimestamp = (ts) => !ts ? 'N/A' : `${new Date(ts).toLocaleDateString()}<br><span class="unit">${new Date(ts).toLocaleTimeString()}</span>`;
             const formatNumber = (num) => (num === null || num === undefined) ? 'N/A' : Number(num).toFixed(2);
-            const formatDuration = (seconds) => {
-                if (!seconds) return 'N/A';
-                const h = Math.floor(seconds / 3600);
-                const m = Math.floor((seconds % 3600) / 60);
-                const s = Math.floor(seconds % 60);
-                return [h > 0 ? `${h}h` : '', m > 0 ? `${m}m` : '', s > 0 || (!h && !m) ? `${s}s` : ''].filter(Boolean).join(' ');
-            };
-
-            let distance = isImperial ? trip.distance_mi : trip.distance_km;
-            let consumption = isImperial ? (isUk ? trip.mpg_uk : trip.mpg) : trip.fuel_consumption_l_100km;
-            let avgSpeed = isImperial ? trip.average_speed_mph : trip.average_speed_kmh;
-            let evDistance = isImperial ? trip.ev_distance_mi : trip.ev_distance_km;
+            const formatDuration = (s) => !s ? 'N/A' : new Date(s * 1000).toISOString().slice(11, 19);
 
             row.innerHTML = `
                 <td data-column="start-time">${formatTimestamp(trip.start_timestamp)}</td>
                 <td data-column="end-time">${formatTimestamp(trip.end_timestamp)}</td>
-                <td data-column="distance">${formatNumber(distance)}</td>
-                <td data-column="consumption">${formatNumber(consumption)}</td>
+                <td data-column="distance">${formatNumber(isImperial ? trip.distance_mi : trip.distance_km)}</td>
+                <td data-column="consumption">${formatNumber(isImperial ? (isUk ? trip.mpg_uk : trip.mpg) : trip.fuel_consumption_l_100km)}</td>
                 <td data-column="start-address">${trip.start_address || 'N/A'}</td>
                 <td data-column="end-address">${trip.end_address || 'N/A'}</td>
                 <td data-column="duration">${formatDuration(trip.duration_seconds)}</td>
-                <td data-column="avg-speed">${formatNumber(avgSpeed)}</td>
-                <td data-column="ev-dist">${formatNumber(evDistance)}</td>
+                <td data-column="avg-speed">${formatNumber(isImperial ? trip.average_speed_mph : trip.average_speed_kmh)}</td>
+                <td data-column="ev-dist">${formatNumber(isImperial ? trip.ev_distance_mi : trip.ev_distance_km)}</td>
                 <td data-column="ev-dur">${formatDuration(trip.ev_duration_seconds)}</td>
-                <td data-column="score">${trip.score_global || 'N/A'}</td>
-            `;
+                <td data-column="score">${trip.score_global || 'N/A'}</td>`;
 
-            row.addEventListener('click', () => {
+            // --- Start of Targeted Change ---
+            row.addEventListener('click', async () => {
                 mapPanelTitle.textContent = `Trip on ${new Date(trip.start_timestamp).toLocaleDateString()}`;
                 mapPanel.style.display = 'block';
-                setTimeout(() => {
-                    map.invalidateSize();
-                    if (trip.route && trip.route.length > 0) {
-                        plotGpsRoute(trip.route);
-                    } else {
+
+                // Clear old layers and show a loading indicator on the existing map
+                currentMapLayers.forEach(layer => map.removeLayer(layer));
+                currentMapLayers = [];
+                const loadingPopup = L.popup()
+                    .setLatLng(map.getCenter())
+                    .setContent('Loading route...')
+                    .openOn(map);
+
+                // Allow browser to render the panel, then fetch and plot the route
+                setTimeout(async () => {
+                    map.invalidateSize(); // Correct map size
+                    try {
+                        const response = await fetch(`/api/trips/${trip.id}/route`);
+                        if (!response.ok) throw new Error('Route data not found or failed to load.');
+                        
+                        const data = await response.json();
+                        map.closePopup(loadingPopup); // Remove loading message
+
+                        if (data.route && data.route.length > 0) {
+                            plotGpsRoute(data.route);
+                        } else {
+                            plotEstimatedRoute(trip.start_lat, trip.start_lon, trip.end_lat, trip.end_lon);
+                        }
+                    } catch (e) {
+                        map.closePopup(loadingPopup);
+                        console.error(`Error loading trip route: ${e.message}`);
                         plotEstimatedRoute(trip.start_lat, trip.start_lon, trip.end_lat, trip.end_lon);
                     }
-                }, 10);
+                }, 50); // A small delay ensures rendering is complete
             });
-            tripsTableBody.appendChild(row);
+            // --- End of Targeted Change ---
         });
         updateColumnVisibility();
         loadAndApplyColumnOrder();
     }
-
+    
     function updateSortIndicators() {
         tableHeaderRow.querySelectorAll('th.sortable .sort-indicator').forEach(span => span.textContent = '');
         const activeHeader = tableHeaderRow.querySelector(`th[data-sort="${currentSort.by}"]`);
@@ -328,7 +316,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- Event Listeners ---
     closeMapPanelBtn.addEventListener('click', () => mapPanel.style.display = 'none');
     tableHeaderRow.addEventListener('click', (event) => {
         const headerCell = event.target.closest('th.sortable');

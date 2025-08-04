@@ -22,6 +22,7 @@ from .credentials_manager import get_username, save_credentials
 from .config import settings, load_config, CONFIG_PATH, DATA_DIR
 from .logging_config import setup_logging
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import defer
 
 # Configure logging at the very beginning of the application startup
 setup_logging()
@@ -168,7 +169,6 @@ async def get_vehicle_data():
         if not fetcher.CACHE_FILE.exists():
             return []
         
-        # --- Start of Targeted Change ---
         try:
             async with aiofiles.open(fetcher.CACHE_FILE, 'r') as f:
                 content = await f.read()
@@ -186,7 +186,6 @@ async def get_vehicle_data():
         
         vehicles_data = data.get("vehicles", [])
         last_updated = data.get("last_updated") or "Never"
-        # --- End of Targeted Change ---
 
         # Augment vehicle data with all-time statistics from the database
         db = database.SessionLocal()
@@ -378,28 +377,39 @@ def get_trips(vin: str, sort_by: str = "start_timestamp", sort_direction: str = 
         sort_expression = None
         if sort_by == "fuel_consumption_l_100km":
             if unit_system.startswith('imperial'):
-                # Sorting by MPG (US or UK), higher is better. 0 is worst.
-                if sort_direction == "desc":  # Best first
-                    # Sort descending, but push 0s and NULLs to the end.
+                if sort_direction == "desc":
                     sort_expression = text(f"CASE WHEN {sort_column_name} IS NULL OR {sort_column_name} = 0 THEN 1 ELSE 0 END, {sort_column_name} DESC")
-                else:  # Worst first
-                    # Sort ascending, but push 0s and NULLs to the front.
+                else:
                     sort_expression = text(f"CASE WHEN {sort_column_name} IS NULL OR {sort_column_name} = 0 THEN 0 ELSE 1 END, {sort_column_name} ASC")
-            else:  # Metric
-                # Sorting by L/100km, lower is better. 0 is best.
-                if sort_direction == "desc":  # Best first
+            else:
+                if sort_direction == "desc":
                     sort_expression = text(f"CASE WHEN {sort_column_name} IS NULL THEN 1 ELSE 0 END, {sort_column_name} ASC")
-                else:  # Worst first
+                else:
                     sort_expression = text(f"CASE WHEN {sort_column_name} IS NULL THEN 1 ELSE 0 END, {sort_column_name} DESC")
         else:
-            # Standard sorting for all other columns
             direction_sql = "DESC" if sort_direction == "desc" else "ASC"
             sort_expression = text(f"{sort_column_name} {direction_sql} NULLS LAST")
 
-        trips = db.query(database.Trip).filter(database.Trip.vin == vin).order_by(
+        # Defer loading of the heavy 'route' column for performance
+        query = db.query(database.Trip).options(defer(database.Trip.route))
+        trips = query.filter(database.Trip.vin == vin).order_by(
             sort_expression
         ).all()
         return trips
+    finally:
+        db.close()
+
+# Fetch the route for a single trip on demand
+@app.get("/api/trips/{trip_id}/route")
+def get_trip_route(trip_id: int):
+    """Fetches the route data for a single trip."""
+    db = database.SessionLocal()
+    try:
+        # Query only the 'route' column for efficiency
+        trip = db.query(database.Trip.route).filter(database.Trip.id == trip_id).first()
+        if not trip:
+            raise HTTPException(status_code=404, detail="Trip not found")
+        return {"route": trip.route}
     finally:
         db.close()
 
@@ -408,7 +418,6 @@ async def force_poll():
     """Manually triggers a data fetch."""
     try:
         logging.info("Manual poll triggered via API.")
-        # MODIFIED: Call the new unified fetch cycle function.
         await fetcher.run_fetch_cycle()
         return {"message": "Data poll completed successfully."}
     except Exception as e:
