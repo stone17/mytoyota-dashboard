@@ -74,6 +74,28 @@ document.addEventListener('DOMContentLoaded', () => {
         L.control.layers(baseMaps).addTo(map);
     }
 
+    function updateUnitHeaders() {
+        const isImperial = appConfig.unit_system.startsWith('imperial');
+        const isUk = appConfig.unit_system === 'imperial_uk';
+
+        // Select all relevant unit spans in the table header
+        const distanceUnits = document.querySelectorAll('th .unit[data-unit-type="distance"]');
+        const speedUnit = document.querySelector('th .unit[data-unit-type="speed"]');
+        const consumptionUnit = document.querySelector('th .unit[data-unit-type="consumption"]');
+
+        distanceUnits.forEach(span => {
+            span.textContent = isImperial ? 'mi' : 'km';
+        });
+
+        if (speedUnit) {
+            speedUnit.textContent = isImperial ? 'mph' : 'km/h';
+        }
+
+        if (consumptionUnit) {
+            consumptionUnit.textContent = isImperial ? (isUk ? 'mpg (UK)' : 'mpg (US)') : 'L/100km';
+        }
+    }
+
     // --- Function to clear map and plot a detailed GPS route ---
     function plotGpsRoute(routePoints) {
         currentMapLayers.forEach(layer => map.removeLayer(layer));
@@ -418,6 +440,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         initMap();
         await loadConfig();
+        updateUnitHeaders();
         loadColumnPreferences();
         loadAndApplyColumnOrder();
         await loadVins();

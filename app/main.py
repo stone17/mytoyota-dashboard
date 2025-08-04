@@ -414,9 +414,30 @@ def get_trips(
                 query = query.filter(database.Trip.start_timestamp <= end_dt)
             except ValueError:
                 raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD.")
-        
+
         # Apply sorting and fetch all results
         trips = query.order_by(sort_expression).all()
+
+        # This prevents "N/A" on the frontend if the backfill hasn't run for new trips.
+        if unit_system.startswith('imperial'):
+            KM_TO_MI = 0.621371
+            for trip in trips:
+                if trip.distance_km is not None:
+                    trip.distance_mi = trip.distance_km * KM_TO_MI
+                if trip.ev_distance_km is not None:
+                    trip.ev_distance_mi = trip.ev_distance_km * KM_TO_MI
+                if trip.average_speed_kmh is not None:
+                    trip.average_speed_mph = trip.average_speed_kmh * KM_TO_MI
+                
+                # Check for fuel consumption to avoid division by zero
+                if trip.fuel_consumption_l_100km and trip.fuel_consumption_l_100km > 0:
+                    trip.mpg = 235.214 / trip.fuel_consumption_l_100km
+                    trip.mpg_uk = 282.481 / trip.fuel_consumption_l_100km
+                else:
+                    # Assign a default value if no fuel was consumed
+                    trip.mpg = 0.0
+                    trip.mpg_uk = 0.0
+
         return trips
     finally:
         db.close()

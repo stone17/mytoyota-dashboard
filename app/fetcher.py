@@ -59,6 +59,8 @@ async def _reverse_geocode_trip(trip_id: int):
         finally:
             db.close()
 
+# app/fetcher.py
+
 async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_date):
     """Helper function to fetch, process, and save trip summaries for a given period."""
     _LOGGER.info(f"Fetching trip summaries for VIN {vehicle.vin} from {from_date} to {to_date}...")
@@ -75,32 +77,14 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
     skipped_trips_count = 0
     updated_trips_count = 0
 
-
     for trip in all_trips:
         try:
             if not (hasattr(trip, 'locations') and hasattr(trip.locations, 'start') and hasattr(trip.locations.start, 'lat')):
                 _LOGGER.warning("Skipping a trip object because it's missing coordinate data.")
                 continue
 
+            # --- Step 1: Extract and calculate all possible values from the fetched trip ---
             start_ts_utc = trip.start_time.astimezone(datetime.timezone.utc)
-            existing_trip = db_session.query(database.Trip).filter_by(vin=vehicle.vin, start_timestamp=start_ts_utc).first()
-
-            if existing_trip:
-                # Trip already exists. Check if we should update it.
-                route_data = None
-                if fetch_full_route and hasattr(trip, 'route') and trip.route:
-                    route_data = [point.model_dump(mode="json") for point in trip.route]
-
-                if not existing_trip.route and route_data:
-                    _LOGGER.info(f"Updating existing trip from {start_ts_utc} with new GPS route data.")
-                    existing_trip.route = route_data
-                    db_session.commit()
-                    updated_trips_count += 1
-                else:
-                    skipped_trips_count += 1
-                
-                continue # Move to the next trip
-
             distance_km = getattr(trip, 'distance', 0.0) or 0.0
             fuel_consumption_l_100km = getattr(trip, 'average_fuel_consumed', 0.0) or 0.0
             duration_seconds = getattr(trip, 'duration', datetime.timedelta(0)).total_seconds()
@@ -112,38 +96,67 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
             route_data = None
             if fetch_full_route and hasattr(trip, 'route') and trip.route:
                 route_data = [point.model_dump(mode="json") for point in trip.route]
-                print(route_data)
 
             KM_TO_MI = 0.621371
-            distance_mi = distance_km * KM_TO_MI
-            ev_distance_mi = ev_distance_km * KM_TO_MI
-            average_speed_mph = average_speed_kmh * KM_TO_MI
-            mpg_us = (235.214 / fuel_consumption_l_100km) if fuel_consumption_l_100km > 0 else 0.0
-            mpg_uk = (282.481 / fuel_consumption_l_100km) if fuel_consumption_l_100km > 0 else 0.0
+            
+            # Create a dictionary of all new data points
+            new_data = {
+                'end_timestamp': trip.end_time.astimezone(datetime.timezone.utc),
+                'start_lat': trip.locations.start.lat, 'start_lon': trip.locations.start.lon,
+                'end_lat': trip.locations.end.lat, 'end_lon': trip.locations.end.lon,
+                'distance_km': distance_km, 'fuel_consumption_l_100km': fuel_consumption_l_100km,
+                'duration_seconds': int(duration_seconds), 'average_speed_kmh': average_speed_kmh,
+                'ev_distance_km': ev_distance_km, 'ev_duration_seconds': int(ev_duration_seconds),
+                'score_global': score_global,
+                'distance_mi': distance_km * KM_TO_MI,
+                'mpg': (235.214 / fuel_consumption_l_100km) if fuel_consumption_l_100km > 0 else 0.0,
+                'mpg_uk': (282.481 / fuel_consumption_l_100km) if fuel_consumption_l_100km > 0 else 0.0,
+                'average_speed_mph': average_speed_kmh * KM_TO_MI,
+                'ev_distance_mi': ev_distance_km * KM_TO_MI,
+                'route': route_data
+            }
 
+            # --- Step 2: Check for existing trip and apply logic ---
+            existing_trip = db_session.query(database.Trip).filter_by(vin=vehicle.vin, start_timestamp=start_ts_utc).first()
+
+            if existing_trip:
+                # Trip exists. Update it with any missing data.
+                was_updated = False
+                for key, value in new_data.items():
+                    # Update if the existing value is None and the new value is not.
+                    if getattr(existing_trip, key, None) is None and value is not None:
+                        setattr(existing_trip, key, value)
+                        _LOGGER.info(f"Updating trip {existing_trip.id}: populated missing field '{key}'.")
+                        was_updated = True
+                
+                if was_updated:
+                    db_session.commit()
+                    updated_trips_count += 1
+                else:
+                    skipped_trips_count += 1
+                continue
+
+            # --- Step 3: If no existing trip, create a new one ---
             new_trip = database.Trip(
-                vin=vehicle.vin, start_timestamp=start_ts_utc, end_timestamp=trip.end_time.astimezone(datetime.timezone.utc),
-                start_address="Geocoding...", start_lat=trip.locations.start.lat, start_lon=trip.locations.start.lon,
-                end_address="Geocoding...", end_lat=trip.locations.end.lat, end_lon=trip.locations.end.lon,
-                distance_km=distance_km, fuel_consumption_l_100km=fuel_consumption_l_100km,
-                duration_seconds=duration_seconds, average_speed_kmh=average_speed_kmh,
-                ev_distance_km=ev_distance_km, ev_duration_seconds=ev_duration_seconds,
-                score_global=score_global, distance_mi=distance_mi, mpg=mpg_us, mpg_uk=mpg_uk,
-                average_speed_mph=average_speed_mph, ev_distance_mi=ev_distance_mi,
-                route=route_data 
+                vin=vehicle.vin,
+                start_timestamp=start_ts_utc,
+                start_address="Geocoding...", # Default for new trips
+                end_address="Geocoding...",
+                **new_data
             )
             db_session.add(new_trip)
             db_session.commit()
             db_session.refresh(new_trip)
             new_trips_count += 1
 
+            # Trigger geocoding in the background
             asyncio.create_task(_reverse_geocode_trip(new_trip.id))
 
         except Exception as e:
             _LOGGER.warning(f"Could not process a trip summary due to an error: {e}. Skipping.", exc_info=True)
             db_session.rollback()
 
-    _LOGGER.info(f"Trip summary fetch for {vehicle.vin} complete. New: {new_trips_count}, Updated: {updated_trips_count}, Skipped (duplicates): {skipped_trips_count}.")
+    _LOGGER.info(f"Trip summary fetch for {vehicle.vin} complete. New: {new_trips_count}, Updated: {updated_trips_count}, Skipped (no changes): {skipped_trips_count}.")
     return {"new": new_trips_count, "updated": updated_trips_count, "skipped": skipped_trips_count}
 
 async def _update_vehicle_statistics(vehicle, vehicle_info_dict):
