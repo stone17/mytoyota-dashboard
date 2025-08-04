@@ -263,7 +263,10 @@ document.addEventListener('DOMContentLoaded', () => {
         columnSelector.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
             const column = checkbox.dataset.column;
             const display = checkbox.checked ? '' : 'none';
-            document.querySelectorAll(`[data-column="${column}"]`).forEach(cell => cell.style.display = display);
+            // Corrected selector to only target table headers (th) and cells (td)
+            document.querySelectorAll(`.trips-list-container th[data-column="${column}"], .trips-list-container td[data-column="${column}"]`).forEach(cell => {
+                cell.style.display = display;
+            });
         });
     }
 
