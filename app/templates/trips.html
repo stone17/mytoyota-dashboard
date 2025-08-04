@@ -11,22 +11,8 @@
     <style>
         .page-layout { margin: 20px auto; max-width: 1600px; }
         .controls-container { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 20px; align-items: flex-start; }
-
-        /* --- Panel Style Integration --- */
-        .collapsible-panel {
-            flex: 1 1 300px;
-            background: #fff;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.05); /* Base shadow */
-            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; /* Hover transition */
-        }
-        .collapsible-panel:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
-        }
-
+        .collapsible-panel { flex: 1 1 300px; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.05); transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; }
+        .collapsible-panel:hover { transform: translateY(-5px); box-shadow: 0 8px 16px rgba(0,0,0,0.1); }
         .collapsible-header { background-color: #f4f7f9; padding: 10px 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
         .collapsible-header h3 { margin: 0; font-size: 1.1em; }
         .collapsible-content { padding: 15px; border-top: 1px solid #e0e0e0; display: none; }
@@ -35,21 +21,8 @@
         .collapsible-content .form-group select { width: 100%; padding: 8px; font-size: 1em; }
         .form-row { display: flex; flex-wrap: wrap; gap: 20px; }
         .form-row .form-group { flex: 1 1 200px; margin-bottom: 0; }
-        #column-selector {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            padding: 10px;
-            background-color: #f9f9f9;
-            border-radius: 4px;
-        }
-        #column-selector label {
-            margin-bottom: 0;
-            font-weight: normal;
-            display: flex;
-            align-items: center;
-        }
-
+        #column-selector { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 10px; background-color: #f9f9f9; border-radius: 4px; }
+        #column-selector label { margin-bottom: 0; font-weight: normal; display: flex; align-items: center; }
         .backfill-buttons { display: flex; flex-wrap: wrap; gap: 10px; }
         .backfill-buttons button { flex: 1 1 auto; }
         .status-message.success { background-color: #d4edda; color: #155724; }
@@ -58,54 +31,59 @@
         .main-content { min-width: 0; }
         .scroll-hint { text-align: center; color: #888; font-style: italic; margin-bottom: 15px; }
         .trips-layout { display: flex; gap: 20px; align-items: flex-start; }
-
-        /* --- "Pimped" Table Styles --- */
-        .trips-list-container {
-            flex: 1 1 60%;
-            max-height: 70vh;
-            overflow-y: auto;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.05); /* Add shadow to lift the table */
-        }
+        .trips-list-container { flex: 1 1 60%; max-height: 70vh; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); }
         .trips-list-container table { width: 100%; border-collapse: collapse; }
-        .trips-list-container th {
-            background-color: #f4f7f9;
-            position: sticky; top: 0; z-index: 10;
-            padding: 12px 15px;
-            text-align: left;
-            font-weight: 600;
-            font-size: 0.85em;
-            color: #333;
-            text-transform: uppercase;
-            border-bottom: 2px solid #00529b; /* Accent border for header */
-            vertical-align: middle;
-        }
-        .trips-list-container td {
-            padding: 12px 15px;
-            border-bottom: 1px solid #ddd;
-            text-align: left;
-            color: #555;
-            vertical-align: middle;
-        }
-        .trips-list-container td[data-column="start-address"],
-        .trips-list-container td[data-column="end-address"] {
-            font-size: 0.9em;
-            color: #777;
-            line-height: 1.3;
-        }
+        .trips-list-container th { background-color: #f4f7f9; position: sticky; top: 0; z-index: 10; padding: 12px 15px; text-align: left; font-weight: 600; font-size: 0.85em; color: #333; text-transform: uppercase; border-bottom: 2px solid #00529b; vertical-align: middle; }
+        .trips-list-container td { padding: 12px 15px; border-bottom: 1px solid #ddd; text-align: left; color: #555; vertical-align: middle; }
+        .trips-list-container td[data-column="start-address"], .trips-list-container td[data-column="end-address"] { font-size: 0.9em; color: #777; line-height: 1.3; }
         .trips-list-container th.sortable { cursor: pointer; }
         .trips-list-container th.sortable:hover { background-color: #e9e9e9; }
         .trips-list-container th .sort-indicator { display: inline-block; margin-left: 5px; opacity: 0.7; }
         .trips-list-container .unit { font-size: 0.8em; color: #666; font-weight: normal; text-transform: none; }
         .trips-list-container tr:nth-child(even) { background-color: #f9f9f9; }
         .trips-list-container tbody tr:hover { background-color: #eef4f8; cursor: pointer; }
-        
-        #map-panel { flex: 1 1 40%; position: sticky; top: 20px; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); overflow: hidden; }
-        #map-panel-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; background-color: #f4f7f9; border-bottom: 1px solid #ddd; }
-        #map-panel-header h3 { margin: 0; color: #00529b; }
+
+        #map-panel { flex: 1 1 40%; position: sticky; top: 20px; display: none; }
+        #map-panel-wrapper { background: #fff; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); overflow: hidden; }
+        #map-panel-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; padding: 10px 15px; background-color: #f4f7f9; border-bottom: 1px solid #ddd; }
+        #map-panel-title { margin: 0; color: #00529b; font-size: 1.1em; }
+        .map-nav-btn { display: none; }
         #close-map-panel-btn { background: none; border: none; font-size: 1.5em; cursor: pointer; color: #666; }
         #map { width: 100%; height: 500px; border: none; }
+        #map-trip-stats { display: none; }
+
+        @media (max-width: 1024px) {
+            .trips-list-container { flex-basis: 100%; }
+            #map-panel.is-overlay {
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                background: rgba(0,0,0,0.7); z-index: 1000;
+                display: flex; align-items: center; justify-content: center;
+                padding: 15px; flex-basis: auto; position: fixed;
+            }
+            .is-overlay #map-panel-wrapper { width: 100%; max-width: 800px; height: 90vh; max-height: 700px; display: flex; flex-direction: column; }
+            .is-overlay #map-panel-content { flex-grow: 1; }
+            .is-overlay #map { height: 100%; }
+            .is-overlay .map-nav-btn {
+                display: inline-block; padding: 5px 12px;
+                background-color: #00529b; color: white;
+                border: none; border-radius: 4px; cursor: pointer;
+            }
+            .is-overlay .map-nav-btn:disabled { background-color: #aaa; cursor: not-allowed; }
+            .is-overlay #map-panel-title { flex-grow: 1; text-align: center; }
+            .is-overlay #map-trip-stats {
+                display: flex;
+                justify-content: space-around;
+                width: 100%;
+                background: #e9ecef;
+                padding: 8px 0;
+                font-size: 0.8em;
+                text-align: center;
+                border-top: 1px solid #ddd;
+                order: 3;
+            }
+            .is-overlay #map-trip-stats span { color: #555; }
+            .is-overlay #map-trip-stats strong { color: #000; }
+        }
     </style>
 </head>
 <body>
@@ -176,7 +154,6 @@
                             <label><input type="checkbox" data-column="score"> Score</label>
                         </div>
                     </div>
-
                 </div>
             </div>
             <div class="collapsible-panel">
@@ -225,13 +202,18 @@
                         <tbody id="trips-table-body"></tbody>
                     </table>
                 </div>
-                <div id="map-panel" style="display: none;">
-                    <div id="map-panel-header">
-                        <h3 id="map-panel-title">Trip Map</h3>
-                        <button id="close-map-panel-btn">&times;</button>
-                    </div>
-                    <div id="map-panel-content">
-                        <div id="map"></div>
+                <div id="map-panel">
+                    <div id="map-panel-wrapper">
+                        <div id="map-panel-header">
+                            <button id="prev-trip-btn" class="map-nav-btn">&larr; Prev</button>
+                            <h3 id="map-panel-title">Trip Map</h3>
+                            <button id="next-trip-btn" class="map-nav-btn">Next &rarr;</button>
+                            <button id="close-map-panel-btn">&times;</button>
+                            <div id="map-trip-stats"></div>
+                        </div>
+                        <div id="map-panel-content">
+                            <div id="map"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -247,7 +229,7 @@
                 header.addEventListener('click', function() {
                     const content = this.nextElementSibling;
                     const indicator = this.querySelector('.toggle-indicator');
-
+                    
                     if (content.style.display === 'block') {
                         content.style.display = 'none';
                         indicator.innerHTML = '&#9660;'; // Down arrow
