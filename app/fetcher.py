@@ -344,39 +344,51 @@ async def run_fetch_cycle():
     all_vehicle_data = []
 
     try:
+        # Read the existing cache to preserve on-demand data like service history
+        vin_to_service_history = {}
+        if await aiofiles.os.path.exists(CACHE_FILE):
+            try:
+                async with aiofiles.open(CACHE_FILE, 'r') as f:
+                    content = await f.read()
+                    existing_cache = json.loads(content)
+                for vehicle_data in existing_cache.get("vehicles", []):
+                    if "service_history" in vehicle_data and "vin" in vehicle_data:
+                        vin_to_service_history[vehicle_data["vin"]] = vehicle_data["service_history"]
+                _LOGGER.debug(f"Preserving service history for VINs: {list(vin_to_service_history.keys())}")
+            except (IOError, json.JSONDecodeError):
+                _LOGGER.warning("Could not read existing cache file to preserve data.")
+
         await client.login()
         vehicles = await client.get_vehicles()
         if not vehicles:
             _LOGGER.info("No vehicles found for this account.")
             return
-
         db = database.SessionLocal()
         try:
-            processing_tasks = [_process_vehicle(vehicle, db) for vehicle in vehicles if vehicle and vehicle.vin]
-            results = await asyncio.gather(*processing_tasks, return_exceptions=True)
+            tasks = [_process_vehicle(v, db) for v in vehicles if v and v.vin]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
             
             for res in results:
-                if isinstance(res, Exception):
-                    _LOGGER.error(f"An error occurred while processing a vehicle: {res}", exc_info=True)
-                elif res:
+                if isinstance(res, dict):
+                    # Add the preserved service history back to the newly fetched data
+                    vin = res.get("vin")
+                    if vin in vin_to_service_history:
+                        res["service_history"] = vin_to_service_history[vin]
+                        _LOGGER.debug(f"Restored service history for VIN {vin}.")
                     all_vehicle_data.append(res)
+                elif isinstance(res, Exception):
+                    _LOGGER.error(f"An error occurred while processing a vehicle: {res}", exc_info=True)
         finally:
             db.close()
-
         if all_vehicle_data:
-            CACHE_FILE_TMP = CACHE_FILE.with_suffix(".tmp")
+            tmp_file = CACHE_FILE.with_suffix(".tmp")
             async with CACHE_LOCK:
-                async with aiofiles.open(CACHE_FILE_TMP, "w") as f:
+                async with aiofiles.open(tmp_file, "w") as f:
                     await f.write(json.dumps({"last_updated": datetime.datetime.utcnow().isoformat(), "vehicles": all_vehicle_data}, indent=2))
-                await aiofiles.os.replace(CACHE_FILE_TMP, CACHE_FILE)
+                await aiofiles.os.replace(tmp_file, CACHE_FILE)
             _LOGGER.info(f"Successfully fetched and cached data for {len(all_vehicle_data)} vehicle(s).")
         else:
             _LOGGER.info("No new vehicle data was processed, cache file not updated.")
-
-    except ToyotaLoginError as e:
-        _LOGGER.error(f"Login failed: {e}")
-    except ToyotaApiError as e:
-        _LOGGER.error(f"A Toyota API error occurred during the fetch cycle: {e}")
     except Exception as e:
         _LOGGER.error(f"An unexpected error occurred in the fetch cycle: {e}", exc_info=True)
     finally:
