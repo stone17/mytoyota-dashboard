@@ -8,7 +8,7 @@ import time
 import datetime
 import logging
 from collections import deque
-from typing import Deque, Dict
+from typing import Deque, Dict, Optional
 
 import aiofiles
 from fastapi import FastAPI, HTTPException, Request, Body, UploadFile, File
@@ -357,8 +357,15 @@ def get_geocode_status():
         db.close()
 
 @app.get("/api/trips")
-def get_trips(vin: str, sort_by: str = "start_timestamp", sort_direction: str = "desc", unit_system: str = "metric"):
-    """API endpoint to get all imported trips for a vehicle, with robust, unit-aware server-side sorting."""
+def get_trips(
+    vin: str,
+    sort_by: str = "start_timestamp",
+    sort_direction: str = "desc",
+    unit_system: str = "metric",
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+):
+    """API endpoint to get all imported trips for a vehicle, with date filtering."""
     db = database.SessionLocal()
     try:
         from sqlalchemy import text
@@ -366,7 +373,7 @@ def get_trips(vin: str, sort_by: str = "start_timestamp", sort_direction: str = 
         if sort_by not in ["start_timestamp", "distance_km", "fuel_consumption_l_100km", "duration_seconds", "score_global", "average_speed_kmh", "ev_distance_km", "ev_duration_seconds"]:
             raise HTTPException(status_code=400, detail=f"Invalid sort_by parameter.")
 
-        # Determine the actual database column name based on the selected unit system
+        # This section remains unchanged
         sort_column_name = {
             "distance_km": "distance_mi" if unit_system.startswith('imperial') else "distance_km",
             "fuel_consumption_l_100km": "mpg_uk" if unit_system == 'imperial_uk' else ("mpg" if unit_system == 'imperial_us' else "fuel_consumption_l_100km"),
@@ -390,11 +397,26 @@ def get_trips(vin: str, sort_by: str = "start_timestamp", sort_direction: str = 
             direction_sql = "DESC" if sort_direction == "desc" else "ASC"
             sort_expression = text(f"{sort_column_name} {direction_sql} NULLS LAST")
 
-        # Defer loading of the heavy 'route' column for performance
+        # Base query
         query = db.query(database.Trip).options(defer(database.Trip.route))
-        trips = query.filter(database.Trip.vin == vin).order_by(
-            sort_expression
-        ).all()
+        query = query.filter(database.Trip.vin == vin)
+
+        # Apply date filters if provided
+        if start_date:
+            try:
+                start_dt = datetime.datetime.fromisoformat(start_date).replace(hour=0, minute=0, second=0)
+                query = query.filter(database.Trip.start_timestamp >= start_dt)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD.")
+        if end_date:
+            try:
+                end_dt = datetime.datetime.fromisoformat(end_date).replace(hour=23, minute=59, second=59)
+                query = query.filter(database.Trip.start_timestamp <= end_dt)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD.")
+        
+        # Apply sorting and fetch all results
+        trips = query.order_by(sort_expression).all()
         return trips
     finally:
         db.close()

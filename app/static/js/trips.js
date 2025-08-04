@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const geocodeProgressContainer = document.getElementById('geocode-progress-container');
     const geocodeProgressBar = document.getElementById('geocode-progress-bar');
     const geocodeProgressText = document.getElementById('geocode-progress-text');
+    const periodSelect = document.getElementById('period-select');
     
     let currentSort = { by: 'start_timestamp', direction: 'desc' };
     let appConfig = { unit_system: 'metric' };
@@ -142,11 +143,35 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadTrips() {
         const selectedVin = vinSelect.value;
         if (!selectedVin) return;
-        tripsTableBody.innerHTML = '<tr><td colspan="11">Loading trips...</td></tr>';
+
+        tripsTableBody.innerHTML = '<tr><td colspan="11" style="text-align:center;">Loading trips...</td></tr>';
         mapPanel.style.display = 'none';
         updateSortIndicators();
+
         try {
-            const response = await fetch(`/api/trips?vin=${selectedVin}&sort_by=${currentSort.by}&sort_direction=${currentSort.direction}&unit_system=${appConfig.unit_system}`);
+            const periodDays = periodSelect.value;
+            let startDate = '';
+
+            // Calculate the start date based on the dropdown. 'all' means no start date.
+            if (periodDays !== 'all') {
+                const date = new Date();
+                date.setDate(date.getDate() - parseInt(periodDays, 10));
+                startDate = date.toISOString().split('T')[0];
+            }
+
+            const params = new URLSearchParams({
+                vin: selectedVin,
+                sort_by: currentSort.by,
+                sort_direction: currentSort.direction,
+                unit_system: appConfig.unit_system
+            });
+
+            // Add the calculated start_date to the API call if it exists
+            if (startDate) {
+                params.append('start_date', startDate);
+            }
+
+            const response = await fetch(`/api/trips?${params.toString()}`);
             const trips = await response.json();
             renderTable(trips);
         } catch (e) {
@@ -181,7 +206,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td data-column="ev-dur">${formatDuration(trip.ev_duration_seconds)}</td>
                 <td data-column="score">${trip.score_global || 'N/A'}</td>`;
 
-            // --- Start of Targeted Change ---
             row.addEventListener('click', async () => {
                 mapPanelTitle.textContent = `Trip on ${new Date(trip.start_timestamp).toLocaleDateString()}`;
                 mapPanel.style.display = 'block';
@@ -216,10 +240,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }, 50); // A small delay ensures rendering is complete
             });
-            // --- End of Targeted Change ---
         });
         updateColumnVisibility();
         loadAndApplyColumnOrder();
+    }
+
+    function savePeriodAndReload() {
+        localStorage.setItem('mytoyota_trip_period', periodSelect.value);
+        loadTrips();
     }
     
     function updateSortIndicators() {
@@ -317,6 +345,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     closeMapPanelBtn.addEventListener('click', () => mapPanel.style.display = 'none');
+
     tableHeaderRow.addEventListener('click', (event) => {
         const headerCell = event.target.closest('th.sortable');
         if (!headerCell) return;
@@ -329,7 +358,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         loadTrips();
     });
+
     vinSelect.addEventListener('change', loadTrips);
+    periodSelect.addEventListener('change', savePeriodAndReload);
+
     columnSelector.addEventListener('change', () => {
         updateColumnVisibility();
         saveColumnPreferences();
@@ -377,6 +409,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     async function init() {
+        const savedPeriod = localStorage.getItem('mytoyota_trip_period');
+        if (savedPeriod) {
+            periodSelect.value = savedPeriod;
+        }
         initMap();
         await loadConfig();
         loadColumnPreferences();
