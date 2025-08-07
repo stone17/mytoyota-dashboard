@@ -16,8 +16,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const geocodeProgressBar = document.getElementById('geocode-progress-bar');
     const geocodeProgressText = document.getElementById('geocode-progress-text');
     const periodSelect = document.getElementById('period-select');
-    const filterByAreaBtn = document.getElementById('filter-by-area-btn');
+    const filterAreaBtn = document.getElementById('filter-area-btn');
+    const filterStartAreaBtn = document.getElementById('filter-start-area-btn');
+    const filterEndAreaBtn = document.getElementById('filter-end-area-btn');
     const clearAreaFilterBtn = document.getElementById('clear-area-filter-btn');
+    const activeFiltersDisplay = document.getElementById('active-filters-display');
+    const filterStatusIndicator = document.getElementById('filter-status-indicator');
+    const showHeatmapBtn = document.getElementById('show-heatmap-btn');
+    const heatmapTitle = document.getElementById('heatmap-title');
+    const heatmapOverlay = document.getElementById('heatmap-overlay');
+    const heatmapMapContainer = document.getElementById('heatmap-map');
+    const closeHeatmapBtn = document.getElementById('close-heatmap-btn');
+    const heatmapLoading = document.getElementById('heatmap-loading');
     
     let currentSort = { by: 'start_timestamp', direction: 'desc' };
     let appConfig = { unit_system: 'metric' };
@@ -25,12 +35,22 @@ document.addEventListener('DOMContentLoaded', () => {
     let originalTrips = [];
     let displayedTrips = [];
     let currentTripContext = { tripId: null, rowIndex: -1 };
+    let areaFilterMode = null;
+    let activeFilters = { 
+        area: { bounds: null, layer: null }, 
+        start: { bounds: null, layer: null }, 
+        end: { bounds: null, layer: null } 
+    };
 
     // --- Map variables ---
     let map;
+    let heatmapMap;
+    let heatLayer;
     let currentMapLayers = [];
     let drawControl;
     let drawnItems;
+
+    const FILTERS_STORAGE_KEY = 'mytoyota_trip_filters';
 
     // --- Custom Map Icons ---
     const startIcon = new L.Icon({
@@ -43,27 +63,6 @@ document.addEventListener('DOMContentLoaded', () => {
         shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
         iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
     });
-
-    function clearMap() {
-        currentMapLayers.forEach(layer => map.removeLayer(layer));
-        currentMapLayers = [];
-        drawnItems.clearLayers();
-        map.closePopup();
-    }
-    
-    function fitMapToBoundsOfAllTrips() {
-        if (originalTrips.length === 0) {
-            map.setView([55.7, 13.2], 9); // Fallback to Lund
-            return;
-        }
-        const bounds = L.latLngBounds();
-        originalTrips.forEach(trip => {
-            if (trip.start_lat && trip.start_lon) { bounds.extend([trip.start_lat, trip.start_lon]); }
-            if (trip.end_lat && trip.end_lon) { bounds.extend([trip.end_lat, trip.end_lon]); }
-        });
-        if (bounds.isValid()) { map.fitBounds(bounds.pad(0.1)); } 
-        else { map.setView([55.7, 13.2], 9); }
-    }
 
     function initMap() {
         const streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' });
@@ -84,11 +83,124 @@ document.addEventListener('DOMContentLoaded', () => {
         map.addControl(drawControl);
         map.on(L.Draw.Event.CREATED, function (e) {
             const layer = e.layer;
-            drawnItems.clearLayers();
+            const bounds = layer.getBounds();
+
+            if (areaFilterMode === 'area') {
+                if (activeFilters.area.layer) drawnItems.removeLayer(activeFilters.area.layer);
+                activeFilters.area = { bounds: bounds, layer: layer };
+            } else if (areaFilterMode === 'start') {
+                if (activeFilters.start.layer) drawnItems.removeLayer(activeFilters.start.layer);
+                activeFilters.start = { bounds: bounds, layer: layer };
+            } else if (areaFilterMode === 'end') {
+                if (activeFilters.end.layer) drawnItems.removeLayer(activeFilters.end.layer);
+                activeFilters.end = { bounds: bounds, layer: layer };
+            }
             drawnItems.addLayer(layer);
-            filterTripsByBounds(layer.getBounds());
-            clearAreaFilterBtn.style.display = 'inline-block';
+            applyFilters();
         });
+    }
+
+    function initHeatmapMap() {
+        if (heatmapMap) return; // Initialize only once
+
+        // Define the three base layers
+        const streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        });
+        const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 19,
+            attribution: 'Tiles &copy; Esri'
+        });
+        const dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+            subdomains: 'abcd',
+            maxZoom: 20
+        });
+
+        // Initialize the map, setting 'Streets' as the default layer
+        heatmapMap = L.map(heatmapMapContainer, {
+            center: [55.7, 13.2],
+            zoom: 9,
+            layers: [streets] // Set default layer to Streets
+        });
+
+        // Create the control object with all three layers
+        const baseMaps = {
+            "Streets": streets,
+            "Satellite": satellite,
+            "Dark": dark
+        };
+
+        // Add the layer control to the heatmap
+        L.control.layers(baseMaps).addTo(heatmapMap);
+    }
+
+    function clearMap() {
+        currentMapLayers.forEach(layer => map.removeLayer(layer));
+        currentMapLayers = [];
+        map.closePopup();
+    }
+    
+    function fitMapToBoundsOfAllTrips() {
+        if (originalTrips.length === 0) {
+            map.setView([55.7, 13.2], 9);
+            return;
+        }
+        const bounds = L.latLngBounds();
+        originalTrips.forEach(trip => {
+            if (trip.start_lat && trip.start_lon) { bounds.extend([trip.start_lat, trip.start_lon]); }
+            if (trip.end_lat && trip.end_lon) { bounds.extend([trip.end_lat, trip.end_lon]); }
+        });
+        if (bounds.isValid()) { map.fitBounds(bounds.pad(0.1)); } 
+        else { map.setView([55.7, 13.2], 9); }
+    }
+
+    function saveFiltersToLocalStorage() {
+        const serializableFilters = {
+            area: activeFilters.area.bounds ? activeFilters.area.bounds.toBBoxString() : null,
+            start: activeFilters.start.bounds ? activeFilters.start.bounds.toBBoxString() : null,
+            end: activeFilters.end.bounds ? activeFilters.end.bounds.toBBoxString() : null,
+        };
+        localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(serializableFilters));
+    }
+
+    function loadFiltersFromLocalStorage() {
+        const savedFilters = JSON.parse(localStorage.getItem(FILTERS_STORAGE_KEY));
+        if (!savedFilters) return;
+
+        drawnItems.clearLayers();
+        activeFilters = { 
+            area: { bounds: null, layer: null }, 
+            start: { bounds: null, layer: null }, 
+            end: { bounds: null, layer: null } 
+        };
+        
+        const createFilterFromBBox = (bboxString, color) => {
+            if (!bboxString) return null;
+            const coords = bboxString.split(',').map(Number); // west, south, east, north
+            const southWest = [coords[1], coords[0]]; // [lat, lon]
+            const northEast = [coords[3], coords[2]]; // [lat, lon]
+            const bounds = L.latLngBounds([southWest, northEast]);
+            const layer = L.rectangle(bounds, { color: color, weight: 1 });
+            return { bounds, layer };
+        };
+
+        const areaFilter = createFilterFromBBox(savedFilters.area, '#5bc0de');
+        if (areaFilter) {
+            activeFilters.area = areaFilter;
+            drawnItems.addLayer(areaFilter.layer);
+        }
+        const startFilter = createFilterFromBBox(savedFilters.start, '#5cb85c');
+        if (startFilter) {
+            activeFilters.start = startFilter;
+            drawnItems.addLayer(startFilter.layer);
+        }
+        const endFilter = createFilterFromBBox(savedFilters.end, '#337ab7');
+        if (endFilter) {
+            activeFilters.end = endFilter;
+            drawnItems.addLayer(endFilter.layer);
+        }
     }
 
     function updateUnitHeaders() {
@@ -146,12 +258,16 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) { tripsTableBody.innerHTML = `<tr><td colspan="11">Could not load vehicle list: ${e.message}</td></tr>`; }
     }
 
-    async function loadTrips() {
+    async function loadTrips(keepFilters = false) {
         const selectedVin = vinSelect.value;
         if (!selectedVin) return;
+        
+        if (!keepFilters) {
+            mapPanel.style.display = 'none';
+        }
         tripsTableBody.innerHTML = '<tr><td colspan="11" style="text-align:center;">Loading trips...</td></tr>';
-        mapPanel.style.display = 'none';
         updateSortIndicators();
+        
         try {
             const periodDays = periodSelect.value;
             let startDate = '';
@@ -165,8 +281,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch(`/api/trips?${params.toString()}`);
             const trips = await response.json();
             originalTrips = trips;
-            renderTable(trips);
-            clearAreaFilterBtn.click();
+            
+            if (keepFilters) {
+                applyFilters();
+            } else {
+                clearAreaFilterBtn.click();
+            }
         } catch (e) { tripsTableBody.innerHTML = `<tr><td colspan="11">Error loading trips: ${e.message}</td></tr>`; }
     }
 
@@ -179,13 +299,67 @@ document.addEventListener('DOMContentLoaded', () => {
         nextTripBtn.disabled = currentTripContext.rowIndex >= displayedTrips.length - 1;
     }
 
-    function filterTripsByBounds(bounds) {
-        const filteredTrips = originalTrips.filter(trip => {
-            const startInBounds = bounds.contains([trip.start_lat, trip.start_lon]);
-            const endInBounds = bounds.contains([trip.end_lat, trip.end_lon]);
-            return startInBounds || endInBounds;
-        });
+    function applyFilters() {
+        let filteredTrips = originalTrips;
+
+        if (activeFilters.area.bounds) {
+            filteredTrips = filteredTrips.filter(trip => 
+                (trip.start_lat && activeFilters.area.bounds.contains([trip.start_lat, trip.start_lon])) ||
+                (trip.end_lat && activeFilters.area.bounds.contains([trip.end_lat, trip.end_lon]))
+            );
+        }
+        if (activeFilters.start.bounds) {
+            filteredTrips = filteredTrips.filter(trip => 
+                trip.start_lat && activeFilters.start.bounds.contains([trip.start_lat, trip.start_lon])
+            );
+        }
+        if (activeFilters.end.bounds) {
+            filteredTrips = filteredTrips.filter(trip => 
+                trip.end_lat && activeFilters.end.bounds.contains([trip.end_lat, trip.end_lon])
+            );
+        }
+
         renderTable(filteredTrips);
+        updateActiveFiltersDisplay();
+        saveFiltersToLocalStorage();
+    }
+    
+    function updateActiveFiltersDisplay() {
+        const activeNames = [];
+        if (activeFilters.area.bounds) activeNames.push("Area (Start/End)");
+        if (activeFilters.start.bounds) activeNames.push("Start Area");
+        if (activeFilters.end.bounds) activeNames.push("End Area");
+
+        if (activeNames.length > 0) {
+            activeFiltersDisplay.textContent = `Active: ${activeNames.join(', ')}`;
+            clearAreaFilterBtn.style.display = 'inline-block';
+            filterStatusIndicator.textContent = '(Filter Active)';
+            filterStatusIndicator.style.display = 'inline';
+        } else {
+            activeFiltersDisplay.textContent = '';
+            clearAreaFilterBtn.style.display = 'none';
+            filterStatusIndicator.style.display = 'none';
+        }
+    }
+
+    function activateDrawingMode() {
+        if (window.getComputedStyle(mapPanel).display === 'none') {
+            clearMap();
+            mapPanelTitle.textContent = "Select Area on Map";
+            mapTripStats.innerHTML = '';
+            if (isMobile()) {
+                mapPanel.classList.add('is-overlay');
+                mapPanel.style.display = 'flex';
+            } else {
+                mapPanel.classList.remove('is-overlay');
+                mapPanel.style.display = 'block';
+            }
+            setTimeout(() => {
+                map.invalidateSize();
+                fitMapToBoundsOfAllTrips();
+            }, 50);
+        }
+        new L.Draw.Rectangle(map, drawControl.options.draw.rectangle).enable();
     }
 
     async function showTripOnMap(trip, rowIndex) {
@@ -236,7 +410,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const isUk = appConfig.unit_system === 'imperial_uk';
         tripsTableBody.innerHTML = '';
         if (trips.length === 0) {
-            tripsTableBody.innerHTML = '<tr><td colspan="11">No trips found for this vehicle.</td></tr>';
+            tripsTableBody.innerHTML = '<tr><td colspan="11" style="text-align: center; padding: 20px;">No trips found for the current filter.</td></tr>';
             return;
         }
         trips.forEach((trip, index) => {
@@ -264,7 +438,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function savePeriodAndReload() {
         localStorage.setItem('mytoyota_trip_period', periodSelect.value);
-        loadTrips();
+        loadTrips(false);
     }
     
     function updateSortIndicators() {
@@ -353,30 +527,116 @@ document.addEventListener('DOMContentLoaded', () => {
         mapPanel.classList.remove('is-overlay');
     }
 
-    filterByAreaBtn.addEventListener('click', () => {
-        if (mapPanel.style.display === 'none') {
-            clearMap();
-            mapPanelTitle.textContent = "Select Area on Map";
-            mapTripStats.innerHTML = '';
-            if (isMobile()) {
-                mapPanel.classList.add('is-overlay');
-                mapPanel.style.display = 'flex';
-            } else {
-                mapPanel.classList.remove('is-overlay');
-                mapPanel.style.display = 'block';
-            }
-            setTimeout(() => {
-                map.invalidateSize();
-                fitMapToBoundsOfAllTrips();
-            }, 50);
-        }
-        new L.Draw.Rectangle(map, drawControl.options.draw.rectangle).enable();
+    filterAreaBtn.addEventListener('click', () => {
+        areaFilterMode = 'area';
+        activeFilters.start = { bounds: null, layer: null };
+        activeFilters.end = { bounds: null, layer: null };
+        drawnItems.clearLayers();
+        activateDrawingMode();
+    });
+
+    filterStartAreaBtn.addEventListener('click', () => {
+        areaFilterMode = 'start';
+        if (activeFilters.area.layer) drawnItems.removeLayer(activeFilters.area.layer);
+        activeFilters.area = { bounds: null, layer: null };
+        if (activeFilters.start.layer) drawnItems.removeLayer(activeFilters.start.layer);
+        activateDrawingMode();
+    });
+
+    filterEndAreaBtn.addEventListener('click', () => {
+        areaFilterMode = 'end';
+        if (activeFilters.area.layer) drawnItems.removeLayer(activeFilters.area.layer);
+        activeFilters.area = { bounds: null, layer: null };
+        if (activeFilters.end.layer) drawnItems.removeLayer(activeFilters.end.layer);
+        activateDrawingMode();
     });
 
     clearAreaFilterBtn.addEventListener('click', () => {
+        const resetFilter = { bounds: null, layer: null };
+        activeFilters = { area: resetFilter, start: resetFilter, end: resetFilter };
         drawnItems.clearLayers();
-        renderTable(originalTrips);
-        clearAreaFilterBtn.style.display = 'none';
+        applyFilters();
+    });
+
+    showHeatmapBtn.addEventListener('click', async () => {
+        if (displayedTrips.length === 0) {
+            alert("No trips to display in the heatmap.");
+            return;
+        }
+        
+        heatmapOverlay.style.display = 'flex';
+        initHeatmapMap();
+        
+        const originalTitle = "Trips Heatmap";
+        let loadedCount = 0;
+        const totalTrips = displayedTrips.length;
+        heatmapTitle.textContent = `Loading trip data: 0 of ${totalTrips}...`;
+
+        const routePromises = displayedTrips.map(trip => 
+            fetch(`/api/trips/${trip.id}/route`)
+                .then(res => {
+                    if (!res.ok) {
+                        console.error(`Failed to fetch route for trip ${trip.id}: Status ${res.status}`);
+                        return null;
+                    }
+                    return res.json();
+                })
+                .then(result => {
+                    loadedCount++;
+                    heatmapTitle.textContent = `Loading trip data: ${loadedCount} of ${totalTrips}...`;
+                    return result;
+                })
+                .catch(error => {
+                    console.error(`Network error for trip ${trip.id}:`, error);
+                    loadedCount++;
+                    heatmapTitle.textContent = `Loading trip data: ${loadedCount} of ${totalTrips}...`;
+                    return null;
+                })
+        );
+
+        try {
+            const results = await Promise.all(routePromises);
+            heatmapTitle.textContent = 'Generating heatmap...';
+            
+            const allPoints = [];
+            results.forEach(result => {
+                if (result && result.route && result.route.length > 0) {
+                    result.route.forEach(point => {
+                        allPoints.push([point.lat, point.lon]);
+                    });
+                }
+            });
+
+            if (heatLayer) { heatmapMap.removeLayer(heatLayer); }
+
+            if (allPoints.length === 0) {
+                alert("None of the selected trips contain detailed route data for a heatmap.");
+                heatmapTitle.textContent = originalTitle;
+                return;
+            }
+
+            heatLayer = L.heatLayer(allPoints, { radius: 20, blur: 15, maxZoom: 18 }).addTo(heatmapMap);
+            
+            const bounds = L.latLngBounds(allPoints);
+            setTimeout(() => {
+                heatmapMap.invalidateSize();
+                if (bounds.isValid()) {
+                    heatmapMap.fitBounds(bounds.pad(0.1));
+                } else {
+                    heatmapMap.setView([55.7, 13.2], 9);
+                }
+                heatmapTitle.textContent = originalTitle; // Restore title on success
+            }, 100);
+
+        } catch (error) {
+            console.error("A critical error during heatmap generation:", error);
+            alert("An unexpected error occurred while generating the heatmap.");
+            heatmapTitle.textContent = originalTitle; // Restore title on error
+        }
+    });
+    
+    closeHeatmapBtn.addEventListener('click', () => {
+        heatmapOverlay.style.display = 'none';
     });
 
     closeMapPanelBtn.addEventListener('click', closeMap);
@@ -399,11 +659,11 @@ document.addEventListener('DOMContentLoaded', () => {
             currentSort.by = sortBy;
             currentSort.direction = 'desc';
         }
-        loadTrips();
+        loadTrips(true);
     });
 
-    vinSelect.addEventListener('change', loadTrips);
-    periodSelect.addEventListener('change', savePeriodAndReload);
+    vinSelect.addEventListener('change', () => loadTrips(false));
+    periodSelect.addEventListener('change', () => loadTrips(false));
     columnSelector.addEventListener('change', () => { updateColumnVisibility(); saveColumnPreferences(); });
 
     backfillControls.addEventListener('click', async (event) => {
@@ -420,8 +680,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
             showBackfillStatus(response.ok ? result.message : `Error: ${result.detail}`, response.ok ? 'success' : 'error');
             if (response.ok) {
-                loadTrips();
-                if (!geocodeInterval) geocodeInterval = setInterval(updateGeocodeProgress, 5000);
+                loadTrips(false);
             }
         } catch (error) {
             showBackfillStatus('An unexpected error occurred during the fetch.', 'error');
@@ -444,12 +703,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const savedPeriod = localStorage.getItem('mytoyota_trip_period');
         if (savedPeriod) { periodSelect.value = savedPeriod; }
         initMap();
+        loadFiltersFromLocalStorage();
         await loadConfig();
         updateUnitHeaders();
         loadColumnPreferences();
         loadAndApplyColumnOrder();
         await loadVins();
-        if (vinSelect.value) await loadTrips();
+        if (vinSelect.value) await loadTrips(true);
         updateSortIndicators();
         if (!geocodeInterval) geocodeInterval = setInterval(updateGeocodeProgress, 5000);
     }

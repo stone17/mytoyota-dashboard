@@ -162,6 +162,12 @@ async def read_notifications_page(request: Request):
     cache_buster = int(time.time())
     return templates.TemplateResponse("notifications.html", {"request": request, "cache_buster": cache_buster})
 
+@app.get("/heatmap", response_class=HTMLResponse)
+async def read_heatmap_page(request: Request):
+    """Serve the heatmap page."""
+    cache_buster = int(time.time())
+    return templates.TemplateResponse("heatmap.html", {"request": request, "cache_buster": cache_buster})
+
 @app.get("/api/vehicles")
 async def get_vehicle_data():
     """API endpoint to get the cached vehicle data."""
@@ -453,6 +459,34 @@ def get_trip_route(trip_id: int):
         if not trip:
             raise HTTPException(status_code=404, detail="Trip not found")
         return {"route": trip.route}
+    finally:
+        db.close()
+
+@app.get("/api/vehicles/{vin}/heatmap")
+def get_heatmap_data(vin: str):
+    """
+    Fetches all GPS route points for a vehicle to generate a heatmap.
+    """
+    db = database.SessionLocal()
+    try:
+        # Query for all trips for the given VIN that have route data
+        trips_with_routes = db.query(database.Trip.route).filter(
+            database.Trip.vin == vin,
+            database.Trip.route != None
+        ).all()
+
+        all_points = []
+        for trip_route in trips_with_routes:
+            # The route is stored as a list of points in the first element of the tuple
+            route_points = trip_route[0]
+            if isinstance(route_points, list):
+                for point in route_points:
+                    # Add each point as a [lat, lon] list
+                    if isinstance(point, dict) and 'lat' in point and 'lon' in point:
+                        all_points.append([point['lat'], point['lon']])
+        
+        _LOGGER.info(f"Returning {len(all_points)} points for VIN {vin} heatmap.")
+        return all_points
     finally:
         db.close()
 
