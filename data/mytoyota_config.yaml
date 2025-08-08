@@ -12,3 +12,10 @@ log_history_size: 200
 unit_system: metric
 reverse_geocode_enabled: true
 fetch_full_trip_route: true
+mqtt:
+  enabled: true
+  host: 192.168.0.100
+  port: 1883
+  username: ''
+  base_topic: mytoyota/ecco1
+  discovery_prefix: domoticz

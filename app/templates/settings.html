@@ -58,7 +58,7 @@
                 <span>Logs</span>
             </a>
             <a href="/settings" class="nav-link active">
-                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61-.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24-.42.12-.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69-.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49-1c.23-.09.49 0 .61-.22l2-3.46c-.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61-.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19-.15-.24-.42.12-.64l2 3.46c.12.22.39.3.61-.22l2.49-1c.52.4 1.08.73 1.69-.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49-1c.23-.09.49 0 .61-.22l2-3.46c-.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
                 <span>Settings</span>
             </a>
         </nav>
@@ -80,6 +80,44 @@
                 </div>
                 <button type="submit">Save Credentials</button>
                 <p id="credentials-message" class="status-message"></p>
+            </form>
+        </section>
+
+        <section class="settings-section">
+            <h2>MQTT Settings</h2>
+            <p>Send vehicle data to an MQTT broker for home automation systems like Domoticz or Home Assistant.</p>
+            <form id="mqtt-settings-form">
+                <div class="form-group">
+                    <label><input type="checkbox" id="mqtt-enabled" name="enabled"> Enable MQTT</label>
+                </div>
+                <div class="form-group">
+                    <label for="mqtt-host">Broker Host</label>
+                    <input type="text" id="mqtt-host" name="host" placeholder="e.g., 192.168.1.100">
+                </div>
+                <div class="form-group">
+                    <label for="mqtt-port">Broker Port</label>
+                    <input type="number" id="mqtt-port" name="port" placeholder="1883">
+                </div>
+                <div class="form-group">
+                    <label for="mqtt-username">Username (optional)</label>
+                    <input type="text" id="mqtt-username" name="username">
+                </div>
+                <div class="form-group">
+                    <label for="mqtt-password">Password (optional)</label>
+                    <input type="password" id="mqtt-password" name="password">
+                </div>
+                <div class="form-group">
+                    <label for="mqtt-base-topic">Base Topic (optional)</label>
+                    <input type="text" id="mqtt-base-topic" name="base_topic" placeholder="mytoyota/{vin}">
+                    <p>Default is <code>mytoyota/{vin}</code>. Sensor data will be published to sub-topics like <code>.../odometer</code>.</p>
+                </div>
+                <div class="form-group">
+                    <label for="mqtt-discovery-prefix">Auto Discovery Prefix</label>
+                    <input type="text" id="mqtt-discovery-prefix" name="discovery_prefix" placeholder="homeassistant">
+                    <p>Prefix for Home Assistant or Domoticz MQTT Auto Discovery. Leave as `homeassistant` unless you have a specific reason to change it.</p>
+                </div>
+                <button type="submit">Save MQTT Settings</button>
+                <p id="mqtt-status-message" class="status-message"></p>
             </form>
         </section>
 

@@ -10,12 +10,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const displaySettingsForm = document.getElementById('display-settings-form');
     const loggingSettingsForm = document.getElementById('logging-settings-form');
     const geocodingSettingsForm = document.getElementById('geocoding-settings-form');
+    const mqttSettingsForm = document.getElementById('mqtt-settings-form'); // New
 
     const pollingStatusMessage = document.getElementById('polling-status-message');
     const apiRetriesStatusMessage = document.getElementById('api-retries-status-message');
     const displayStatusMessage = document.getElementById('display-status-message');
     const loggingStatusMessage = document.getElementById('logging-status-message');
     const geocodingStatusMessage = document.getElementById('geocoding-status-message');
+    const mqttStatusMessage = document.getElementById('mqtt-status-message'); // New
 
     const intervalSettingsDiv = document.getElementById('interval-settings');
     const fixedTimeSettingsDiv = document.getElementById('fixed-time-settings');
@@ -107,6 +109,14 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('log-history-size').value = config.log_history_size || 200;
             document.getElementById('reverse-geocode-enabled').checked = config.reverse_geocode_enabled !== false;
             document.getElementById('fetch-full-route').checked = config.fetch_full_trip_route || false;
+            
+            const mqtt = config.mqtt || {};
+            document.getElementById('mqtt-enabled').checked = mqtt.enabled || false;
+            document.getElementById('mqtt-host').value = mqtt.host || '';
+            document.getElementById('mqtt-port').value = mqtt.port || 1883;
+            document.getElementById('mqtt-username').value = mqtt.username || '';
+            document.getElementById('mqtt-base-topic').value = mqtt.base_topic || '';
+            document.getElementById('mqtt-discovery-prefix').value = mqtt.discovery_prefix || 'homeassistant';
 
 
         } catch (error) {
@@ -140,6 +150,26 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         await saveConfig(newSettings, pollingStatusMessage);
     });
+    
+    mqttSettingsForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const newSettings = {
+            mqtt: {
+            enabled: document.getElementById('mqtt-enabled').checked,
+            host: document.getElementById('mqtt-host').value,
+            port: parseInt(document.getElementById('mqtt-port').value, 10),
+            username: document.getElementById('mqtt-username').value,
+            password: document.getElementById('mqtt-password').value,
+            base_topic: document.getElementById('mqtt-base-topic').value,
+            discovery_prefix: document.getElementById('mqtt-discovery-prefix').value // <-- Add this line
+        }
+}
+        // Clear password from form if it's empty, so we don't save an empty string
+        if (!newSettings.mqtt.password) {
+            delete newSettings.mqtt.password;
+        }
+        await saveConfig(newSettings, mqttStatusMessage);
+    });
 
     apiRetriesForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -171,12 +201,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     geocodingSettingsForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        // --- Start of Targeted Change ---
         const newSettings = {
             reverse_geocode_enabled: document.getElementById('reverse-geocode-enabled').checked,
             fetch_full_trip_route: document.getElementById('fetch-full-route').checked
         };
-        // --- End of Targeted Change ---
         await saveConfig(newSettings, geocodingStatusMessage);
     });
 

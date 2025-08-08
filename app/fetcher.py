@@ -13,8 +13,10 @@ from geopy.geocoders import Nominatim
 from geopy.extra.rate_limiter import RateLimiter
 from pytoyoda.exceptions import ToyotaLoginError, ToyotaApiError
 from . import database
+from . import mqtt  # New Import
 from .credentials_manager import load_credentials
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func
 
 from .config import settings, DATA_DIR
 
@@ -23,6 +25,7 @@ _LOGGER = logging.getLogger(__name__)
 CACHE_FILE = DATA_DIR / "vehicle_data.json"
 CACHE_LOCK = asyncio.Lock()
 GEOCODE_SEMAPHORE = asyncio.Semaphore(1)
+
 
 async def _reverse_geocode_trip(trip_id: int):
     """Performs reverse geocoding for a specific trip, respecting the semaphore."""
@@ -59,7 +62,6 @@ async def _reverse_geocode_trip(trip_id: int):
         finally:
             db.close()
 
-# app/fetcher.py
 
 async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_date):
     """Helper function to fetch, process, and save trip summaries for a given period."""
@@ -159,6 +161,7 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
     _LOGGER.info(f"Trip summary fetch for {vehicle.vin} complete. New: {new_trips_count}, Updated: {updated_trips_count}, Skipped (no changes): {skipped_trips_count}.")
     return {"new": new_trips_count, "updated": updated_trips_count, "skipped": skipped_trips_count}
 
+
 async def _update_vehicle_statistics(vehicle, vehicle_info_dict):
     """Fetches and processes daily driving statistics for the live dashboard tile."""
     _LOGGER.info(f"Fetching today's statistics for VIN {vehicle.vin}...")
@@ -183,6 +186,7 @@ async def _update_vehicle_statistics(vehicle, vehicle_info_dict):
     daily_summary = await vehicle.get_current_day_summary()
     vehicle_info_dict["statistics"]["daily"] = await process_stats(daily_summary)
 
+
 def _build_vehicle_info_dict(vehicle):
     """Builds the main vehicle information dictionary from the vehicle object."""
     vehicle_info = {
@@ -190,7 +194,7 @@ def _build_vehicle_info_dict(vehicle):
         "alias": vehicle.alias or "N/A",
         "is_hybrid": vehicle.type in ["hybrid", "phev"],
         "model_name": getattr(vehicle._vehicle_info, "car_model_name", "Unknown Model"),
-        "dashboard": {}, "statistics": {}, "status": {}
+        "dashboard": {}, "statistics": {"overall": {}, "daily": {}}, "status": {}
     }
 
     if vehicle.dashboard:
@@ -227,25 +231,19 @@ def _build_vehicle_info_dict(vehicle):
                     door_obj = getattr(doors, attr_name)
                     _LOGGER.debug(f"Processing door '{key}': raw closed={door_obj.closed}, raw locked={door_obj.locked}")
                     
-                    # --- Start of Targeted Change ---
                     raw_closed = door_obj.closed
                     raw_locked = door_obj.locked
-
-                    # Determine final status based on the new rule
                     locked_status = False if raw_locked is None else raw_locked
                     
                     if raw_closed is not None:
                         closed_status = raw_closed
                     elif locked_status is True:
-                        # If a door is locked but its closed status is None, it must be closed
                         _LOGGER.debug(f"Door '{key}' has closed=None but locked=True. Interpreting as closed.")
                         closed_status = True
                     else:
-                        # Default for any other case where closed is None (e.g., closed=None and locked=False/None)
                         closed_status = False 
                     
                     doors_status[key] = {"closed": closed_status, "locked": locked_status}
-                    # --- End of Targeted Change ---
                 else:
                     doors_status[key] = {"closed": True, "locked": False}
             
@@ -282,7 +280,6 @@ def _build_vehicle_info_dict(vehicle):
         "last_update_timestamp": last_update_timestamp
     }
 
-    # Add notifications
     notifications_data = []
     if hasattr(vehicle, 'notifications') and vehicle.notifications:
         notifications_data = [
@@ -340,7 +337,29 @@ async def _process_vehicle(vehicle, db_session):
         await _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_date)
     else:
         _LOGGER.info(f"Odometer for {vin} has not changed. Skipping trip fetch.")
+    
+    # --- New: Calculate and add overall statistics to the vehicle_info dict ---
+    stats = db_session.query(
+        func.sum(database.Trip.distance_km).label("total_distance"),
+        func.sum(database.Trip.ev_distance_km).label("total_ev_distance"),
+        func.sum(database.Trip.fuel_consumption_l_100km * database.Trip.distance_km / 100).label("total_fuel"),
+        func.sum(database.Trip.duration_seconds).label("total_duration_seconds")
+    ).filter(database.Trip.vin == vin).first()
+    
+    if stats and stats.total_distance is not None and stats.total_distance > 0:
+        total_distance = stats.total_distance
+        total_ev_distance = stats.total_ev_distance or 0.0
+        total_fuel = stats.total_fuel or 0.0
         
+        vehicle_info["statistics"]["overall"] = {
+            "total_ev_distance_km": round(total_ev_distance),
+            "total_fuel_l": round(total_fuel, 2),
+            "total_duration_seconds": stats.total_duration_seconds or 0,
+            "ev_ratio_percent": round((total_ev_distance / total_distance) * 100, 1),
+            "fuel_consumption_l_100km": round((total_fuel / total_distance) * 100, 2) if total_fuel > 0 else 0.0
+        }
+        _LOGGER.debug(f"Calculated overall stats for {vin}: {vehicle_info['statistics']['overall']}")
+    
     return vehicle_info
 
 async def run_fetch_cycle():
@@ -355,9 +374,15 @@ async def run_fetch_cycle():
 
     client = MyT(username=username, password=password, use_metric=True)
     all_vehicle_data = []
+    
+    # <<< NEW DEBUG LOG
+    _LOGGER.info("Checking MQTT settings and attempting to initialize client...")
+    mqtt_client = mqtt.get_client()
+    if not mqtt_client:
+        # <<< NEW DEBUG LOG
+        _LOGGER.info("MQTT client not created (check settings or connection errors). Publishing will be skipped.")
 
     try:
-        # Read the existing cache to preserve on-demand data like service history
         vin_to_service_history = {}
         if await aiofiles.os.path.exists(CACHE_FILE):
             try:
@@ -376,6 +401,7 @@ async def run_fetch_cycle():
         if not vehicles:
             _LOGGER.info("No vehicles found for this account.")
             return
+            
         db = database.SessionLocal()
         try:
             tasks = [_process_vehicle(v, db) for v in vehicles if v and v.vin]
@@ -383,12 +409,20 @@ async def run_fetch_cycle():
             
             for res in results:
                 if isinstance(res, dict):
-                    # Add the preserved service history back to the newly fetched data
                     vin = res.get("vin")
                     if vin in vin_to_service_history:
                         res["service_history"] = vin_to_service_history[vin]
                         _LOGGER.debug(f"Restored service history for VIN {vin}.")
                     all_vehicle_data.append(res)
+                    
+                    if mqtt_client:
+                        # First, publish the discovery configs
+                        mqtt.publish_autodiscovery_configs(mqtt_client, res)
+
+                        # Then, publish the actual data
+                        _LOGGER.debug(f"Handing over vehicle data for VIN {vin} to MQTT publisher.")
+                        mqtt.publish_vehicle_data(mqtt_client, res)
+
                 elif isinstance(res, Exception):
                     _LOGGER.error(f"An error occurred while processing a vehicle: {res}", exc_info=True)
         finally:
@@ -402,9 +436,15 @@ async def run_fetch_cycle():
             _LOGGER.info(f"Successfully fetched and cached data for {len(all_vehicle_data)} vehicle(s).")
         else:
             _LOGGER.info("No new vehicle data was processed, cache file not updated.")
+            
     except Exception as e:
         _LOGGER.error(f"An unexpected error occurred in the fetch cycle: {e}", exc_info=True)
     finally:
+        if mqtt_client:
+            # <<< NEW DEBUG LOG
+            _LOGGER.debug("Disconnecting MQTT client.")
+            mqtt.disconnect(mqtt_client)
+            
         if client and hasattr(client, "_session") and client._session and not client._session.is_closed:
             await client._session.aclose()
             _LOGGER.info("Pytoyoda client session closed.")

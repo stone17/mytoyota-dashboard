@@ -11,3 +11,4 @@ SQLAlchemy
 python-multipart
 geopy
 cryptography
+paho-mqtt

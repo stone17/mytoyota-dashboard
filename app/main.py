@@ -611,6 +611,8 @@ def get_config():
     """API endpoint to get the current configuration."""
     return settings
 
+# In app/main.py
+
 @app.post("/api/config")
 def update_config(new_settings: dict = Body(...)):
     """API endpoint to update the configuration file."""
@@ -621,11 +623,17 @@ def update_config(new_settings: dict = Body(...)):
 
         # Update polling settings
         if 'polling' in new_settings.get('web_server', {}):
-            current_config['web_server']['polling'] = new_settings['web_server']['polling']
+            current_config.setdefault('web_server', {})['polling'] = new_settings['web_server']['polling']
             if 'data_refresh_interval_seconds' in current_config.get('web_server', {}):
                 del current_config['web_server']['data_refresh_interval_seconds']
+        
+        if 'mqtt' in new_settings:
+            # If a password is not provided, keep the old one to avoid accidental deletion.
+            if 'password' not in new_settings.get('mqtt', {}) and current_config.get('mqtt', {}).get('password'):
+                new_settings.setdefault('mqtt', {})['password'] = current_config['mqtt']['password']
+            
+            current_config['mqtt'] = new_settings['mqtt']
 
-        # Update other settings
         if 'api_retries' in new_settings:
             current_config['api_retries'] = new_settings['api_retries']
         if 'api_retry_delay_seconds' in new_settings:
