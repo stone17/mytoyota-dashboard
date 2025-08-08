@@ -15,6 +15,7 @@ from fastapi import FastAPI, HTTPException, Request, Body, UploadFile, File
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import func
 
 from . import fetcher
 from . import database
@@ -278,17 +279,34 @@ def get_vehicle_history(vin: str, days: int = 30):
         db.close()
 
 @app.get("/api/vehicles/{vin}/daily_summary")
-def get_daily_summary(vin: str, days: int = 30):
+def get_daily_summary(vin: str, period: str = "30"):
     """
-    API endpoint to get a summary of distance and fuel consumption per day,
-    combining data from real-time polls and imported trips.
+    API endpoint to get a summary of distance and fuel consumption per day.
+    The date range is automatically clipped to the available data.
     """
     db = database.SessionLocal()
     try:
-        from sqlalchemy import func
-        start_date = datetime.datetime.utcnow() - datetime.timedelta(days=days)
+        days: Optional[int] = None
+        if period.isdigit():
+            days = int(period)
+        elif period != "all":
+            raise HTTPException(status_code=400, detail="Invalid period specified.")
 
-        # For historical charts, we rely on the aggregated trip data as the source of truth.
+        # First, find the absolute earliest trip for this VIN to use as a boundary.
+        earliest_trip_ts = db.query(func.min(database.Trip.start_timestamp)).filter(database.Trip.vin == vin).scalar()
+
+        if not earliest_trip_ts:
+            _LOGGER.info(f"No trip data found for VIN {vin}. Returning empty daily summary.")
+            return []
+
+        # Determine the start date for the query filter.
+        actual_start_date_filter = earliest_trip_ts
+        if days is not None:
+            # If a specific period is requested, find the later of the two dates.
+            requested_start_date = datetime.datetime.utcnow() - datetime.timedelta(days=days)
+            actual_start_date_filter = max(earliest_trip_ts, requested_start_date)
+
+        # Build the main query for trips within the determined date range.
         trips_query = db.query(
             func.date(database.Trip.start_timestamp).label("day"),
             func.sum(database.Trip.distance_km).label("distance"),
@@ -299,32 +317,26 @@ def get_daily_summary(vin: str, days: int = 30):
             func.sum(database.Trip.duration_seconds).label("total_duration")
         ).filter(
             database.Trip.vin == vin,
-            database.Trip.start_timestamp >= start_date
+            database.Trip.start_timestamp >= actual_start_date_filter
         ).group_by(func.date(database.Trip.start_timestamp)).all()
 
-        logging.debug(f"--- Daily Summary for VIN: {vin} (last {days} days) ---")
-        logging.debug(f"Found {len(trips_query)} days with trip data in the database.")
-        if trips_query:
-            logging.debug(f"Sample trip data row: {trips_query[0]}")
-
-        # Combine and process the results
-        # First, create a dictionary with default zero values for every day in the requested range.
-        # This ensures the graph has a continuous timeline.
+        # Create a dictionary with default zero values for every day in the date range.
         daily_data = {}
-        # Use UTC for the end date to match the start_date's timezone basis.
-        end_date = datetime.datetime.utcnow().date()
-        start_date_only = start_date.date()
-        num_days_in_range = (end_date - start_date_only).days + 1
-        # Safeguard against any timezone-related edge cases that could make the range negative.
-        if num_days_in_range < 0: num_days_in_range = 0
-        for i in range(num_days_in_range):
-            current_date = start_date_only + datetime.timedelta(days=i)
-            day_str = current_date.isoformat()
-            daily_data[day_str] = {"distance": 0.0, "fuel": 0.0, "ev_distance": 0.0, "ev_duration": 0, "score": None, "duration_seconds": 0}
+        start_date_for_range = actual_start_date_filter.date()
+        end_date_for_range = datetime.datetime.utcnow().date()
+        num_days_in_range = (end_date_for_range - start_date_for_range).days + 1
+        
+        if num_days_in_range > 0:
+            for i in range(num_days_in_range):
+                current_date = start_date_for_range + datetime.timedelta(days=i)
+                daily_data[current_date.isoformat()] = {
+                    "distance": 0.0, "fuel": 0.0, "ev_distance": 0.0, 
+                    "ev_duration": 0, "score": None, "duration_seconds": 0
+                }
 
-        # Now, update the dictionary with the actual trip data.
+        # Update the dictionary with actual data from the query.
         for r in trips_query:
-            day_str = r.day  # func.date() with SQLite returns a string
+            day_str = r.day
             if day_str in daily_data:
                 daily_data[day_str]["distance"] = r.distance or 0.0
                 daily_data[day_str]["fuel"] = r.fuel or 0.0
@@ -332,9 +344,8 @@ def get_daily_summary(vin: str, days: int = 30):
                 daily_data[day_str]["ev_duration"] = r.ev_duration or 0
                 daily_data[day_str]["score"] = r.avg_score
                 daily_data[day_str]["duration_seconds"] = r.total_duration or 0
-        
-        logging.debug(f"Final daily_data object contains {len(daily_data)} days before being sent to chart.")
 
+        # Format the final list for the frontend.
         return [
             {
                 "date": day,
@@ -348,6 +359,41 @@ def get_daily_summary(vin: str, days: int = 30):
             }
             for day, data in sorted(daily_data.items())
         ]
+    finally:
+        db.close()
+
+@app.get("/api/vehicles/{vin}/trip_count")
+def get_trip_count(vin: str, period: str = "30"):
+    """
+    API endpoint to get the total count of individual trips for a given period.
+    """
+    db = database.SessionLocal()
+    try:
+        days: Optional[int] = None
+        if period.isdigit():
+            days = int(period)
+        elif period != "all":
+            return {"trip_count": 0} # Should not happen with current UI
+
+        # Find the absolute earliest trip for this VIN to use as a boundary.
+        earliest_trip_ts = db.query(func.min(database.Trip.start_timestamp)).filter(database.Trip.vin == vin).scalar()
+
+        if not earliest_trip_ts:
+            return {"trip_count": 0}
+
+        # Determine the start date for the query filter.
+        start_date_filter = earliest_trip_ts
+        if days is not None:
+            requested_start_date = datetime.datetime.utcnow() - datetime.timedelta(days=days)
+            start_date_filter = max(earliest_trip_ts, requested_start_date)
+
+        # Perform the count query
+        count = db.query(database.Trip).filter(
+            database.Trip.vin == vin,
+            database.Trip.start_timestamp >= start_date_filter
+        ).count()
+        
+        return {"trip_count": count}
     finally:
         db.close()
 
@@ -445,6 +491,46 @@ def get_trips(
                     trip.mpg_uk = 0.0
 
         return trips
+    finally:
+        db.close()
+
+@app.get("/api/vehicles/{vin}/trip_data")
+def get_trip_data(vin: str, period: str = "30", metric: str = "fuel_consumption_l_100km"):
+    """
+    API endpoint to get a raw list of a single metric's values from all individual trips in a period.
+    """
+    # Validate the requested metric against the Trip model to ensure it's a safe, valid column.
+    valid_metrics = [c.name for c in database.Trip.__table__.columns]
+    if metric not in valid_metrics:
+        raise HTTPException(status_code=400, detail=f"Invalid metric specified: {metric}")
+
+    db = database.SessionLocal()
+    try:
+        days: Optional[int] = None
+        if period.isdigit():
+            days = int(period)
+        elif period != "all":
+            return {"values": []}
+
+        earliest_trip_ts = db.query(func.min(database.Trip.start_timestamp)).filter(database.Trip.vin == vin).scalar()
+        if not earliest_trip_ts:
+            return {"values": []}
+
+        start_date_filter = earliest_trip_ts
+        if days is not None:
+            requested_start_date = datetime.datetime.utcnow() - datetime.timedelta(days=days)
+            start_date_filter = max(earliest_trip_ts, requested_start_date)
+
+        # Query for the single column of data.
+        query_result = db.query(getattr(database.Trip, metric)).filter(
+            database.Trip.vin == vin,
+            database.Trip.start_timestamp >= start_date_filter
+        ).all()
+        
+        # The result is a list of tuples, e.g., [(5.5,), (6.1,)]. This flattens it to [5.5, 6.1].
+        values = [item[0] for item in query_result if item[0] is not None]
+        
+        return {"values": values}
     finally:
         db.close()
 

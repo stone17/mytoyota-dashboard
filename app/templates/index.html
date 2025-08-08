@@ -95,10 +95,43 @@
             gap: 15px;
             margin-bottom: 15px;
             justify-content: flex-end;
+            align-items: center;
         }
         .chart-controls .form-group { margin-bottom: 0; }
         .chart-controls label { margin-right: 5px; }
-        .chart-controls select { padding: 5px; border-radius: 4px; border: 1px solid #ccc; }
+        .chart-controls select, .chart-controls input { padding: 5px; border-radius: 4px; border: 1px solid #ccc; }
+        .chart-controls .distribution-toggle {
+            height: 18px;
+            width: 18px;
+            margin-left: -5px;
+        }
+        .chart-icon-btn {
+            background: none;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 5px;
+            cursor: pointer;
+            height: 34px; /* Match height of other controls */
+            width: 34px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: border-color 0.2s;
+        }
+        .chart-icon-btn:hover {
+            border-color: #333;
+        }
+        .chart-icon-btn svg {
+            fill: #888; /* Default 'off' state (gray) */
+            transition: fill 0.2s ease-in-out;
+        }
+        .chart-icon-btn.active svg {
+            fill: #00529b; /* 'On' state (blue) */
+        }
+        .chart-controls .form-group {
+            display: flex;
+            align-items: center;
+        }
 
         .location-map-container {
             height: 250px;
@@ -275,7 +308,7 @@
 
                 <div class="panel charts-panel">
                     <div class="panel-header">
-                        <h3>Historical Data</h3>
+                        <h3>Historical Data <span class="trip-count"></span></h3>
                     </div>
                     <div class="chart-controls">
                         <div class="form-group">
@@ -286,7 +319,15 @@
                                 <option value="ev_distance_km">EV Distance</option>
                                 <option value="ev_duration_seconds">EV Duration</option>
                                 <option value="score_global">Driving Score</option>
+                                <option value="average_speed_kmh">Average Speed</option>
+                                <option value="duration_seconds">Trip Duration</option>
                             </select>
+                            <button class="chart-icon-btn histogram-toggle-btn" title="Toggle Histogram View" style="margin-left: 5px;">
+                                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px">
+                                    <path d="M0 0h24v24H0V0z" fill="none"/>
+                                    <path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/>
+                                </svg>
+                            </button>
                         </div>
                         <div class="form-group">
                             <label>Right Axis:</label>
@@ -297,6 +338,8 @@
                                 <option value="ev_distance_km">EV Distance</option>
                                 <option value="ev_duration_seconds">EV Duration</option>
                                 <option value="score_global">Driving Score</option>
+                                <option value="average_speed_kmh">Average Speed</option>
+                                <option value="duration_seconds">Trip Duration</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -305,6 +348,8 @@
                                 <option value="7">Last 7 Days</option>
                                 <option value="30" selected>Last 30 Days</option>
                                 <option value="90">Last 90 Days</option>
+                                <option value="365">Last Year</option>
+                                <option value="all">All Time</option>
                             </select>
                         </div>
                     </div>
