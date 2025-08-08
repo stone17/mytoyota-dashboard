@@ -14,8 +14,8 @@ reverse_geocode_enabled: true
 fetch_full_trip_route: true
 mqtt:
   enabled: true
-  host: 192.168.0.100
+  host: 192.168.1.200
   port: 1883
   username: ''
-  base_topic: mytoyota/ecco1
-  discovery_prefix: domoticz
+  base_topic: mytoyota/{vin}
+  discovery_prefix: homeassitant
