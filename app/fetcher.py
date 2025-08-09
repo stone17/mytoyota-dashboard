@@ -273,8 +273,13 @@ def _build_vehicle_info_dict(vehicle):
         
         if hasattr(lock_status, 'hood') and lock_status.hood.closed is not None:
             hood_closed = lock_status.hood.closed
-        if hasattr(lock_status, 'last_update_timestamp'):
-            last_update_timestamp = lock_status.last_update_timestamp.isoformat() if lock_status.last_update_timestamp else None
+        if hasattr(lock_status, 'last_update_timestamp') and lock_status.last_update_timestamp:
+            # Ensure the datetime object is timezone-aware before formatting
+            ts = lock_status.last_update_timestamp
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=datetime.timezone.utc)
+            last_update_timestamp = ts.isoformat()
+
 
     vehicle_info["status"] = {
         "doors": doors_status,
@@ -436,7 +441,9 @@ async def run_fetch_cycle():
             tmp_file = CACHE_FILE.with_suffix(".tmp")
             async with CACHE_LOCK:
                 async with aiofiles.open(tmp_file, "w") as f:
-                    await f.write(json.dumps({"last_updated": datetime.datetime.utcnow().isoformat(), "vehicles": all_vehicle_data}, indent=2))
+                    # Generate a timezone-aware ISO string for JavaScript
+                    aware_utcnow = datetime.datetime.now(datetime.timezone.utc)
+                    await f.write(json.dumps({"last_updated": aware_utcnow.isoformat(), "vehicles": all_vehicle_data}, indent=2))
                 await aiofiles.os.replace(tmp_file, CACHE_FILE)
             _LOGGER.info(f"Successfully fetched and cached data for {len(all_vehicle_data)} vehicle(s).")
         else:

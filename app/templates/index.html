@@ -18,6 +18,29 @@
             box-shadow: 0 4px 8px rgba(0,0,0,0.05);
             padding: 20px;
         }
+        /* --- New Header Styles --- */
+        .vehicle-header {
+            display: flex;
+            justify-content: space-between; /* Pushes title left, controls right */
+            align-items: center;          /* Vertically aligns items */
+            flex-wrap: wrap;              /* Allows controls to wrap below on small screens */
+            gap: 10px 20px;               /* Adds space between items when they wrap */
+            margin-bottom: 15px;          /* Space below the header */
+        }
+        .vehicle-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;                    /* Space between button and last-updated text */
+            flex-shrink: 0;               /* Prevents controls from shrinking oddly */
+        }
+        .last-updated {
+            margin: 0; /* Remove default paragraph margin */
+            font-size: 0.8em;
+            color: #666;
+            white-space: nowrap; /* Prevents "Last updated:" text from wrapping */
+        }
+
+
         .panels-container {
             display: flex;
             flex-direction: row; /* Horizontal on desktop */
@@ -91,28 +114,44 @@
         .charts { height: 350px; }
 
         .chart-controls {
-            display: flex;
-            gap: 15px;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-rows: auto auto;
+            gap: 4px 15px;
             margin-bottom: 15px;
-            justify-content: flex-end;
+        }
+        .chart-controls label {
+            grid-row: 1;
+            font-weight: normal;
+            font-size: 0.9em;
+            color: #333;
+        }
+        .chart-controls .input-container {
+             grid-row: 2;
+        }
+        .chart-controls .input-container, .chart-controls select {
+            width: 100%;
+        }
+        .chart-controls .input-with-icon {
+            display: flex;
             align-items: center;
+            gap: 5px;
         }
-        .chart-controls .form-group { margin-bottom: 0; }
-        .chart-controls label { margin-right: 5px; }
-        .chart-controls select, .chart-controls input { padding: 5px; border-radius: 4px; border: 1px solid #ccc; }
-        .chart-controls .distribution-toggle {
-            height: 18px;
-            width: 18px;
-            margin-left: -5px;
+        .chart-controls select {
+            padding: 5px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
         }
+
         .chart-icon-btn {
             background: none;
             border: 1px solid #ccc;
             border-radius: 4px;
             padding: 5px;
             cursor: pointer;
-            height: 34px; /* Match height of other controls */
-            width: 34px;
+            height: 32px;
+            width: 32px;
+            flex-shrink: 0;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -122,16 +161,13 @@
             border-color: #333;
         }
         .chart-icon-btn svg {
-            fill: #888; /* Default 'off' state (gray) */
+            fill: #888;
             transition: fill 0.2s ease-in-out;
         }
         .chart-icon-btn.active svg {
-            fill: #00529b; /* 'On' state (blue) */
+            fill: #00529b;
         }
-        .chart-controls .form-group {
-            display: flex;
-            align-items: center;
-        }
+
 
         .location-map-container {
             height: 250px;
@@ -187,6 +223,41 @@
                 flex-direction: column;
             }
         }
+        @media (max-width: 600px) {
+            .vehicle-stats {
+                grid-template-columns: 1fr; /* Single column layout */
+            }
+            .stat:nth-child(odd) {
+                border-right: none;
+            }
+            .stat:nth-child(even) {
+                background-color: #f9f9f9;
+            }
+            .stat {
+                border-bottom: 1px solid #e0e0e0 !important;
+            }
+            .stat:last-child {
+                border-bottom: none !important;
+            }
+            .chart-controls {
+                grid-template-columns: 1fr;
+                grid-template-rows: repeat(6, auto);
+                gap: 4px;
+            }
+            .chart-controls label { grid-row: unset; }
+            .chart-controls .input-container { grid-row: unset; }
+
+            .chart-controls label[for="chart-metric-left-axis"] { grid-row: 1; }
+            .chart-controls .input-container.left-axis { grid-row: 2; }
+
+            .chart-controls label[for="chart-metric-right-axis"] { grid-row: 3; }
+            .chart-controls .input-container.right-axis { grid-row: 4; }
+
+            .chart-controls label[for="chart-period-select"] { grid-row: 5; }
+            .chart-controls .input-container.period { grid-row: 6; }
+        }
+
+
         .summary-panel {
             background: #00529b;
             color: white;
@@ -239,7 +310,7 @@
                 <span>Logs</span>
             </a>
             <a href="/settings" class="nav-link">
-                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61-.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19-.15-.24-.42.12-.64l2 3.46c.12.22.39.3.61-.22l2.49-1c.52.4 1.08.73 1.69-.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49-1c.23-.09.49 0 .61-.22l2-3.46c-.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61-.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61-.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19-.15-.24-.42.12-.64l2 3.46c.12.22.39.3.61-.22l2.49-1c.52.4 1.08.73 1.69-.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59-1.69-.98l2.49-1c-.23-.09.49 0 .61-.22l2-3.46c-.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
                 <span>Settings</span>
             </a>
         </nav>
@@ -328,27 +399,32 @@
                         <h3>Historical Data <span class="trip-count"></span></h3>
                     </div>
                     <div class="chart-controls">
-                        <div class="form-group">
-                            <label>Left Axis:</label>
-                            <select class="chart-metric-select" data-axis="left">
-                                <option value="distance_km" selected>Distance</option>
-                                <option value="fuel_consumption_l_100km">Consumption</option>
-                                <option value="ev_distance_km">EV Distance</option>
-                                <option value="ev_duration_seconds">EV Duration</option>
-                                <option value="score_global">Driving Score</option>
-                                <option value="average_speed_kmh">Average Speed</option>
-                                <option value="duration_seconds">Trip Duration</option>
-                            </select>
-                            <button class="chart-icon-btn histogram-toggle-btn" title="Toggle Histogram View" style="margin-left: 5px;">
-                                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px">
-                                    <path d="M0 0h24v24H0V0z" fill="none"/>
-                                    <path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/>
-                                </svg>
-                            </button>
+                        <label for="chart-metric-left-axis">Left Axis:</label>
+                        <label for="chart-metric-right-axis">Right Axis:</label>
+                        <label for="chart-period-select">Period:</label>
+                        
+                        <div class="input-container left-axis">
+                            <div class="input-with-icon">
+                                <select id="chart-metric-left-axis" class="chart-metric-select" data-axis="left">
+                                    <option value="distance_km" selected>Distance</option>
+                                    <option value="fuel_consumption_l_100km">Consumption</option>
+                                    <option value="ev_distance_km">EV Distance</option>
+                                    <option value="ev_duration_seconds">EV Duration</option>
+                                    <option value="score_global">Driving Score</option>
+                                    <option value="average_speed_kmh">Average Speed</option>
+                                    <option value="duration_seconds">Trip Duration</option>
+                                </select>
+                                <button class="chart-icon-btn histogram-toggle-btn" title="Toggle Histogram View">
+                                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px">
+                                        <path d="M0 0h24v24H0V0z" fill="none"/>
+                                        <path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/>
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label>Right Axis:</label>
-                            <select class="chart-metric-select" data-axis="right">
+
+                        <div class="input-container right-axis">
+                            <select id="chart-metric-right-axis" class="chart-metric-select" data-axis="right">
                                 <option value="none" selected>None</option>
                                 <option value="distance_km">Distance</option>
                                 <option value="fuel_consumption_l_100km">Consumption</option>
@@ -359,9 +435,9 @@
                                 <option value="duration_seconds">Trip Duration</option>
                             </select>
                         </div>
-                        <div class="form-group">
-                            <label>Period:</label>
-                            <select class="chart-period-select">
+                        
+                        <div class="input-container period">
+                             <select id="chart-period-select" class="chart-period-select">
                                 <option value="7">Last 7 Days</option>
                                 <option value="30" selected>Last 30 Days</option>
                                 <option value="90">Last 90 Days</option>

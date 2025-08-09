@@ -484,9 +484,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // This function remains unchanged from your base file
     function updateStatusPanel(panel, vehicleStatus) {
         if (!vehicleStatus) return;
+
+        const statusTimestamp = panel.querySelector('.status-timestamp span');
+        if (statusTimestamp && vehicleStatus.last_update_timestamp) {
+            statusTimestamp.textContent = new Date(vehicleStatus.last_update_timestamp).toLocaleString();
+        } else if (statusTimestamp) {
+            statusTimestamp.textContent = 'N/A';
+        }
+
         const lockStatusText = panel.querySelector('.lock-status-text');
         const openStatusText = panel.querySelector('.open-status-text');
         let isCompletelyLocked = true;
