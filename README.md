@@ -123,3 +123,32 @@ All application settings can be set in the **Settings** and are stored in the `d
     *   `mode`: Can be `interval` (poll every X seconds) or `fixed_time` (poll once per day at a specific time).
     *   `interval_seconds`: The interval for `interval` mode.
     *   `fixed_time`: The time for `fixed_time` mode (e.g., `"07:00"`).
+
+## Using MQTT with Domoticz
+
+Here’s how to get your vehicle’s sensors to appear automatically in Domoticz.
+
+### Step 1: Add MQTT Hardware in Domoticz
+
+1.  In the Domoticz web interface, navigate to Setup -> Hardware.
+2.  Add a new hardware device with the following settings:
+    * Type: MQTT Auto Discovery Client Gateway with LAN interface
+    * Name: Give it a descriptive name, like Toyota MQTT.
+    * Remote Address / Port: The IP address and port of your MQTT broker.
+    * Username / Password: The credentials for your MQTT broker, if required.
+    * Auto Discovery Prefix: Set this to homeassistant. This is the standard prefix the dashboard uses for discovery messages.
+
+### Step 2: Configure the Dashboard
+
+1.  In the MyToyota Dashboard, navigate to the Settings page.
+2.  Fill out the MQTT Settings section, making sure the details exactly match what you entered in Domoticz.
+3.  Ensure Enable MQTT is checked.
+4.  Set the Auto Discovery Prefix to homeassistant.
+5.  Click Save MQTT Settings.
+
+### Step 3: See Your Devices
+
+1.  Restart the MyToyota Dashboard application or trigger a manual data fetch from the main dashboard page. This will send the discovery messages to Domoticz.
+2.  In Domoticz, navigate to Setup -> Devices.
+3.  Your new vehicle sensors (Odometer, Fuel Level, etc.) will appear in the list.
+4.  Click the green circular arrow next to each new device to add it. Once added, the device can be used in your floorplans, notifications, and scripts.
