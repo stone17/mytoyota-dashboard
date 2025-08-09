@@ -200,9 +200,14 @@ def _build_vehicle_info_dict(vehicle):
     if vehicle.dashboard:
         d = vehicle.dashboard
         vehicle_info["dashboard"] = {
-            "odometer": getattr(d, "odometer", None), "fuel_level": getattr(d, "fuel_level", None),
-            "total_range": getattr(d, "range", None), "fuel_range": getattr(d, "fuel_range", None),
-            "battery_level": getattr(d, "battery_level", None), "battery_range": getattr(d, "battery_range", None),
+            "odometer": getattr(d, "odometer", None),
+            "fuel_level": getattr(d, "fuel_level", None),
+            "total_range": getattr(d, "range", None),
+            "fuel_range": getattr(d, "fuel_range", None),
+            "battery_level": getattr(d, "battery_level", None),
+            "battery_range": getattr(d, "battery_range", None),
+            "battery_range_with_ac": getattr(d, "battery_range_with_ac", None),
+            "charging_status": getattr(d, "charging_status", None),
             "latitude": getattr(vehicle.location, 'latitude', None) if hasattr(vehicle, 'location') else None,
             "longitude": getattr(vehicle.location, 'longitude', None) if hasattr(vehicle, 'location') else None,
         }

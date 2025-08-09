@@ -662,7 +662,7 @@ def update_config(new_settings: dict = Body(...)):
     try:
         # Read the whole config file to preserve structure and comments
         with open(CONFIG_PATH, 'r') as f:
-            current_config = yaml.safe_load(f)
+            current_config = yaml.safe_load(f) or {}
 
         # Update polling settings
         if 'polling' in new_settings.get('web_server', {}):
@@ -683,6 +683,8 @@ def update_config(new_settings: dict = Body(...)):
             current_config['api_retry_delay_seconds'] = new_settings['api_retry_delay_seconds']
         if 'unit_system' in new_settings:
             current_config['unit_system'] = new_settings['unit_system']
+        if 'dashboard_sensors' in new_settings:
+            current_config['dashboard_sensors'] = new_settings['dashboard_sensors']
         if 'log_history_size' in new_settings:
             current_config['log_history_size'] = max(10, int(new_settings['log_history_size']))
         if 'reverse_geocode_enabled' in new_settings:

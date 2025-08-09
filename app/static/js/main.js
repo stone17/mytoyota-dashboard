@@ -8,7 +8,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     let appConfig = {
-        unit_system: 'metric'
+        unit_system: 'metric',
+        dashboard_sensors: {}
     };
 
     const KM_TO_MI = 0.621371;
@@ -24,6 +25,9 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch('/api/config');
             appConfig = await response.json();
+            if (!appConfig.dashboard_sensors) {
+                appConfig.dashboard_sensors = {};
+            }
         }
         catch (error) {
             console.error("Failed to load application config, using defaults.", error);
@@ -579,55 +583,82 @@ async function loadVehicleData() {
             const vehicleFragment = vehicleTemplate.content.cloneNode(true);
             const vehicleCard = vehicleFragment.querySelector('.vehicle-wrapper');
             const get = (obj, path, def = 'N/A') => path.split('.').reduce((o, k) => (o && o[k] != null) ? o[k] : def, obj);
+            
             const distanceUnit = isImperial ? 'mi' : 'km';
             const consumptionUnit = isImperial ? (isUk ? 'UK MPG' : 'US MPG') : 'L/100km';
             const fuelUnit = isImperial ? (isUk ? 'UK gal' : 'US gal') : 'L';
+            
             vehicleCard.querySelector('.stat-odometer h3').textContent = `Odometer (${distanceUnit})`;
             vehicleCard.querySelector('.stat-range h3').textContent = `Range Left (${distanceUnit})`;
             vehicleCard.querySelector('.stat-ev-distance h3').textContent = `Total EV Distance (${distanceUnit})`;
             vehicleCard.querySelector('.stat-daily-distance h3').textContent = `Today's Distance (${distanceUnit})`;
             vehicleCard.querySelector('.stat-consumption h3').textContent = `Consumption (${consumptionUnit})`;
             vehicleCard.querySelector('.stat-total-fuel h3').textContent = `Total Fuel (${fuelUnit})`;
-            const odometerKm = get(vehicleToRender, 'dashboard.odometer', 0);
-            const rangeKm = get(vehicleToRender, 'dashboard.total_range', 0);
-            const evDistanceKm = get(vehicleToRender, 'statistics.overall.total_ev_distance_km', 0);
-            const dailyDistanceKm = get(vehicleToRender, 'statistics.daily.distance', 0);
-            const consumptionL100km = get(vehicleToRender, 'statistics.overall.fuel_consumption_l_100km', 0);
-            const totalFuelL = get(vehicleToRender, 'statistics.overall.total_fuel_l', 0);
+            vehicleCard.querySelector('.stat-ev-range .distance_unit').textContent = distanceUnit;
+
+            const dashboard = vehicleToRender.dashboard || {};
+            const statsOverall = vehicleToRender.statistics.overall || {};
+            const statsDaily = vehicleToRender.statistics.daily || {};
+
+            const odometerKm = dashboard.odometer || 0;
+            const rangeKm = dashboard.total_range || 0;
+            const batteryRangeKm = dashboard.battery_range || 'N/A';
+            const batteryRangeWithAcKm = dashboard.battery_range_with_ac || 'N/A';
+            const evDistanceKm = statsOverall.total_ev_distance_km || 0;
+            const dailyDistanceKm = statsDaily.distance || 0;
+            const consumptionL100km = statsOverall.fuel_consumption_l_100km || 0;
+            const totalFuelL = statsOverall.total_fuel_l || 0;
+
             vehicleCard.querySelector('.alias').innerHTML = vehicleToRender.alias;
             vehicleCard.querySelector('.model-name').textContent = vehicleToRender.model_name;
-            vehicleCard.querySelector('.fuel_level').textContent = get(vehicleToRender, 'dashboard.fuel_level', 'N/A');
-            vehicleCard.querySelector('.ev_ratio_percent').textContent = get(vehicleToRender, 'statistics.overall.ev_ratio_percent', 'N/A');
-            const totalSeconds = get(vehicleToRender, 'statistics.overall.total_duration_seconds', 0);
-            const totalHours = Math.round(totalSeconds / 3600);
-            vehicleCard.querySelector('.total_duration').textContent = totalHours;
+
+            const setVal = (selector, val) => {
+                const el = vehicleCard.querySelector(selector);
+                if (el) el.textContent = val;
+            };
+
+            setVal('.fuel_level', dashboard.fuel_level !== undefined ? dashboard.fuel_level : 'N/A');
+            setVal('.ev_ratio_percent', statsOverall.ev_ratio_percent !== undefined ? statsOverall.ev_ratio_percent : 'N/A');
+            const totalSeconds = statsOverall.total_duration_seconds || 0;
+            setVal('.total_duration', Math.round(totalSeconds / 3600));
+
             if (isImperial) {
-                vehicleCard.querySelector('.odometer').textContent = Math.round(odometerKm * KM_TO_MI);
-                vehicleCard.querySelector('.total_range').textContent = Math.round(rangeKm * KM_TO_MI);
-                vehicleCard.querySelector('.total_ev_distance_km').textContent = Math.round(evDistanceKm * KM_TO_MI);
-                vehicleCard.querySelector('.daily_distance').textContent = (dailyDistanceKm * KM_TO_MI).toFixed(1);
-                vehicleCard.querySelector('.overall_fuel_consumption').textContent = l100kmToMpg(consumptionL100km, isUk).toFixed(1);
-                const gal_factor = isUk ? L_TO_GAL_UK : L_TO_GAL_US;
-                vehicleCard.querySelector('.total_fuel_l').textContent = (totalFuelL * gal_factor).toFixed(2);
+                setVal('.odometer', Math.round(odometerKm * KM_TO_MI));
+                setVal('.total_range', Math.round(rangeKm * KM_TO_MI));
+                setVal('.total_ev_distance_km', Math.round(evDistanceKm * KM_TO_MI));
+                setVal('.daily_distance', (dailyDistanceKm * KM_TO_MI).toFixed(1));
+                setVal('.overall_fuel_consumption', l100kmToMpg(consumptionL100km, isUk).toFixed(1));
+                setVal('.total_fuel_l', (totalFuelL * (isUk ? L_TO_GAL_UK : L_TO_GAL_US)).toFixed(2));
+                setVal('.battery_range', batteryRangeKm !== 'N/A' ? Math.round(batteryRangeKm * KM_TO_MI) : 'N/A');
+                setVal('.battery_range_with_ac', batteryRangeWithAcKm !== 'N/A' ? Math.round(batteryRangeWithAcKm * KM_TO_MI) : 'N/A');
             } else {
-                vehicleCard.querySelector('.odometer').textContent = Math.round(odometerKm);
-                vehicleCard.querySelector('.total_range').textContent = Math.round(rangeKm);
-                vehicleCard.querySelector('.total_ev_distance_km').textContent = Math.round(evDistanceKm);
-                vehicleCard.querySelector('.daily_distance').textContent = dailyDistanceKm.toFixed(1);
-                vehicleCard.querySelector('.overall_fuel_consumption').textContent = consumptionL100km.toFixed(1);
-                vehicleCard.querySelector('.total_fuel_l').textContent = totalFuelL.toFixed(2);
+                setVal('.odometer', Math.round(odometerKm));
+                setVal('.total_range', Math.round(rangeKm));
+                setVal('.total_ev_distance_km', Math.round(evDistanceKm));
+                setVal('.daily_distance', (dailyDistanceKm || 0).toFixed(1));
+                setVal('.overall_fuel_consumption', consumptionL100km.toFixed(1));
+                setVal('.total_fuel_l', totalFuelL.toFixed(2));
+                setVal('.battery_range', batteryRangeKm !== 'N/A' ? Math.round(batteryRangeKm) : 'N/A');
+                setVal('.battery_range_with_ac', batteryRangeWithAcKm !== 'N/A' ? Math.round(batteryRangeWithAcKm) : 'N/A');
             }
-            vehicleCard.querySelector('.vin span').textContent = get(vehicleToRender, 'vin');
+
+            // Populate new EV fields
+            setVal('.battery_level', dashboard.battery_level !== undefined ? dashboard.battery_level : 'N/A');
+            
+            let chargeStatus = get(vehicleToRender, 'dashboard.charging_status', 'N/A');
+            if (chargeStatus && typeof chargeStatus === 'string') {
+                chargeStatus = chargeStatus.replace(/([A-Z])/g, ' $1').trim(); // "chargeComplete" -> "charge Complete"
+                chargeStatus = chargeStatus.charAt(0).toUpperCase() + chargeStatus.slice(1); // "charge Complete" -> "Charge Complete"
+            }
+            setVal('.charging_status', chargeStatus);
+
+            setVal('.vin span', vehicleToRender.vin);
             const lastUpdatedSpan = vehicleCard.querySelector('.last-updated-time');
-            const lastUpdated = get(vehicleToRender, 'last_updated', null);
-            if (lastUpdated) {
-                const date = new Date(lastUpdated);
-                lastUpdatedSpan.textContent = date.toLocaleString();
-            } else {
-                lastUpdatedSpan.textContent = "Never";
-            }
-            const lat = get(vehicleToRender, 'dashboard.latitude', null);
-            const lon = get(vehicleToRender, 'dashboard.longitude', null);
+            const lastUpdated = vehicleToRender.last_updated;
+            lastUpdatedSpan.textContent = lastUpdated ? new Date(lastUpdated).toLocaleString() : "Never";
+            
+            const lat = dashboard.latitude;
+            const lon = dashboard.longitude;
             const mapContainer = vehicleCard.querySelector('.location-map-container');
             if (lat && lon) {
                 const embedUrl = `https://www.google.com/maps?q=${lat},${lon}&z=15&output=embed`;
@@ -635,8 +666,19 @@ async function loadVehicleData() {
             } else {
                 mapContainer.innerHTML = '<p style="text-align: center; padding-top: 50px; color: #888;">Location data not available.</p>';
             }
-            const vehicleStatus = get(vehicleToRender, 'status', null);
-            updateStatusPanel(vehicleCard, vehicleStatus);
+
+            // Apply visibility settings
+            const enabledSensors = appConfig.dashboard_sensors || {};
+            vehicleCard.querySelectorAll('.stat[data-stat-key]').forEach(el => {
+                const key = el.dataset.statKey;
+                // Default to showing the stat if it's not in the config
+                if (enabledSensors[key] === false) {
+                    el.style.display = 'none';
+                }
+            });
+
+            updateStatusPanel(vehicleCard, vehicleToRender.status);
+            
             const refreshBtn = vehicleCard.querySelector('.force-poll');
             if (refreshBtn) {
                 refreshBtn.addEventListener('click', (e) => handlePollRequest('/api/force_poll', e.target));
@@ -700,6 +742,7 @@ async function loadVehicleData() {
             vehicleContainer.appendChild(vehicleFragment);
         }
         catch (error) {
+            console.error("CRITICAL ERROR in loadVehicleData:", error);
             vehicleContainer.innerHTML = `<p class="error">Failed to fetch data. Is the backend running? Error: ${error.message}</p>`;
         }
     }
@@ -712,6 +755,7 @@ async function loadVehicleData() {
         try {
             const response = await fetch(url, { method: 'POST' });
             if (response.ok) {
+                await loadConfig(); // Reload config in case it changed
                 await loadVehicleData();
             } else {
                 const result = await response.json();

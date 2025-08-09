@@ -239,7 +239,7 @@
                 <span>Logs</span>
             </a>
             <a href="/settings" class="nav-link">
-                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24-.42.12-.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69-.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49-1c.23-.09.49 0 .61-.22l2-3.46c-.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61-.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19-.15-.24-.42.12-.64l2 3.46c.12.22.39.3.61-.22l2.49-1c.52.4 1.08.73 1.69-.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49-1c.23-.09.49 0 .61-.22l2-3.46c-.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
                 <span>Settings</span>
             </a>
         </nav>
@@ -267,37 +267,54 @@
                         <h3>Current Statistics</h3>
                     </div>
                     <div class="vehicle-stats">
-                        <div class="stat stat-odometer">
+                        <div class="stat stat-odometer" data-stat-key="odometer">
                             <h3>Odometer</h3>
                             <p><span class="odometer">N/A</span></p>
                         </div>
-                        <div class="stat stat-range">
+                        <div class="stat stat-range" data-stat-key="range">
                             <h3>Range Left</h3>
                             <p><span class="total_range">N/A</span></p>
                         </div>
-                        <div class="stat stat-ev-distance">
+                        <div class="stat stat-ev-distance" data-stat-key="total_ev_distance">
                             <h3>Total EV Distance</h3>
                             <p><span class="total_ev_distance_km">N/A</span> (<span class="ev_ratio_percent">N/A</span>%)</p>
                         </div>
-                        <div class="stat stat-fuel-level">
+                        <div class="stat stat-fuel-level" data-stat-key="fuel_level">
                             <h3>Fuel Level (%)</h3>
                             <p><span class="fuel_level">N/A</span></p>
                         </div>
-                        <div class="stat stat-daily-distance">
+                        <div class="stat stat-daily-distance" data-stat-key="daily_distance">
                             <h3>Today's Distance</h3>
                             <p><span class="daily_distance">N/A</span></p>
                         </div>
-                        <div class="stat stat-consumption">
+                        <div class="stat stat-consumption" data-stat-key="consumption">
                             <h3>Consumption</h3>
                             <p><span class="overall_fuel_consumption">N/A</span></p>
                         </div>
-                        <div class="stat stat-total-fuel">
+                        <div class="stat stat-total-fuel" data-stat-key="total_fuel">
                             <h3>Total Fuel</h3>
                             <p><span class="total_fuel_l">N/A</span></p>
                         </div>
-                        <div class="stat stat-duration">
+                        <div class="stat stat-duration" data-stat-key="duration">
                             <h3>Time Driven (h)</h3>
                             <p><span class="total_duration">N/A</span></p>
+                        </div>
+                        <div class="stat stat-ev-level" data-stat-key="ev_level">
+                            <h3>EV Level</h3>
+                            <p><span class="battery_level">N/A</span>%</p>
+                        </div>
+                        <div class="stat stat-ev-range" data-stat-key="ev_range">
+                            <h3>EV Range (<span class="distance_unit">km</span>)</h3>
+                            <p>
+                                <span class="battery_range">N/A</span> 
+                                <span class="battery_range_ac_span" style="font-size: 0.7em; color: #666;">
+                                    (AC: <span class="battery_range_with_ac">N/A</span>)
+                                </span>
+                            </p>
+                        </div>
+                        <div class="stat stat-charging-status" data-stat-key="charging_status">
+                            <h3>Charging</h3>
+                            <p><span class="charging_status">N/A</span></p>
                         </div>
                     </div>
                     <h3 class="map-title">Current Location of Car</h3>
