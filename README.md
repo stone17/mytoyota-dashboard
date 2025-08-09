@@ -9,7 +9,8 @@ A self-hosted web dashboard to visualize your Toyota vehicle's data, including l
 *   **Detailed Vehicle Status:** A compact, icon-driven panel showing the status of doors, windows, hood, and trunk.
 *   **Trip History:** A sortable and filterable table of all your trips, with an integrated map view for each route.
 *   **Data Import & Backfill:** Import trip history from a CSV file exported from the Toyota app, or backfill historical data directly from the Toyota API.
-*   **Secure Credential Management:** Securely save your MyToyota username and password via the web interface. Credentials are encrypted on disk.
+*   **MQTT Integration:** Push live vehicle data to an MQTT broker for integration with home automation systems like Home Assistant and Domoticz. Includes support for Home Assistant MQTT Auto-Discovery.
+*   **Secure Credential Management:** Securely save your MyToyota username and password via the web interface.  Credentials are encrypted on disk.
 *   **Configurable Polling:** Set the data refresh schedule to a fixed interval or a specific time of day.
 *   **Docker Support:** Easy to deploy and update using Docker and Docker Compose.
 
@@ -23,14 +24,14 @@ A self-hosted web dashboard to visualize your Toyota vehicle's data, including l
 
 The application is built with a Python backend and a vanilla JavaScript frontend.
 
-*   **Backend:** A `FastAPI` server that handles API requests, fetches data from Toyota's servers using the `pytoyoda` library, and serves the web interface.
+*   **Backend:** A `FastAPI` server that handles API requests, fetches data from Toyota's servers using the `pytoyoda` library, publishes data to an MQTT broker, and serves the web interface.
 *   **Frontend:** A clean HTML, CSS, and JavaScript interface that uses Chart.js for graphing and communicates with the backend via a REST API.
 *   **Data Storage:**
     *   **`data/mytoyota.db`**: An SQLite database that stores all historical trip and vehicle reading data.
     *   **`data/vehicle_data.json`**: A cache file holding the latest live data polled from the vehicle to ensure the dashboard loads quickly.
     *   **`data/credentials.json`**: An encrypted file containing your MyToyota credentials.
     *   **`data/secrets.key`**: The encryption key for `credentials.json`.
-    *   **`data/mytoyota_config.yaml`**: The main configuration file for the application.
+    *   **`data/mytoyota_config.yaml`**: The main configuration file for the application, including polling schedules and MQTT broker settings.
 
 All persistent application data is stored within the `data/` directory, making backups and Docker volume management simple.
 
@@ -49,34 +50,34 @@ Using Docker is the easiest and most reliable way to run the application.
 
 **Steps:**
 
-1.  **Clone the repository:**
+1.  **Clone the repository:** 
     ```bash
-    git clone https://github.com/stone17/mytoyota-dashboard.git
-    cd mytoyota-dashboard # Or your project's folder name
+    git clone [https://github.com/stone17/mytoyota-dashboard.git](https://github.com/stone17/mytoyota-dashboard.git)
+    cd mytoyota-dashboard
     ```
 
-2.  **Build and run the container:**
+2.  **Build and run the container:** 
     ```bash
-    docker-compose up -d --build
+    docker-compose up -d --build # docker compose up -d --build on v2 of docker
     ```
 
-34.  **Access the Dashboard:**
-    Open your web browser and navigate to `http://localhost:8000`.
+3.  **Access the Dashboard:**
+    Open your web browser and navigate to `http://localhost:8000`. 
 
 4.  **First-Time Setup:**
-    *   Go to the **Settings** page.
-    *   Enter your MyToyota username and password in the "Credentials Management" section and click "Save Credentials".
-    *   The application will now be able to fetch your vehicle data.
-    *   Configure the polling intervall.
-    *   Go to the **Trip History** page and click *Fetch all* to retrieve your full trip history
+    * Go to the **Settings** page. 
+    * Enter your MyToyota username and password in the "Credentials Management" section and click "Save Credentials". 
+    * The application will now be able to fetch your vehicle data. 
+    * Configure the polling interval. 
+    * Optionally, configure the MQTT integration on the Settings page to connect to your home automation system.
+    * Go to the **Trip History** page and click *Fetch all* to retrieve your full trip history. 
 
 **Updating the Application:**
 
-To update to the latest version, simply run:
+To update to the latest version, simply run: 
 ```bash
 git pull
-docker-compose up -d --build
-```
+docker-compose up -d --build  # docker compose up -d --build on v2 of docker
 
 ---
 
