@@ -19,6 +19,7 @@ from sqlalchemy import func
 
 from . import fetcher
 from . import database
+from . import mqtt
 from .credentials_manager import get_username, save_credentials
 from .config import settings, load_config, CONFIG_PATH, DATA_DIR
 from .logging_config import setup_logging
@@ -168,6 +169,21 @@ async def read_heatmap_page(request: Request):
     """Serve the heatmap page."""
     cache_buster = int(time.time())
     return templates.TemplateResponse("heatmap.html", {"request": request, "cache_buster": cache_buster})
+
+async def get_cached_vehicle_data():
+    """Helper to read and return vehicle data from the cache file."""
+    if not fetcher.CACHE_FILE.exists():
+        _LOGGER.warning("get_cached_vehicle_data: Cache file not found.")
+        return []
+
+    try:
+        async with aiofiles.open(fetcher.CACHE_FILE, 'r') as f:
+            content = await f.read()
+        data = json.loads(content)
+        return data.get("vehicles", [])
+    except (json.JSONDecodeError, IOError) as e:
+        _LOGGER.error(f"Failed to read or parse cache file: {e}")
+        return []
 
 @app.get("/api/vehicles")
 async def get_vehicle_data():
@@ -586,6 +602,33 @@ async def force_poll():
     except Exception as e:
         logging.error(f"Error during manual poll: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred during the data poll.")
+
+@app.post("/api/mqtt/test")
+async def mqtt_test():
+    """
+    Sends the latest cached data to the MQTT broker for testing purposes.
+    """
+    _LOGGER.info("MQTT test message triggered via API.")
+    
+    vehicles = await get_cached_vehicle_data()
+    if not vehicles:
+        raise HTTPException(status_code=404, detail="No cached vehicle data found. Please run a poll first.")
+
+    mqtt_client = mqtt.get_client()
+    if not mqtt_client:
+        raise HTTPException(status_code=400, detail="MQTT is not enabled or configured correctly. Please check settings.")
+
+    try:
+        for vehicle in vehicles:
+            mqtt.publish_autodiscovery_configs(mqtt_client, vehicle)
+            mqtt.publish_vehicle_data(mqtt_client, vehicle)
+        return {"message": "Test message sent successfully to MQTT broker."}
+    except Exception as e:
+        _LOGGER.error(f"Error during MQTT test publish: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An error occurred while sending the MQTT message.")
+    finally:
+        if mqtt_client:
+            mqtt.disconnect(mqtt_client)
 
 @app.get("/api/credentials")
 def get_stored_username():

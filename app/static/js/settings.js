@@ -10,14 +10,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const displaySettingsForm = document.getElementById('display-settings-form');
     const loggingSettingsForm = document.getElementById('logging-settings-form');
     const geocodingSettingsForm = document.getElementById('geocoding-settings-form');
-    const mqttSettingsForm = document.getElementById('mqtt-settings-form'); // New
+    const mqttSettingsForm = document.getElementById('mqtt-settings-form');
 
     const pollingStatusMessage = document.getElementById('polling-status-message');
     const apiRetriesStatusMessage = document.getElementById('api-retries-status-message');
     const displayStatusMessage = document.getElementById('display-status-message');
     const loggingStatusMessage = document.getElementById('logging-status-message');
     const geocodingStatusMessage = document.getElementById('geocoding-status-message');
-    const mqttStatusMessage = document.getElementById('mqtt-status-message'); // New
+    const mqttStatusMessage = document.getElementById('mqtt-status-message');
+    const mqttTestBtn = document.getElementById('mqtt-test-btn');
+    const mqttSensorSelection = document.getElementById('mqtt-sensor-selection');
 
     const intervalSettingsDiv = document.getElementById('interval-settings');
     const fixedTimeSettingsDiv = document.getElementById('fixed-time-settings');
@@ -28,6 +30,32 @@ document.addEventListener('DOMContentLoaded', () => {
     const backfillUnitsBtn = document.getElementById('backfill-units-btn');
     const backfillUnitsMessage = document.getElementById('backfill-units-message');
     const backfillGeocodeBtn = document.getElementById('backfill-geocode-btn');
+    
+    // --- Define available sensors ---
+    const ALL_SENSORS = {
+        'odometer': 'Odometer',
+        'lock_status': 'Lock Status',
+        'fuel_level': 'Fuel Level',
+        'fuel_consumption': 'Fuel Consumption',
+        'total_range': 'Total Range',
+        'battery_level': 'EV Battery %',
+        'ev_range': 'EV Range'
+    };
+    
+    // --- Populate Sensor Checkboxes ---
+    function populateSensorCheckboxes() {
+        for (const [key, label] of Object.entries(ALL_SENSORS)) {
+            const labelEl = document.createElement('label');
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = `mqtt-sensor-${key}`;
+            checkbox.name = key;
+            checkbox.dataset.sensorKey = key;
+            labelEl.appendChild(checkbox);
+            labelEl.appendChild(document.createTextNode(` ${label}`));
+            mqttSensorSelection.appendChild(labelEl);
+        }
+    }
 
     // --- Helper to display status messages ---
     function showMessage(element, message, type = 'info') {
@@ -118,6 +146,11 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('mqtt-base-topic').value = mqtt.base_topic || '';
             document.getElementById('mqtt-discovery-prefix').value = mqtt.discovery_prefix || 'homeassistant';
 
+            // Load sensor selection
+            const enabledSensors = mqtt.enabled_sensors || {};
+            document.querySelectorAll('#mqtt-sensor-selection input[type="checkbox"]').forEach(cb => {
+                cb.checked = enabledSensors[cb.dataset.sensorKey] === true;
+            });
 
         } catch (error) {
             console.error(`Failed to load settings: ${error.message}`);
@@ -136,7 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- Save Settings Event Listeners ---
-    pollingSettingsForm.addEventListener('submit', async (e) => {
+    pollingSettingsForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const formData = new FormData(pollingSettingsForm);
         const newSettings = {
@@ -148,64 +181,87 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         };
-        await saveConfig(newSettings, pollingStatusMessage);
+        saveConfig(newSettings, pollingStatusMessage);
     });
     
-    mqttSettingsForm.addEventListener('submit', async (e) => {
+    mqttSettingsForm.addEventListener('submit', (e) => {
         e.preventDefault();
+        
+        const enabledSensors = {};
+        document.querySelectorAll('#mqtt-sensor-selection input[type="checkbox"]').forEach(cb => {
+            enabledSensors[cb.dataset.sensorKey] = cb.checked;
+        });
+
         const newSettings = {
             mqtt: {
-            enabled: document.getElementById('mqtt-enabled').checked,
-            host: document.getElementById('mqtt-host').value,
-            port: parseInt(document.getElementById('mqtt-port').value, 10),
-            username: document.getElementById('mqtt-username').value,
-            password: document.getElementById('mqtt-password').value,
-            base_topic: document.getElementById('mqtt-base-topic').value,
-            discovery_prefix: document.getElementById('mqtt-discovery-prefix').value // <-- Add this line
-        }
-}
-        // Clear password from form if it's empty, so we don't save an empty string
+                enabled: document.getElementById('mqtt-enabled').checked,
+                host: document.getElementById('mqtt-host').value,
+                port: parseInt(document.getElementById('mqtt-port').value, 10),
+                username: document.getElementById('mqtt-username').value,
+                password: document.getElementById('mqtt-password').value,
+                base_topic: document.getElementById('mqtt-base-topic').value,
+                discovery_prefix: document.getElementById('mqtt-discovery-prefix').value,
+                enabled_sensors: enabledSensors
+            }
+        };
+
         if (!newSettings.mqtt.password) {
             delete newSettings.mqtt.password;
         }
-        await saveConfig(newSettings, mqttStatusMessage);
+        saveConfig(newSettings, mqttStatusMessage);
     });
 
-    apiRetriesForm.addEventListener('submit', async (e) => {
+    // --- New: MQTT Test Button Handler ---
+    mqttTestBtn.addEventListener('click', async () => {
+        showMessage(mqttStatusMessage, 'Sending test message based on latest saved settings...', 'info');
+        try {
+            const response = await fetch('/api/mqtt/test', { method: 'POST' });
+            const result = await response.json();
+            if (response.ok) {
+                showMessage(mqttStatusMessage, result.message, 'success');
+            } else {
+                throw new Error(result.detail || 'An unknown error occurred.');
+            }
+        } catch (error) {
+            showMessage(mqttStatusMessage, `Error: ${error.message}`, 'error');
+        }
+    });
+
+    apiRetriesForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const formData = new FormData(apiRetriesForm);
         const newSettings = {
             api_retries: parseInt(formData.get('api_retries'), 10),
             api_retry_delay_seconds: parseInt(formData.get('api_retry_delay_seconds'), 10),
         };
-        await saveConfig(newSettings, apiRetriesStatusMessage);
+        saveConfig(newSettings, apiRetriesStatusMessage);
     });
 
-    displaySettingsForm.addEventListener('submit', async (e) => {
+    displaySettingsForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const formData = new FormData(displaySettingsForm);
         const newSettings = {
             unit_system: formData.get('unit_system'),
         };
-        await saveConfig(newSettings, displayStatusMessage);
+        saveConfig(newSettings, displayStatusMessage);
     });
 
-    loggingSettingsForm.addEventListener('submit', async (e) => {
+    loggingSettingsForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const formData = new FormData(loggingSettingsForm);
         const newSettings = {
             log_history_size: parseInt(formData.get('log_history_size'), 10),
         };
-        await saveConfig(newSettings, loggingStatusMessage);
+        saveConfig(newSettings, loggingStatusMessage);
     });
 
-    geocodingSettingsForm.addEventListener('submit', async (e) => {
+    geocodingSettingsForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const newSettings = {
             reverse_geocode_enabled: document.getElementById('reverse-geocode-enabled').checked,
             fetch_full_trip_route: document.getElementById('fetch-full-route').checked
         };
-        await saveConfig(newSettings, geocodingStatusMessage);
+        saveConfig(newSettings, geocodingStatusMessage);
     });
 
     async function saveConfig(newSettings, messageElement) {
@@ -227,7 +283,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- CSV Import ---
-    importForm.addEventListener('submit', async (e) => {
+    importForm.addEventListener('submit', (e) => {
         e.preventDefault();
         showMessage(importStatusMessage, 'Import functionality is handled via a separate endpoint.', 'info');
     });
@@ -280,6 +336,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Initial Load ---
+    populateSensorCheckboxes();
     loadUsername();
     loadSettings();
 });

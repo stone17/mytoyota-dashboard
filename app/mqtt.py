@@ -49,15 +49,14 @@ def publish_autodiscovery_configs(client: mqtt_client.Client, vehicle_data: dict
     
     discovery_prefix = config.get("discovery_prefix", "homeassistant")
     base_topic = config.get("base_topic", "mytoyota/{vin}").format(vin=vin)
+    enabled_sensors = config.get("enabled_sensors", {})
     
-    # --- START of CORRECTIONS for Units and Lock Sensor ---
-
-    # 1. Determine units based on settings
     unit_system = settings.get("unit_system", "metric")
     is_imperial = unit_system.startswith("imperial")
     
     odom_unit = "mi" if is_imperial else "km"
     consump_unit = "MPG" if is_imperial else "L/100km"
+    range_unit = "mi" if is_imperial else "km"
 
     device_info = {
         "identifiers": [vin],
@@ -66,7 +65,8 @@ def publish_autodiscovery_configs(client: mqtt_client.Client, vehicle_data: dict
         "manufacturer": "Toyota"
     }
 
-    sensors = {
+    # Define all possible sensors
+    all_sensors = {
         "odometer": {
             "component": "sensor", "name": "Odometer", "unit_of_measurement": odom_unit, "icon": "mdi:counter",
             "value_template": "{{ value_json.value | int }}"
@@ -81,14 +81,27 @@ def publish_autodiscovery_configs(client: mqtt_client.Client, vehicle_data: dict
         },
         "lock_status": {
             "component": "binary_sensor", "name": "Lock Status", "device_class": "lock",
-            "payload_on": "UNLOCKED",  # State when sensor is ON (unlocked)
-            "payload_off": "LOCKED"    # State when sensor is OFF (locked)
-            # No value_template needed now, as we send a plain string
+            "payload_on": "UNLOCKED", "payload_off": "LOCKED"
+        },
+        "total_range": {
+            "component": "sensor", "name": "Total Range", "unit_of_measurement": range_unit, "icon": "mdi:map-marker-distance",
+            "value_template": "{{ value_json.value | int }}"
+        },
+        "battery_level": {
+            "component": "sensor", "name": "EV Battery", "unit_of_measurement": "%", "icon": "mdi:battery", "device_class": "battery",
+            "value_template": "{{ value_json.value | int }}"
+        },
+        "ev_range": {
+            "component": "sensor", "name": "EV Range", "unit_of_measurement": range_unit, "icon": "mdi:map-marker-distance",
+            "value_template": "{{ value_json.value | int }}"
         }
     }
-    # --- END of CORRECTIONS ---
 
-    for sensor_key, sensor_config in sensors.items():
+    for sensor_key, sensor_config in all_sensors.items():
+        # Only publish config if the sensor is enabled in settings
+        if not enabled_sensors.get(sensor_key, False):
+            continue
+
         component = sensor_config["component"]
         unique_id = f"{vin}_{sensor_key}"
         config_topic = f"{discovery_prefix}/{component}/{unique_id}/config"
@@ -116,48 +129,84 @@ def publish_vehicle_data(client: mqtt_client.Client, vehicle_data: dict):
             _LOGGER.warning("Cannot publish MQTT data, VIN not found in vehicle data.")
             return
         base_topic = config.get("base_topic", "mytoyota/{vin}").format(vin=vin)
-        _LOGGER.debug(f"Using MQTT base topic: {base_topic}")
-
-        # --- START of CORRECTIONS for dynamic values ---
+        enabled_sensors = config.get("enabled_sensors", {})
+        
         unit_system = settings.get("unit_system", "metric")
         is_imperial = unit_system.startswith("imperial")
         KM_TO_MI = 0.621371
 
-        # 1. Odometer
-        odometer_km = vehicle_data.get("dashboard", {}).get("odometer")
-        if odometer_km is not None:
-            odom_value = round(odometer_km * KM_TO_MI) if is_imperial else round(odometer_km)
-            client.publish(f"{base_topic}/odometer", json.dumps({"value": odom_value}))
+        # Helper function for logging
+        def log_skip(sensor_name):
+            _LOGGER.debug(f"Skipping MQTT publish for '{sensor_name}' because its value is missing from the API data.")
 
-        # 2. Lock Status (publishing a simple string now)
-        status = vehicle_data.get("status", {})
-        all_locked = all(door.get("locked") for door in status.get("doors", {}).values()) if status.get("doors") else False
-        lock_payload = "LOCKED" if all_locked else "UNLOCKED"
-        client.publish(f"{base_topic}/lock_status", lock_payload)
+        # Publish Odometer
+        if enabled_sensors.get("odometer", False):
+            odometer_km = vehicle_data.get("dashboard", {}).get("odometer")
+            if odometer_km is not None:
+                odom_value = round(odometer_km * KM_TO_MI) if is_imperial else round(odometer_km)
+                client.publish(f"{base_topic}/odometer", json.dumps({"value": odom_value}))
+            else:
+                log_skip("odometer")
 
-        # 3. Fuel Level
-        fuel_level = vehicle_data.get("dashboard", {}).get("fuel_level")
-        if fuel_level is not None:
-            client.publish(f"{base_topic}/fuel_level", json.dumps({"value": fuel_level}))
+        # Publish Lock Status
+        if enabled_sensors.get("lock_status", False):
+            status = vehicle_data.get("status", {})
+            # Lock status is calculated, so it should always have a value.
+            all_locked = all(door.get("locked") for door in status.get("doors", {}).values()) if status.get("doors") else False
+            lock_payload = "LOCKED" if all_locked else "UNLOCKED"
+            client.publish(f"{base_topic}/lock_status", lock_payload)
 
-        # 4. Fuel Consumption
-        consumption_l100km = vehicle_data.get("statistics", {}).get("overall", {}).get("fuel_consumption_l_100km")
-        if consumption_l100km is not None:
-            consump_value = consumption_l100km
-            if is_imperial and consumption_l100km > 0:
-                # Use US or UK MPG formula based on setting
-                mpg_factor = 282.481 if unit_system == "imperial_uk" else 235.214
-                consump_value = mpg_factor / consumption_l100km
-            
-            client.publish(f"{base_topic}/fuel_consumption", json.dumps({"value": consump_value}))
-        # --- END of CORRECTIONS ---
+        # Publish Fuel Level
+        if enabled_sensors.get("fuel_level", False):
+            fuel_level = vehicle_data.get("dashboard", {}).get("fuel_level")
+            if fuel_level is not None:
+                client.publish(f"{base_topic}/fuel_level", json.dumps({"value": fuel_level}))
+            else:
+                log_skip("fuel_level")
+
+        # Publish Fuel Consumption
+        if enabled_sensors.get("fuel_consumption", False):
+            consumption_l100km = vehicle_data.get("statistics", {}).get("overall", {}).get("fuel_consumption_l_100km")
+            if consumption_l100km is not None:
+                consump_value = consumption_l100km
+                if is_imperial and consumption_l100km > 0:
+                    mpg_factor = 282.481 if unit_system == "imperial_uk" else 235.214
+                    consump_value = mpg_factor / consumption_l100km
+                client.publish(f"{base_topic}/fuel_consumption", json.dumps({"value": consump_value}))
+            else:
+                log_skip("fuel_consumption")
+        
+        # Publish Total Range
+        if enabled_sensors.get("total_range", False):
+            range_km = vehicle_data.get("dashboard", {}).get("total_range")
+            if range_km is not None:
+                range_value = round(range_km * KM_TO_MI) if is_imperial else round(range_km)
+                client.publish(f"{base_topic}/total_range", json.dumps({"value": range_value}))
+            else:
+                log_skip("total_range")
+        
+        # Publish EV Battery Level
+        if enabled_sensors.get("battery_level", False):
+            battery_level = vehicle_data.get("dashboard", {}).get("battery_level")
+            if battery_level is not None:
+                client.publish(f"{base_topic}/battery_level", json.dumps({"value": battery_level}))
+            else:
+                log_skip("battery_level")
+
+        # Publish EV Range
+        if enabled_sensors.get("ev_range", False):
+            ev_range_km = vehicle_data.get("dashboard", {}).get("battery_range")
+            if ev_range_km is not None:
+                ev_range_value = round(ev_range_km * KM_TO_MI) if is_imperial else round(ev_range_km)
+                client.publish(f"{base_topic}/ev_range", json.dumps({"value": ev_range_value}))
+            else:
+                log_skip("ev_range")
         
         _LOGGER.info(f"Finished publishing data for VIN {vin}")
     except Exception as e:
         _LOGGER.error(f"Error publishing vehicle data to MQTT for VIN {vin}: {e}", exc_info=True)
 
 
-# This function remains the same
 def disconnect(client: mqtt_client.Client):
     if client:
         client.loop_stop()
