@@ -52,13 +52,17 @@ Using Docker is the easiest and most reliable way to run the application.
 
 1.  **Clone the repository:** 
     ```bash
-    git clone [https://github.com/stone17/mytoyota-dashboard.git](https://github.com/stone17/mytoyota-dashboard.git)
+    git clone https://github.com/stone17/mytoyota-dashboard.git
     cd mytoyota-dashboard
     ```
 
 2.  **Build and run the container:** 
     ```bash
-    docker-compose up -d --build # docker compose up -d --build on v2 of docker
+    docker-compose up -d --build
+    ```
+    or with docker version >2
+    ```bash
+    docker compose up -d --build
     ```
 
 3.  **Access the Dashboard:**
@@ -77,9 +81,19 @@ Using Docker is the easiest and most reliable way to run the application.
 To update to the latest version, simply run: 
 ```bash
 git pull
-docker-compose up -d --build  # docker compose up -d --build on v2 of docker
+docker-compose up -d --build
+```
+or with docker version >2
+```bash
+git pull
+docker compose up -d --build
+```
 
----
+If you made changes to the `data/mytoyota_config.yaml` file that are not compatible with the latest changes, you can first run
+```bash
+git stash
+```
+that will stash your changes. Afterwards you can either edit the `data/mytoyota_config.yaml` file in an editor manually, or restart the application and reconfigure it through the Settings page on the web interface. Your car data base will remain, as it is in a different file.
 
 ### Without Docker (Manual/Development)
 
