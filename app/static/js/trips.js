@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const filterAreaBtn = document.getElementById('filter-area-btn');
     const filterStartAreaBtn = document.getElementById('filter-start-area-btn');
     const filterEndAreaBtn = document.getElementById('filter-end-area-btn');
-    const clearAreaFilterBtn = document.getElementById('clear-area-filter-btn');
+    const clearMapFilterBtn = document.getElementById('clear-map-filter-btn');
     const activeFiltersDisplay = document.getElementById('active-filters-display');
     const filterStatusIndicator = document.getElementById('filter-status-indicator');
     const showHeatmapBtn = document.getElementById('show-heatmap-btn');
@@ -284,6 +284,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch(`/api/vehicles/${selectedVin}/countries`);
             const countries = await response.json();
             countrySelect.innerHTML = '';
+            
+            const allOption = new Option('[All Countries]', 'all');
+            countrySelect.appendChild(allOption);
+
             if (countries.length > 0) {
                 countries.forEach(country => {
                     const option = new Option(country, country);
@@ -292,8 +296,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     countrySelect.appendChild(option);
                 });
+            }
+            
+            if (savedCountries.length > 0 && countries.length > 0) {
+                allOption.selected = false;
             } else {
-                countrySelect.innerHTML = '<option disabled>No countries recorded</option>';
+                allOption.selected = true;
             }
         } catch (e) {
             console.error("Could not load country filter:", e.message);
@@ -327,7 +335,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             const selectedCountries = Array.from(countrySelect.selectedOptions).map(opt => opt.value);
-            if (selectedCountries.length > 0) {
+            if (selectedCountries.length > 0 && !selectedCountries.includes('all')) {
                 params.append('countries', selectedCountries.join(','));
             }
 
@@ -339,7 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 applyFilters();
             } else {
                 // This is a full reload (e.g. VIN change), so clear map filters
-                clearAreaFilterBtn.click(); 
+                clearMapFilterBtn.click();
             }
         } catch (e) { tripsTableBody.innerHTML = `<tr><td colspan="27">Error loading trips: ${e.message}</td></tr>`; }
     }
@@ -379,19 +387,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function updateActiveFiltersDisplay() {
-        const activeNames = [];
-        if (activeFilters.area.bounds) activeNames.push("Area (Start/End)");
-        if (activeFilters.start.bounds) activeNames.push("Start Area");
-        if (activeFilters.end.bounds) activeNames.push("End Area");
+        const activeMapFilters = [];
+        if (activeFilters.area.bounds) activeMapFilters.push("Area (Start/End)");
+        if (activeFilters.start.bounds) activeMapFilters.push("Start Area");
+        if (activeFilters.end.bounds) activeMapFilters.push("End Area");
+        
+        const hasMapFilter = activeMapFilters.length > 0;
+        if (hasMapFilter) {
+            activeFiltersDisplay.textContent = `Active Map Filters: ${activeMapFilters.join(', ')}`;
+            clearMapFilterBtn.style.display = 'inline-block';
+        } else {
+            activeFiltersDisplay.textContent = '';
+            clearMapFilterBtn.style.display = 'none';
+        }
+        
+        const selectedCountries = Array.from(countrySelect.selectedOptions).map(opt => opt.value);
+        const hasCountryFilter = selectedCountries.length > 0 && !selectedCountries.includes('all');
 
-        if (activeNames.length > 0) {
-            activeFiltersDisplay.textContent = `Active: ${activeNames.join(', ')}`;
-            clearAreaFilterBtn.style.display = 'inline-block';
+        if (hasMapFilter || hasCountryFilter) {
             filterStatusIndicator.textContent = '(Filter Active)';
             filterStatusIndicator.style.display = 'inline';
         } else {
-            activeFiltersDisplay.textContent = '';
-            clearAreaFilterBtn.style.display = 'none';
             filterStatusIndicator.style.display = 'none';
         }
     }
@@ -643,7 +659,7 @@ document.addEventListener('DOMContentLoaded', () => {
         activateDrawingMode();
     });
 
-    clearAreaFilterBtn.addEventListener('click', () => {
+    clearMapFilterBtn.addEventListener('click', () => {
         const resetFilter = { bounds: null, layer: null };
         activeFilters = { area: resetFilter, start: resetFilter, end: resetFilter };
         drawnItems.clearLayers();
@@ -759,14 +775,34 @@ document.addEventListener('DOMContentLoaded', () => {
         await loadCountryFilter(savedFilters.countries || []);
         loadTrips(false);
     });
+    
     periodSelect.addEventListener('change', () => {
         saveTripFilters();
         loadTrips(true);
     });
-    countrySelect.addEventListener('change', () => {
+
+    countrySelect.addEventListener('change', function() {
+        const selectedValues = Array.from(this.selectedOptions).map(opt => opt.value);
+        const allOption = this.querySelector('option[value="all"]');
+
+        if (selectedValues.length > 1 && selectedValues.includes('all')) {
+            // If the user selects another country while "All" is already selected,
+            // we assume they want to filter by the new country, so we deselect "All".
+            allOption.selected = false;
+        } else if (selectedValues.includes('all')) {
+            // If the user explicitly clicks "All", deselect everything else.
+            Array.from(this.options).forEach(opt => {
+                if (opt.value !== 'all') opt.selected = false;
+            });
+        } else if (selectedValues.length === 0) {
+            // If the user deselects the last country, re-select "All" to clear the filter.
+            allOption.selected = true;
+        }
+        
         saveTripFilters();
         loadTrips(true);
     });
+
     columnSelector.addEventListener('change', () => { updateColumnVisibility(); saveColumnPreferences(); });
 
     backfillControls.addEventListener('click', async (event) => {
@@ -783,7 +819,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
             showBackfillStatus(response.ok ? result.message : `Error: ${result.detail}`, response.ok ? 'success' : 'error');
             if (response.ok) {
-                await loadCountryFilter();
+                const savedFilters = loadAndApplyTripFilters();
+                await loadCountryFilter(savedFilters.countries || []);
                 loadTrips(false);
             }
         } catch (error) {

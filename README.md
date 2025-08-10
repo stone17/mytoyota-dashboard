@@ -31,7 +31,8 @@ The application is built with a Python backend and a vanilla JavaScript frontend
     *   **`data/vehicle_data.json`**: A cache file holding the latest live data polled from the vehicle to ensure the dashboard loads quickly.
     *   **`data/credentials.json`**: An encrypted file containing your MyToyota credentials.
     *   **`data/secrets.key`**: The encryption key for `credentials.json`.
-    *   **`data/mytoyota_config.yaml`**: The main configuration file for the application, including polling schedules and MQTT broker settings.
+    *   **`data/mytoyota_config.yaml`**: The base configuration file for the application, including polling schedules and MQTT broker settings.
+    *   **`data/user_config.yaml`**: The user-specific configuration file for the application.
 
 All persistent application data is stored within the `data/` directory, making backups and Docker volume management simple.
 
@@ -89,12 +90,6 @@ git pull
 docker compose up -d --build
 ```
 
-If you made changes to the `data/mytoyota_config.yaml` file that are not compatible with the latest changes, you can first run
-```bash
-git stash
-```
-that will stash your changes. Afterwards you can either edit the `data/mytoyota_config.yaml` file in an editor manually, or restart the application and reconfigure it through the Settings page on the web interface. Your car data base will remain, as it is in a different file.
-
 ### Without Docker (Manual/Development)
 
 **Prerequisites:**
@@ -128,8 +123,9 @@ that will stash your changes. Afterwards you can either edit the `data/mytoyota_
 
 ## Configuration
 
-All application settings can be set in the **Settings** and are stored in the `data/mytoyota_config.yaml` file.
-
+All application settings can be set in the **Settings** and are stored in the `data/user_config.yaml` file.
+The base settings are stored on the `data/mytoyota_config.yaml` file and should not be changed.
+ 
 *   `logging_level`: Set the verbosity of the logs (e.g., `DEBUG`, `INFO`, `WARNING`).
 *   `log_history_size`: The number of recent log lines to keep in memory for the web UI.
 *   `api_retries`: Number of times to retry a failing API call.

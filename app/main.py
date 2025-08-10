@@ -530,10 +530,9 @@ def get_trips(
 
         # Apply country filter if provided
         if countries:
-            country_list = [c.strip() for c in countries.split(',')]
+            country_list = [c.strip() for c in countries.split(',') if c.strip()]
             if country_list:
-                # Using LIKE for SQLite JSON filtering. This finds trips where the country code is present in the JSON array string.
-                country_filters = [database.Trip.countries.like(f'%"{country}"%') for country in country_list]
+                country_filters = [func.instr(database.Trip.countries, f'"{country}"') > 0 for country in country_list]
                 query = query.filter(or_(*country_filters))
 
         # Apply sorting and fetch all results
