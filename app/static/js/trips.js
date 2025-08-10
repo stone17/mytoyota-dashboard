@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const geocodeProgressBar = document.getElementById('geocode-progress-bar');
     const geocodeProgressText = document.getElementById('geocode-progress-text');
     const periodSelect = document.getElementById('period-select');
+    const countrySelect = document.getElementById('country-select');
     const filterAreaBtn = document.getElementById('filter-area-btn');
     const filterStartAreaBtn = document.getElementById('filter-start-area-btn');
     const filterEndAreaBtn = document.getElementById('filter-end-area-btn');
@@ -206,11 +207,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateUnitHeaders() {
         const isImperial = appConfig.unit_system.startsWith('imperial');
         const isUk = appConfig.unit_system === 'imperial_uk';
-        const distanceUnits = document.querySelectorAll('th .unit[data-unit-type="distance"]');
-        const speedUnit = document.querySelector('th .unit[data-unit-type="speed"]');
+        document.querySelectorAll('th .unit[data-unit-type="distance"]').forEach(span => { span.textContent = isImperial ? 'mi' : 'km'; });
+        document.querySelectorAll('th .unit[data-unit-type="speed"]').forEach(span => { span.textContent = isImperial ? 'mph' : 'km/h'; });
         const consumptionUnit = document.querySelector('th .unit[data-unit-type="consumption"]');
-        distanceUnits.forEach(span => { span.textContent = isImperial ? 'mi' : 'km'; });
-        if (speedUnit) { speedUnit.textContent = isImperial ? 'mph' : 'km/h'; }
         if (consumptionUnit) { consumptionUnit.textContent = isImperial ? (isUk ? 'mpg (UK)' : 'mpg (US)') : 'L/100km'; }
     }
 
@@ -255,7 +254,27 @@ document.addEventListener('DOMContentLoaded', () => {
             if (vehicles.length > 0) {
                 vehicles.forEach(vehicle => { vinSelect.appendChild(new Option(`${vehicle.alias} (${vehicle.vin})`, vehicle.vin)); });
             } else { vinSelect.innerHTML = '<option>No vehicles found</option>'; }
-        } catch (e) { tripsTableBody.innerHTML = `<tr><td colspan="11">Could not load vehicle list: ${e.message}</td></tr>`; }
+        } catch (e) { tripsTableBody.innerHTML = `<tr><td colspan="27">Could not load vehicle list: ${e.message}</td></tr>`; }
+    }
+
+    async function loadCountryFilter() {
+        const selectedVin = vinSelect.value;
+        if (!selectedVin) return;
+        try {
+            const response = await fetch(`/api/vehicles/${selectedVin}/countries`);
+            const countries = await response.json();
+            countrySelect.innerHTML = '';
+            if (countries.length > 0) {
+                countries.forEach(country => {
+                    countrySelect.appendChild(new Option(country, country));
+                });
+            } else {
+                countrySelect.innerHTML = '<option disabled>No countries recorded</option>';
+            }
+        } catch (e) {
+            console.error("Could not load country filter:", e.message);
+            countrySelect.innerHTML = '<option disabled>Error loading countries</option>';
+        }
     }
 
     async function loadTrips(keepFilters = false) {
@@ -265,7 +284,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!keepFilters) {
             mapPanel.style.display = 'none';
         }
-        tripsTableBody.innerHTML = '<tr><td colspan="11" style="text-align:center;">Loading trips...</td></tr>';
+        tripsTableBody.innerHTML = `<tr><td colspan="27" style="text-align:center;">Loading trips...</td></tr>`;
         updateSortIndicators();
         
         try {
@@ -276,8 +295,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 date.setDate(date.getDate() - parseInt(periodDays, 10));
                 startDate = date.toISOString().split('T')[0];
             }
-            const params = new URLSearchParams({ vin: selectedVin, sort_by: currentSort.by, sort_direction: currentSort.direction, unit_system: appConfig.unit_system });
+            
+            const params = new URLSearchParams({
+                vin: selectedVin,
+                sort_by: currentSort.by,
+                sort_direction: currentSort.direction,
+                unit_system: appConfig.unit_system
+            });
             if (startDate) { params.append('start_date', startDate); }
+            
+            // Add country filter to params
+            const selectedCountries = Array.from(countrySelect.selectedOptions).map(opt => opt.value);
+            if (selectedCountries.length > 0) {
+                params.append('countries', selectedCountries.join(','));
+            }
+
             const response = await fetch(`/api/trips?${params.toString()}`);
             const trips = await response.json();
             originalTrips = trips;
@@ -287,7 +319,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 clearAreaFilterBtn.click();
             }
-        } catch (e) { tripsTableBody.innerHTML = `<tr><td colspan="11">Error loading trips: ${e.message}</td></tr>`; }
+        } catch (e) { tripsTableBody.innerHTML = `<tr><td colspan="27">Error loading trips: ${e.message}</td></tr>`; }
     }
 
     const isMobile = () => window.matchMedia('(max-width: 1024px)').matches;
@@ -410,14 +442,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const isUk = appConfig.unit_system === 'imperial_uk';
         tripsTableBody.innerHTML = '';
         if (trips.length === 0) {
-            tripsTableBody.innerHTML = '<tr><td colspan="11" style="text-align: center; padding: 20px;">No trips found for the current filter.</td></tr>';
+            tripsTableBody.innerHTML = `<tr><td colspan="27" style="text-align: center; padding: 20px;">No trips found for the current filter.</td></tr>`;
             return;
         }
+        const formatTimestamp = (ts) => !ts ? 'N/A' : `${new Date(ts).toLocaleDateString()}<br><span class="unit">${new Date(ts).toLocaleTimeString()}</span>`;
+        const formatNumber = (num, digits = 2) => (num === null || num === undefined) ? 'N/A' : Number(num).toFixed(digits);
+        const formatDuration = (s) => (s === null || s === undefined) ? 'N/A' : new Date(s * 1000).toISOString().slice(11, 19);
+        const formatBoolean = (b) => (b === null || b === undefined) ? 'N/A' : (b ? 'Yes' : 'No');
+        const formatArray = (arr) => (arr && arr.length > 0) ? arr.join(', ') : 'N/A';
+        
         trips.forEach((trip, index) => {
             const row = tripsTableBody.insertRow();
-            const formatTimestamp = (ts) => !ts ? 'N/A' : `${new Date(ts).toLocaleDateString()}<br><span class="unit">${new Date(ts).toLocaleTimeString()}</span>`;
-            const formatNumber = (num) => (num === null || num === undefined) ? 'N/A' : Number(num).toFixed(2);
-            const formatDuration = (s) => !s ? 'N/A' : new Date(s * 1000).toISOString().slice(11, 19);
             row.innerHTML = `
                 <td data-column="start-time">${formatTimestamp(trip.start_timestamp)}</td>
                 <td data-column="end-time">${formatTimestamp(trip.end_timestamp)}</td>
@@ -427,18 +462,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td data-column="end-address">${trip.end_address || 'N/A'}</td>
                 <td data-column="duration">${formatDuration(trip.duration_seconds)}</td>
                 <td data-column="avg-speed">${formatNumber(isImperial ? trip.average_speed_mph : trip.average_speed_kmh)}</td>
+                <td data-column="max-speed">${formatNumber(isImperial ? (trip.max_speed_kmh * 0.621371) : trip.max_speed_kmh)}</td>
+                <td data-column="score-global">${trip.score_global || 'N/A'}</td>
+                <td data-column="night-trip">${formatBoolean(trip.night_trip)}</td>
+                <td data-column="countries">${formatArray(trip.countries)}</td>
+                <td data-column="overspeed-dist">${formatNumber(isImperial ? (trip.length_overspeed_km * 0.621371) : trip.length_overspeed_km)}</td>
+                <td data-column="overspeed-dur">${formatDuration(trip.duration_overspeed_seconds)}</td>
+                <td data-column="highway-dist">${formatNumber(isImperial ? (trip.length_highway_km * 0.621371) : trip.length_highway_km)}</td>
+                <td data-column="highway-dur">${formatDuration(trip.duration_highway_seconds)}</td>
+                <td data-column="score-accel">${trip.score_acceleration || 'N/A'}</td>
+                <td data-column="score-brake">${trip.score_braking || 'N/A'}</td>
+                <td data-column="score-const">${trip.score_constant_speed || 'N/A'}</td>
                 <td data-column="ev-dist">${formatNumber(isImperial ? trip.ev_distance_mi : trip.ev_distance_km)}</td>
                 <td data-column="ev-dur">${formatDuration(trip.ev_duration_seconds)}</td>
-                <td data-column="score">${trip.score_global || 'N/A'}</td>`;
+                <td data-column="hdc-eco-dist">${formatNumber(isImperial ? (trip.hdc_eco_distance_km * 0.621371) : trip.hdc_eco_distance_km)}</td>
+                <td data-column="hdc-eco-dur">${formatDuration(trip.hdc_eco_duration_seconds)}</td>
+                <td data-column="hdc-pwr-dist">${formatNumber(isImperial ? (trip.hdc_power_distance_km * 0.621371) : trip.hdc_power_distance_km)}</td>
+                <td data-column="hdc-pwr-dur">${formatDuration(trip.hdc_power_duration_seconds)}</td>
+                <td data-column="hdc-chg-dist">${formatNumber(isImperial ? (trip.hdc_charge_distance_km * 0.621371) : trip.hdc_charge_distance_km)}</td>
+                <td data-column="hdc-chg-dur">${formatDuration(trip.hdc_charge_duration_seconds)}</td>`;
             row.addEventListener('click', () => showTripOnMap(trip, index));
         });
         updateColumnVisibility();
         loadAndApplyColumnOrder();
-    }
-
-    function savePeriodAndReload() {
-        localStorage.setItem('mytoyota_trip_period', periodSelect.value);
-        loadTrips(false);
     }
     
     function updateSortIndicators() {
@@ -662,8 +708,12 @@ document.addEventListener('DOMContentLoaded', () => {
         loadTrips(true);
     });
 
-    vinSelect.addEventListener('change', () => loadTrips(false));
-    periodSelect.addEventListener('change', () => loadTrips(false));
+    vinSelect.addEventListener('change', async () => {
+        await loadCountryFilter();
+        loadTrips(false);
+    });
+    periodSelect.addEventListener('change', () => loadTrips(true));
+    countrySelect.addEventListener('change', () => loadTrips(true));
     columnSelector.addEventListener('change', () => { updateColumnVisibility(); saveColumnPreferences(); });
 
     backfillControls.addEventListener('click', async (event) => {
@@ -680,6 +730,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
             showBackfillStatus(response.ok ? result.message : `Error: ${result.detail}`, response.ok ? 'success' : 'error');
             if (response.ok) {
+                await loadCountryFilter();
                 loadTrips(false);
             }
         } catch (error) {
@@ -700,8 +751,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     async function init() {
-        const savedPeriod = localStorage.getItem('mytoyota_trip_period');
-        if (savedPeriod) { periodSelect.value = savedPeriod; }
         initMap();
         loadFiltersFromLocalStorage();
         await loadConfig();
@@ -709,7 +758,10 @@ document.addEventListener('DOMContentLoaded', () => {
         loadColumnPreferences();
         loadAndApplyColumnOrder();
         await loadVins();
-        if (vinSelect.value) await loadTrips(true);
+        if (vinSelect.value) {
+            await loadCountryFilter();
+            await loadTrips(true);
+        }
         updateSortIndicators();
         if (!geocodeInterval) geocodeInterval = setInterval(updateGeocodeProgress, 5000);
     }

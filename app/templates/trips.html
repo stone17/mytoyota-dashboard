@@ -25,7 +25,7 @@
         .collapsible-content .form-group select { width: 100%; padding: 8px; font-size: 1em; }
         .form-row { display: flex; flex-wrap: wrap; gap: 20px; }
         .form-row .form-group { flex: 1 1 200px; margin-bottom: 0; }
-        #column-selector { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 10px; background-color: #f9f9f9; border-radius: 4px; }
+        #column-selector { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; padding: 10px; background-color: #f9f9f9; border-radius: 4px; }
         #column-selector label { margin-bottom: 0; font-weight: normal; display: flex; align-items: center; }
         .backfill-buttons { display: flex; flex-wrap: wrap; gap: 10px; }
         .backfill-buttons button { flex: 1 1 auto; }
@@ -122,7 +122,7 @@
                 <span>Logs</span>
             </a>
             <a href="/settings" class="nav-link">
-                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61-.25-1.17-.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24-.42.12-.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69-.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49-1c.23-.09.49 0 .61-.22l2-3.46c-.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61-.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24-.42.12-.64l2 3.46c.12.22.39.3.61-.22l2.49-1c.52.4 1.08.73 1.69-.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49-1c.23-.09.49 0 .61-.22l2-3.46c-.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
                 <span>Settings</span>
             </a>
         </nav>
@@ -153,6 +153,10 @@
                             </select>
                         </div>
                     </div>
+                     <div class="form-group">
+                        <h4>Filter by Country</h4>
+                        <select id="country-select" multiple style="min-height: 100px;"></select>
+                    </div>
                     <div class="form-group view-options">
                         <h4>Visible Columns</h4>
                         <div id="column-selector">
@@ -164,9 +168,28 @@
                             <label><input type="checkbox" data-column="end-address" checked> End Address</label>
                             <label><input type="checkbox" data-column="duration"> Duration</label>
                             <label><input type="checkbox" data-column="avg-speed"> Avg. Speed</label>
-                            <label><input type="checkbox" data-column="ev-dist"> EV Distance</label>
-                            <label><input type="checkbox" data-column="ev-dur"> EV Duration</label>
-                            <label><input type="checkbox" data-column="score"> Score</label>
+                            <label><input type="checkbox" data-column="max-speed"> Max Speed</label>
+                            <label><input type="checkbox" data-column="score-global"> Score (Global)</label>
+                            <label><input type="checkbox" data-column="night-trip"> Night Trip</label>
+                            <label><input type="checkbox" data-column="countries"> Countries</label>
+                            <hr style="grid-column: 1 / -1; border-top: 1px solid #ccc; margin: 5px 0;">
+                            <label><input type="checkbox" data-column="overspeed-dist"> Overspeed Dist.</label>
+                            <label><input type="checkbox" data-column="overspeed-dur"> Overspeed Dur.</label>
+                            <label><input type="checkbox" data-column="highway-dist"> Highway Dist.</label>
+                            <label><input type="checkbox" data-column="highway-dur"> Highway Dur.</label>
+                            <hr style="grid-column: 1 / -1; border-top: 1px solid #ccc; margin: 5px 0;">
+                            <label><input type="checkbox" data-column="score-accel"> Score (Accel)</label>
+                            <label><input type="checkbox" data-column="score-brake"> Score (Brake)</label>
+                            <label><input type="checkbox" data-column="score-const"> Score (Const. Spd)</label>
+                            <hr style="grid-column: 1 / -1; border-top: 1px solid #ccc; margin: 5px 0;">
+                            <label><input type="checkbox" data-column="ev-dist"> EV Dist.</label>
+                            <label><input type="checkbox" data-column="ev-dur"> EV Dur.</label>
+                            <label><input type="checkbox" data-column="hdc-eco-dist"> Eco Dist.</label>
+                            <label><input type="checkbox" data-column="hdc-eco-dur"> Eco Dur.</label>
+                            <label><input type="checkbox" data-column="hdc-pwr-dist"> Power Dist.</label>
+                            <label><input type="checkbox" data-column="hdc-pwr-dur"> Power Dur.</label>
+                            <label><input type="checkbox" data-column="hdc-chg-dist"> Charge Dist.</label>
+                            <label><input type="checkbox" data-column="hdc-chg-dur"> Charge Dur.</label>
                         </div>
                     </div>
                     <div class="form-group">
@@ -220,7 +243,7 @@
             <div class="trips-layout">
                 <div class="trips-list-container">
                     <table>
-                        <thead>
+                        <thead id="trip-table-headers">
                             <tr id="trip-table-header-row">
                             <th class="sortable" data-column="start-time" data-sort="start_timestamp">Start Time<span class="sort-indicator"></span></th>
                             <th data-column="end-time">End Time</th>
@@ -230,9 +253,25 @@
                             <th data-column="end-address">End Address</th>
                             <th class="sortable" data-column="duration" data-sort="duration_seconds">Duration<span class="sort-indicator"></span></th>
                             <th class="sortable" data-column="avg-speed" data-sort="average_speed_kmh">Avg. Speed<span class="sort-indicator"></span><br><span class="unit" data-unit-type="speed"></span></th>
-                            <th class="sortable" data-column="ev-dist" data-sort="ev_distance_km">EV Dist.<span class="sort-indicator"></span><br><span class="unit" data-unit-type="distance"></span></th>
-                            <th class="sortable" data-column="ev-dur" data-sort="ev_duration_seconds">EV Duration<span class="sort-indicator"></span></th>
-                            <th class="sortable" data-column="score" data-sort="score_global">Score<span class="sort-indicator"></span></th>
+                            <th class="sortable" data-column="max-speed" data-sort="max_speed_kmh">Max Speed<span class="sort-indicator"></span><br><span class="unit" data-unit-type="speed">km/h</span></th>
+                            <th class="sortable" data-column="score-global" data-sort="score_global">Score<span class="sort-indicator"></span></th>
+                            <th class="sortable" data-column="night-trip" data-sort="night_trip">Night Trip<span class="sort-indicator"></span></th>
+                            <th data-column="countries">Countries</th>
+                            <th class="sortable" data-column="overspeed-dist" data-sort="length_overspeed_km">Overspeed Dist.<span class="sort-indicator"></span><br><span class="unit" data-unit-type="distance">km</span></th>
+                            <th class="sortable" data-column="overspeed-dur" data-sort="duration_overspeed_seconds">Overspeed Dur.<span class="sort-indicator"></span></th>
+                            <th class="sortable" data-column="highway-dist" data-sort="length_highway_km">Highway Dist.<span class="sort-indicator"></span><br><span class="unit" data-unit-type="distance">km</span></th>
+                            <th class="sortable" data-column="highway-dur" data-sort="duration_highway_seconds">Highway Dur.<span class="sort-indicator"></span></th>
+                            <th class="sortable" data-column="score-accel" data-sort="score_acceleration">Score (Accel)<span class="sort-indicator"></span></th>
+                            <th class="sortable" data-column="score-brake" data-sort="score_braking">Score (Brake)<span class="sort-indicator"></span></th>
+                            <th class="sortable" data-column="score-const" data-sort="score_constant_speed">Score (Const.)<span class="sort-indicator"></span></th>
+                            <th class="sortable" data-column="ev-dist" data-sort="ev_distance_km">EV Dist.<span class="sort-indicator"></span><br><span class="unit" data-unit-type="distance">km</span></th>
+                            <th class="sortable" data-column="ev-dur" data-sort="ev_duration_seconds">EV Dur.<span class="sort-indicator"></span></th>
+                            <th class="sortable" data-column="hdc-eco-dist" data-sort="hdc_eco_distance_km">Eco Dist.<span class="sort-indicator"></span><br><span class="unit" data-unit-type="distance">km</span></th>
+                            <th class="sortable" data-column="hdc-eco-dur" data-sort="hdc_eco_duration_seconds">Eco Dur.<span class="sort-indicator"></span></th>
+                            <th class="sortable" data-column="hdc-pwr-dist" data-sort="hdc_power_distance_km">Power Dist.<span class="sort-indicator"></span><br><span class="unit" data-unit-type="distance">km</span></th>
+                            <th class="sortable" data-column="hdc-pwr-dur" data-sort="hdc_power_duration_seconds">Power Dur.<span class="sort-indicator"></span></th>
+                            <th class="sortable" data-column="hdc-chg-dist" data-sort="hdc_charge_distance_km">Charge Dist.<span class="sort-indicator"></span><br><span class="unit" data-unit-type="distance">km</span></th>
+                            <th class="sortable" data-column="hdc-chg-dur" data-sort="hdc_charge_duration_seconds">Charge Dur.<span class="sort-indicator"></span></th>
                         </tr>
                     </thead>
                         <tbody id="trips-table-body"></tbody>

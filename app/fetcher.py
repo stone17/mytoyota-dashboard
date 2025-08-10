@@ -13,7 +13,7 @@ from geopy.geocoders import Nominatim
 from geopy.extra.rate_limiter import RateLimiter
 from pytoyoda.exceptions import ToyotaLoginError, ToyotaApiError
 from . import database
-from . import mqtt  # New Import
+from . import mqtt
 from .credentials_manager import load_credentials
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func
@@ -78,6 +78,9 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
     new_trips_count = 0
     skipped_trips_count = 0
     updated_trips_count = 0
+    
+    # Define fields that should NOT be overwritten by a data backfill.
+    PROTECTED_FIELDS = {'start_address', 'end_address'}
 
     for trip in all_trips:
         try:
@@ -92,21 +95,22 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
             duration_seconds = getattr(trip, 'duration', datetime.timedelta(0)).total_seconds()
             average_speed_kmh = (distance_km / (duration_seconds / 3600)) if duration_seconds > 0 and distance_km > 0 else 0.0
             
-            # Use the more detailed internal _trip object for scores and other stats
             summary = trip._trip.summary if hasattr(trip, '_trip') and hasattr(trip._trip, 'summary') else None
             scores = trip._trip.scores if hasattr(trip, '_trip') and hasattr(trip._trip, 'scores') else None
             hdc = trip._trip.hdc if hasattr(trip, '_trip') and hasattr(trip._trip, 'hdc') else None
             
+            # Correct the units for HDC distances (API provides them in meters)
+            ev_distance_km = (hdc.ev_distance / 1000) if hdc and hdc.ev_distance is not None else getattr(trip, 'ev_distance', 0.0)
+            hdc_charge_dist_km = (hdc.charge_dist / 1000) if hdc and hdc.charge_dist is not None else None
+            hdc_eco_dist_km = (hdc.eco_dist / 1000) if hdc and hdc.eco_dist is not None else None
+            hdc_power_dist_km = (hdc.power_dist / 1000) if hdc and hdc.power_dist is not None else None
+
             route_data = None
             if fetch_full_route and hasattr(trip, 'route') and trip.route:
                 route_data = [point.model_dump(mode="json") for point in trip.route]
 
             KM_TO_MI = 0.621371
             
-            # Get EV distance from HDC block if available, otherwise use the top-level attribute
-            ev_distance_km = hdc.ev_distance if hdc and hdc.ev_distance is not None else getattr(trip, 'ev_distance', 0.0)
-            
-            # Create a dictionary of all new data points
             new_data = {
                 'end_timestamp': trip.end_time.astimezone(datetime.timezone.utc),
                 'start_lat': trip.locations.start.lat, 'start_lon': trip.locations.start.lon,
@@ -115,8 +119,6 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
                 'fuel_consumption_l_100km': fuel_consumption_l_100km,
                 'duration_seconds': int(duration_seconds),
                 'average_speed_kmh': average_speed_kmh,
-
-                # Summary data from the internal _trip object
                 'max_speed_kmh': summary.max_speed if summary else None,
                 'countries': summary.countries if summary else None,
                 'length_overspeed_km': summary.length_overspeed if summary else None,
@@ -124,25 +126,19 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
                 'length_highway_km': summary.length_highway if summary else None,
                 'duration_highway_seconds': summary.duration_highway if summary else None,
                 'night_trip': summary.night_trip if summary else None,
-
-                # Scores data from the internal _trip object (with fallback to old method)
                 'score_global': scores.global_ if scores else getattr(trip, 'score', None),
                 'score_acceleration': scores.acceleration if scores else None,
                 'score_braking': scores.braking if scores else None,
                 'score_advice': scores.advice if scores else None,
                 'score_constant_speed': scores.constant_speed if scores else None,
-                
-                # HDC (Hybrid Driving Coach) data
                 'ev_distance_km': ev_distance_km,
                 'ev_duration_seconds': hdc.ev_time if hdc and hdc.ev_time is not None else int(getattr(trip, 'ev_duration', datetime.timedelta(0)).total_seconds()),
                 'hdc_charge_duration_seconds': hdc.charge_time if hdc else None,
-                'hdc_charge_distance_km': hdc.charge_dist if hdc else None,
+                'hdc_charge_distance_km': hdc_charge_dist_km,
                 'hdc_eco_duration_seconds': hdc.eco_time if hdc else None,
-                'hdc_eco_distance_km': hdc.eco_dist if hdc else None,
+                'hdc_eco_distance_km': hdc_eco_dist_km,
                 'hdc_power_duration_seconds': hdc.power_time if hdc else None,
-                'hdc_power_distance_km': hdc.power_dist if hdc else None,
-
-                # Pre-calculated imperial/route values
+                'hdc_power_distance_km': hdc_power_dist_km,
                 'distance_mi': distance_km * KM_TO_MI,
                 'mpg': (235.214 / fuel_consumption_l_100km) if fuel_consumption_l_100km > 0 else 0.0,
                 'mpg_uk': (282.481 / fuel_consumption_l_100km) if fuel_consumption_l_100km > 0 else 0.0,
@@ -155,20 +151,13 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
             existing_trip = db_session.query(database.Trip).filter_by(vin=vehicle.vin, start_timestamp=start_ts_utc).first()
 
             if existing_trip:
-                # Trip exists. Update it with any missing data.
-                was_updated = False
+                # Trip exists. Overwrite with latest data from API, but protect geocoded fields.
+                _LOGGER.info(f"Updating trip {existing_trip.id} with new/corrected data from API.")
                 for key, value in new_data.items():
-                    # Update if the existing value is None and the new value is not.
-                    if getattr(existing_trip, key, None) is None and value is not None:
+                    if key not in PROTECTED_FIELDS:
                         setattr(existing_trip, key, value)
-                        _LOGGER.info(f"Updating trip {existing_trip.id}: populated missing field '{key}'.")
-                        was_updated = True
-                
-                if was_updated:
-                    db_session.commit()
-                    updated_trips_count += 1
-                else:
-                    skipped_trips_count += 1
+                db_session.commit()
+                updated_trips_count += 1
                 continue
 
             # --- Step 3: If no existing trip, create a new one ---
@@ -418,11 +407,9 @@ async def run_fetch_cycle():
     client = MyT(username=username, password=password, use_metric=True)
     all_vehicle_data = []
     
-    # <<< NEW DEBUG LOG
     _LOGGER.info("Checking MQTT settings and attempting to initialize client...")
     mqtt_client = mqtt.get_client()
     if not mqtt_client:
-        # <<< NEW DEBUG LOG
         _LOGGER.info("MQTT client not created (check settings or connection errors). Publishing will be skipped.")
 
     try:
@@ -459,10 +446,7 @@ async def run_fetch_cycle():
                     all_vehicle_data.append(res)
                     
                     if mqtt_client:
-                        # First, publish the discovery configs
                         mqtt.publish_autodiscovery_configs(mqtt_client, res)
-
-                        # Then, publish the actual data
                         _LOGGER.debug(f"Handing over vehicle data for VIN {vin} to MQTT publisher.")
                         mqtt.publish_vehicle_data(mqtt_client, res)
 
@@ -474,7 +458,6 @@ async def run_fetch_cycle():
             tmp_file = CACHE_FILE.with_suffix(".tmp")
             async with CACHE_LOCK:
                 async with aiofiles.open(tmp_file, "w") as f:
-                    # Generate a timezone-aware ISO string for JavaScript
                     aware_utcnow = datetime.datetime.now(datetime.timezone.utc)
                     await f.write(json.dumps({"last_updated": aware_utcnow.isoformat(), "vehicles": all_vehicle_data}, indent=2))
                 await aiofiles.os.replace(tmp_file, CACHE_FILE)
@@ -486,7 +469,6 @@ async def run_fetch_cycle():
         _LOGGER.error(f"An unexpected error occurred in the fetch cycle: {e}", exc_info=True)
     finally:
         if mqtt_client:
-            # <<< NEW DEBUG LOG
             _LOGGER.debug("Disconnecting MQTT client.")
             mqtt.disconnect(mqtt_client)
             

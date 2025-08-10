@@ -1,9 +1,11 @@
 # app/database.py
 import datetime
 import logging
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, JSON, Boolean
+import json
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import inspect, text
+from sqlalchemy.types import TypeDecorator, TEXT
 
 from .config import DATA_DIR
 
@@ -14,6 +16,32 @@ engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 _LOGGER = logging.getLogger(__name__)
+
+
+class SafeJSON(TypeDecorator):
+    """
+    Custom JSON type for SQLite to gracefully handle empty strings by treating
+    them as NULL, preventing JSONDecodeError during data retrieval.
+    """
+    impl = TEXT
+    cache_ok = True
+
+    def process_result_value(self, value, dialect):
+        """On the way out from the DB, load JSON from text."""
+        if value is None or value == '':
+            return None
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            _LOGGER.warning(f"Could not decode invalid JSON value from DB: {value}")
+            return None
+
+    def process_bind_param(self, value, dialect):
+        """On the way into the DB, dump JSON to text."""
+        if value is None:
+            return None
+        return json.dumps(value)
+
 
 class VehicleReading(Base):
     __tablename__ = "readings"
@@ -51,7 +79,9 @@ class Trip(Base):
     score_acceleration = Column(Integer, nullable=True)
     score_braking = Column(Integer, nullable=True)
     score_global = Column(Integer, nullable=True)
-    countries = Column(JSON, nullable=True)
+
+    # --- New columns added ---
+    countries = Column(SafeJSON, nullable=True)
     night_trip = Column(Boolean, nullable=True)
     length_overspeed_km = Column(Float, nullable=True)
     duration_overspeed_seconds = Column(Integer, nullable=True)
@@ -72,7 +102,7 @@ class Trip(Base):
     mpg_uk = Column(Float, nullable=True)
     average_speed_mph = Column(Float, nullable=True)
     ev_distance_mi = Column(Float, nullable=True)
-    route = Column(JSON, nullable=True)
+    route = Column(SafeJSON, nullable=True)
 
 def _add_missing_columns(engine):
     """

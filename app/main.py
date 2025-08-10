@@ -11,11 +11,11 @@ from collections import deque
 from typing import Deque, Dict, Optional
 
 import aiofiles
-from fastapi import FastAPI, HTTPException, Request, Body, UploadFile, File
+from fastapi import FastAPI, HTTPException, Request, Body, UploadFile, File, Query
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from . import fetcher
 from . import database
@@ -443,6 +443,26 @@ def get_geocode_status():
     finally:
         db.close()
 
+@app.get("/api/vehicles/{vin}/countries")
+def get_available_countries(vin: str):
+    """Gets a unique, sorted list of country codes for all trips for a given VIN."""
+    db = database.SessionLocal()
+    try:
+        results = db.query(database.Trip.countries).filter(
+            database.Trip.vin == vin,
+            database.Trip.countries.is_not(None),
+            database.Trip.countries != ''
+        ).distinct().all()
+        
+        unique_countries = set()
+        for res in results:
+            if res[0]:
+                unique_countries.update(res[0])
+        
+        return sorted(list(unique_countries))
+    finally:
+        db.close()
+
 @app.get("/api/trips")
 def get_trips(
     vin: str,
@@ -450,17 +470,18 @@ def get_trips(
     sort_direction: str = "desc",
     unit_system: str = "metric",
     start_date: Optional[str] = None,
-    end_date: Optional[str] = None
+    end_date: Optional[str] = None,
+    countries: Optional[str] = Query(None)
 ):
-    """API endpoint to get all imported trips for a vehicle, with date filtering."""
+    """API endpoint to get all imported trips for a vehicle, with date and country filtering."""
     db = database.SessionLocal()
     try:
         from sqlalchemy import text
 
-        if sort_by not in ["start_timestamp", "distance_km", "fuel_consumption_l_100km", "duration_seconds", "score_global", "average_speed_kmh", "ev_distance_km", "ev_duration_seconds", "max_speed_kmh"]:
+        valid_sort_columns = {c.name for c in database.Trip.__table__.columns}
+        if sort_by not in valid_sort_columns:
             raise HTTPException(status_code=400, detail=f"Invalid sort_by parameter.")
 
-        # This section remains unchanged
         sort_column_name = {
             "distance_km": "distance_mi" if unit_system.startswith('imperial') else "distance_km",
             "fuel_consumption_l_100km": "mpg_uk" if unit_system == 'imperial_uk' else ("mpg" if unit_system == 'imperial_us' else "fuel_consumption_l_100km"),
@@ -501,6 +522,14 @@ def get_trips(
                 query = query.filter(database.Trip.start_timestamp <= end_dt)
             except ValueError:
                 raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD.")
+
+        # Apply country filter if provided
+        if countries:
+            country_list = [c.strip() for c in countries.split(',')]
+            if country_list:
+                # Using LIKE for SQLite JSON filtering. This finds trips where the country code is present in the JSON array string.
+                country_filters = [database.Trip.countries.like(f'%"{country}"%') for country in country_list]
+                query = query.filter(or_(*country_filters))
 
         # Apply sorting and fetch all results
         trips = query.order_by(sort_expression).all()
