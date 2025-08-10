@@ -225,11 +225,12 @@ async def get_vehicle_data():
                     func.sum(database.Trip.ev_distance_km).label("total_ev_distance"),
                     func.sum(database.Trip.fuel_consumption_l_100km * database.Trip.distance_km / 100).label("total_fuel"),
                     func.sum(database.Trip.duration_seconds).label("total_duration_seconds"),
-                    func.max(database.Trip.max_speed_kmh).label("overall_max_speed")
+                    func.max(database.Trip.max_speed_kmh).label("overall_max_speed"),
+                    func.sum(database.Trip.length_highway_km).label("total_highway_distance")
                 ).filter(database.Trip.vin == vin).first()
                 
                 _LOGGER.debug(f"--- Overall Stats for VIN: {vin} ---")
-                _LOGGER.debug(f"Raw DB stats: total_distance={stats.total_distance}, total_ev_distance={stats.total_ev_distance}, total_fuel={stats.total_fuel}, overall_max_speed={stats.overall_max_speed}")
+                _LOGGER.debug(f"Raw DB stats: {stats}")
 
                 # Fetch and process countries separately, ensuring we only query valid JSON.
                 countries_results = db.query(database.Trip.countries).filter(
@@ -249,18 +250,22 @@ async def get_vehicle_data():
                     total_ev_distance = stats.total_ev_distance or 0.0
                     total_fuel = stats.total_fuel or 0.0
                     total_duration_seconds = stats.total_duration_seconds or 0
-                    _LOGGER.debug(f"Processing stats: total_distance={total_distance}, total_ev_distance={total_ev_distance}, total_fuel={total_fuel}, total_duration={total_duration_seconds}")
-
+                    total_highway_distance = stats.total_highway_distance or 0.0
                     
                     vehicle["statistics"]["overall"]["total_ev_distance_km"] = round(total_ev_distance)
                     vehicle["statistics"]["overall"]["total_fuel_l"] = round(total_fuel, 2)
                     vehicle["statistics"]["overall"]["total_duration_seconds"] = total_duration_seconds
+                    vehicle["statistics"]["overall"]["total_highway_distance_km"] = round(total_highway_distance)
                     if stats.overall_max_speed is not None:
                          vehicle["statistics"]["overall"]["overall_max_speed_kmh"] = round(stats.overall_max_speed)
                     vehicle["statistics"]["overall"]["countries"] = ", ".join(sorted_countries) if sorted_countries else "N/A"
 
                     if total_distance > 0:
                         vehicle["statistics"]["overall"]["ev_ratio_percent"] = round((total_ev_distance / total_distance) * 100, 1)
+                        vehicle["statistics"]["overall"]["highway_ratio_percent"] = round((total_highway_distance / total_distance) * 100, 1)
+                    else:
+                         vehicle["statistics"]["overall"]["highway_ratio_percent"] = 0
+
 
                     if total_distance > 0 and total_fuel > 0:
                         vehicle["statistics"]["overall"]["fuel_consumption_l_100km"] = round((total_fuel / total_distance) * 100, 2)

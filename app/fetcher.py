@@ -99,11 +99,14 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
             scores = trip._trip.scores if hasattr(trip, '_trip') and hasattr(trip._trip, 'scores') else None
             hdc = trip._trip.hdc if hasattr(trip, '_trip') and hasattr(trip._trip, 'hdc') else None
             
-            # Correct the units for HDC distances (API provides them in meters)
+            # Correct the units for distances (API provides many in meters)
             ev_distance_km = (hdc.ev_distance / 1000) if hdc and hdc.ev_distance is not None else getattr(trip, 'ev_distance', 0.0)
             hdc_charge_dist_km = (hdc.charge_dist / 1000) if hdc and hdc.charge_dist is not None else None
             hdc_eco_dist_km = (hdc.eco_dist / 1000) if hdc and hdc.eco_dist is not None else None
             hdc_power_dist_km = (hdc.power_dist / 1000) if hdc and hdc.power_dist is not None else None
+            length_overspeed_km = (summary.length_overspeed / 1000) if summary and summary.length_overspeed is not None else None
+            length_highway_km = (summary.length_highway / 1000) if summary and summary.length_highway is not None else None
+
 
             route_data = None
             if fetch_full_route and hasattr(trip, 'route') and trip.route:
@@ -121,9 +124,9 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
                 'average_speed_kmh': average_speed_kmh,
                 'max_speed_kmh': summary.max_speed if summary else None,
                 'countries': summary.countries if summary else None,
-                'length_overspeed_km': summary.length_overspeed if summary else None,
+                'length_overspeed_km': length_overspeed_km,
                 'duration_overspeed_seconds': summary.duration_overspeed if summary else None,
-                'length_highway_km': summary.length_highway if summary else None,
+                'length_highway_km': length_highway_km,
                 'duration_highway_seconds': summary.duration_highway if summary else None,
                 'night_trip': summary.night_trip if summary else None,
                 'score_global': scores.global_ if scores else getattr(trip, 'score', None),

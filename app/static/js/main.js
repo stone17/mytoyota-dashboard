@@ -607,6 +607,7 @@ document.addEventListener('DOMContentLoaded', () => {
             vehicleCard.querySelector('.stat-total-fuel h3').textContent = `Total Fuel (${fuelUnit})`;
             vehicleCard.querySelector('.stat-ev-range .distance_unit').textContent = distanceUnit;
             vehicleCard.querySelector('.stat-max-speed h3').textContent = `Max Speed Ever (${speedUnit})`;
+            vehicleCard.querySelector('.stat-highway-distance h3').textContent = `Highway Distance (${distanceUnit})`;
 
             const dashboard = vehicleToRender.dashboard || {};
             const statsOverall = vehicleToRender.statistics.overall || {};
@@ -622,6 +623,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const totalFuelL = statsOverall.total_fuel_l || 0;
             const overallMaxSpeedKmh = statsOverall.overall_max_speed_kmh || 'N/A';
             const allCountries = statsOverall.countries || 'N/A';
+            const totalHighwayDistKm = statsOverall.total_highway_distance_km || 0;
+            const highwayRatio = statsOverall.highway_ratio_percent !== undefined ? statsOverall.highway_ratio_percent : 'N/A';
 
             vehicleCard.querySelector('.alias').innerHTML = vehicleToRender.alias;
             vehicleCard.querySelector('.model-name').textContent = vehicleToRender.model_name;
@@ -635,6 +638,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setVal('.ev_ratio_percent', statsOverall.ev_ratio_percent !== undefined ? statsOverall.ev_ratio_percent : 'N/A');
             const totalSeconds = statsOverall.total_duration_seconds || 0;
             setVal('.total_duration', Math.round(totalSeconds / 3600));
+            setVal('.highway_ratio_percent', highwayRatio);
 
             if (isImperial) {
                 setVal('.odometer', Math.round(odometerKm * KM_TO_MI));
@@ -646,6 +650,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 setVal('.battery_range', batteryRangeKm !== 'N/A' ? Math.round(batteryRangeKm * KM_TO_MI) : 'N/A');
                 setVal('.battery_range_with_ac', batteryRangeWithAcKm !== 'N/A' ? Math.round(batteryRangeWithAcKm * KM_TO_MI) : 'N/A');
                 setVal('.overall_max_speed', overallMaxSpeedKmh !== 'N/A' ? Math.round(overallMaxSpeedKmh * KM_TO_MI) : 'N/A');
+                setVal('.total_highway_distance_km', Math.round(totalHighwayDistKm * KM_TO_MI));
             } else {
                 setVal('.odometer', Math.round(odometerKm));
                 setVal('.total_range', Math.round(rangeKm));
@@ -656,6 +661,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 setVal('.battery_range', batteryRangeKm !== 'N/A' ? Math.round(batteryRangeKm) : 'N/A');
                 setVal('.battery_range_with_ac', batteryRangeWithAcKm !== 'N/A' ? Math.round(batteryRangeWithAcKm) : 'N/A');
                 setVal('.overall_max_speed', overallMaxSpeedKmh !== 'N/A' ? Math.round(overallMaxSpeedKmh) : 'N/A');
+                setVal('.total_highway_distance_km', Math.round(totalHighwayDistKm));
             }
 
             setVal('.all_countries', allCountries);

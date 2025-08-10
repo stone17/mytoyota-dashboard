@@ -58,7 +58,8 @@ document.addEventListener('DOMContentLoaded', () => {
         'ev_range': 'EV Range',
         'charging_status': 'Charging Status',
         'max_speed': 'Max Speed Ever',
-        'countries': 'Countries Visited'
+        'countries': 'Countries Visited',
+        'highway_distance': 'Highway Distance'
     };
 
     // --- Populate Sensor Checkboxes ---
