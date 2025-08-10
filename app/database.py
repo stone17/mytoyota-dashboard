@@ -1,7 +1,7 @@
 # app/database.py
 import datetime
 import logging
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, JSON
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, JSON, Boolean
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import inspect, text
 
@@ -51,6 +51,20 @@ class Trip(Base):
     score_acceleration = Column(Integer, nullable=True)
     score_braking = Column(Integer, nullable=True)
     score_global = Column(Integer, nullable=True)
+    countries = Column(JSON, nullable=True)
+    night_trip = Column(Boolean, nullable=True)
+    length_overspeed_km = Column(Float, nullable=True)
+    duration_overspeed_seconds = Column(Integer, nullable=True)
+    length_highway_km = Column(Float, nullable=True)
+    duration_highway_seconds = Column(Integer, nullable=True)
+    score_advice = Column(Integer, nullable=True)
+    score_constant_speed = Column(Integer, nullable=True)
+    hdc_charge_duration_seconds = Column(Integer, nullable=True)
+    hdc_charge_distance_km = Column(Float, nullable=True)
+    hdc_eco_duration_seconds = Column(Integer, nullable=True)
+    hdc_eco_distance_km = Column(Float, nullable=True)
+    hdc_power_duration_seconds = Column(Integer, nullable=True)
+    hdc_power_distance_km = Column(Float, nullable=True)
 
     # --- Columns for pre-calculated imperial units ---
     distance_mi = Column(Float, nullable=True)

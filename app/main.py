@@ -224,11 +224,24 @@ async def get_vehicle_data():
                     func.sum(database.Trip.distance_km).label("total_distance"),
                     func.sum(database.Trip.ev_distance_km).label("total_ev_distance"),
                     func.sum(database.Trip.fuel_consumption_l_100km * database.Trip.distance_km / 100).label("total_fuel"),
-                    func.sum(database.Trip.duration_seconds).label("total_duration_seconds")
+                    func.sum(database.Trip.duration_seconds).label("total_duration_seconds"),
+                    func.max(database.Trip.max_speed_kmh).label("overall_max_speed")
                 ).filter(database.Trip.vin == vin).first()
                 
-                logging.debug(f"--- Overall Stats for VIN: {vin} ---")
-                logging.debug(f"Raw DB stats: total_distance={stats.total_distance}, total_ev_distance={stats.total_ev_distance}, total_fuel={stats.total_fuel}")
+                _LOGGER.debug(f"--- Overall Stats for VIN: {vin} ---")
+                _LOGGER.debug(f"Raw DB stats: total_distance={stats.total_distance}, total_ev_distance={stats.total_ev_distance}, total_fuel={stats.total_fuel}, overall_max_speed={stats.overall_max_speed}")
+
+                # Fetch and process countries separately, ensuring we only query valid JSON.
+                countries_results = db.query(database.Trip.countries).filter(
+                    database.Trip.vin == vin,
+                    database.Trip.countries.is_not(None),
+                    database.Trip.countries != ''
+                ).all()
+                all_countries = set()
+                for res in countries_results:
+                    if res[0]:
+                        all_countries.update(res[0])
+                sorted_countries = sorted(list(all_countries))
 
                 vehicle["statistics"]["overall"] = {}
                 if stats and stats.total_distance is not None:
@@ -236,21 +249,24 @@ async def get_vehicle_data():
                     total_ev_distance = stats.total_ev_distance or 0.0
                     total_fuel = stats.total_fuel or 0.0
                     total_duration_seconds = stats.total_duration_seconds or 0
-                    logging.debug(f"Processing stats: total_distance={total_distance}, total_ev_distance={total_ev_distance}, total_fuel={total_fuel}, total_duration={total_duration_seconds}")
+                    _LOGGER.debug(f"Processing stats: total_distance={total_distance}, total_ev_distance={total_ev_distance}, total_fuel={total_fuel}, total_duration={total_duration_seconds}")
 
                     
                     vehicle["statistics"]["overall"]["total_ev_distance_km"] = round(total_ev_distance)
                     vehicle["statistics"]["overall"]["total_fuel_l"] = round(total_fuel, 2)
                     vehicle["statistics"]["overall"]["total_duration_seconds"] = total_duration_seconds
+                    if stats.overall_max_speed is not None:
+                         vehicle["statistics"]["overall"]["overall_max_speed_kmh"] = round(stats.overall_max_speed)
+                    vehicle["statistics"]["overall"]["countries"] = ", ".join(sorted_countries) if sorted_countries else "N/A"
 
                     if total_distance > 0:
                         vehicle["statistics"]["overall"]["ev_ratio_percent"] = round((total_ev_distance / total_distance) * 100, 1)
 
                     if total_distance > 0 and total_fuel > 0:
                         vehicle["statistics"]["overall"]["fuel_consumption_l_100km"] = round((total_fuel / total_distance) * 100, 2)
-                    logging.debug(f"Final overall stats object: {vehicle['statistics']['overall']}")
+                    _LOGGER.debug(f"Final overall stats object: {vehicle['statistics']['overall']}")
                 else:
-                    logging.debug("No trip data found for this VIN, skipping overall stats calculation.")
+                    _LOGGER.debug("No trip data found for this VIN, skipping overall stats calculation.")
         finally:
             db.close()
 
@@ -330,7 +346,8 @@ def get_daily_summary(vin: str, period: str = "30"):
             func.sum(database.Trip.ev_distance_km).label("ev_distance"),
             func.sum(database.Trip.ev_duration_seconds).label("ev_duration"),
             func.avg(database.Trip.score_global).label("avg_score"),
-            func.sum(database.Trip.duration_seconds).label("total_duration")
+            func.sum(database.Trip.duration_seconds).label("total_duration"),
+            func.max(database.Trip.max_speed_kmh).label("max_speed")
         ).filter(
             database.Trip.vin == vin,
             database.Trip.start_timestamp >= actual_start_date_filter
@@ -347,7 +364,7 @@ def get_daily_summary(vin: str, period: str = "30"):
                 current_date = start_date_for_range + datetime.timedelta(days=i)
                 daily_data[current_date.isoformat()] = {
                     "distance": 0.0, "fuel": 0.0, "ev_distance": 0.0, 
-                    "ev_duration": 0, "score": None, "duration_seconds": 0
+                    "ev_duration": 0, "score": None, "duration_seconds": 0, "max_speed": None
                 }
 
         # Update the dictionary with actual data from the query.
@@ -360,6 +377,7 @@ def get_daily_summary(vin: str, period: str = "30"):
                 daily_data[day_str]["ev_duration"] = r.ev_duration or 0
                 daily_data[day_str]["score"] = r.avg_score
                 daily_data[day_str]["duration_seconds"] = r.total_duration or 0
+                daily_data[day_str]["max_speed"] = r.max_speed
 
         # Format the final list for the frontend.
         return [
@@ -371,7 +389,8 @@ def get_daily_summary(vin: str, period: str = "30"):
                 "ev_duration_seconds": data.get("ev_duration", 0),
                 "score_global": round(data["score"], 0) if data.get("score") is not None else None,
                 "duration_seconds": data.get("duration_seconds", 0),
-                "average_speed_kmh": round(data["distance"] / (data["duration_seconds"] / 3600), 2) if data.get("duration_seconds", 0) > 0 and data["distance"] > 0 else 0.0
+                "average_speed_kmh": round(data["distance"] / (data["duration_seconds"] / 3600), 2) if data.get("duration_seconds", 0) > 0 and data["distance"] > 0 else 0.0,
+                "max_speed_kmh": data.get("max_speed")
             }
             for day, data in sorted(daily_data.items())
         ]
@@ -438,7 +457,7 @@ def get_trips(
     try:
         from sqlalchemy import text
 
-        if sort_by not in ["start_timestamp", "distance_km", "fuel_consumption_l_100km", "duration_seconds", "score_global", "average_speed_kmh", "ev_distance_km", "ev_duration_seconds"]:
+        if sort_by not in ["start_timestamp", "distance_km", "fuel_consumption_l_100km", "duration_seconds", "score_global", "average_speed_kmh", "ev_distance_km", "ev_duration_seconds", "max_speed_kmh"]:
             raise HTTPException(status_code=400, detail=f"Invalid sort_by parameter.")
 
         # This section remains unchanged

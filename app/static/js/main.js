@@ -98,6 +98,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     label: 'Average Speed', unit: { metric: 'km/h', imperial: 'mph' }, color: '#337ab7',
                     convert: (val) => val * KM_TO_MI
                 },
+                max_speed_kmh: {
+                    label: 'Max Speed', unit: { metric: 'km/h', imperial: 'mph' }, color: '#BF55EC',
+                    convert: (val) => val * KM_TO_MI
+                },
                 duration_seconds: {
                     label: 'Trip Duration', unit: { metric: 'minutes', imperial: 'minutes' }, color: '#777'
                 },
@@ -565,8 +569,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // This function's content is mostly the same, but the chart update logic is modified
-async function loadVehicleData() {
+    async function loadVehicleData() {
         const isImperial = appConfig.unit_system.startsWith('imperial');
         const isUk = appConfig.unit_system === 'imperial_uk';
 
@@ -594,6 +597,7 @@ async function loadVehicleData() {
             const distanceUnit = isImperial ? 'mi' : 'km';
             const consumptionUnit = isImperial ? (isUk ? 'UK MPG' : 'US MPG') : 'L/100km';
             const fuelUnit = isImperial ? (isUk ? 'UK gal' : 'US gal') : 'L';
+            const speedUnit = isImperial ? 'mph' : 'km/h';
             
             vehicleCard.querySelector('.stat-odometer h3').textContent = `Odometer (${distanceUnit})`;
             vehicleCard.querySelector('.stat-range h3').textContent = `Range Left (${distanceUnit})`;
@@ -602,6 +606,7 @@ async function loadVehicleData() {
             vehicleCard.querySelector('.stat-consumption h3').textContent = `Consumption (${consumptionUnit})`;
             vehicleCard.querySelector('.stat-total-fuel h3').textContent = `Total Fuel (${fuelUnit})`;
             vehicleCard.querySelector('.stat-ev-range .distance_unit').textContent = distanceUnit;
+            vehicleCard.querySelector('.stat-max-speed h3').textContent = `Max Speed Ever (${speedUnit})`;
 
             const dashboard = vehicleToRender.dashboard || {};
             const statsOverall = vehicleToRender.statistics.overall || {};
@@ -615,6 +620,8 @@ async function loadVehicleData() {
             const dailyDistanceKm = statsDaily.distance || 0;
             const consumptionL100km = statsOverall.fuel_consumption_l_100km || 0;
             const totalFuelL = statsOverall.total_fuel_l || 0;
+            const overallMaxSpeedKmh = statsOverall.overall_max_speed_kmh || 'N/A';
+            const allCountries = statsOverall.countries || 'N/A';
 
             vehicleCard.querySelector('.alias').innerHTML = vehicleToRender.alias;
             vehicleCard.querySelector('.model-name').textContent = vehicleToRender.model_name;
@@ -638,6 +645,7 @@ async function loadVehicleData() {
                 setVal('.total_fuel_l', (totalFuelL * (isUk ? L_TO_GAL_UK : L_TO_GAL_US)).toFixed(2));
                 setVal('.battery_range', batteryRangeKm !== 'N/A' ? Math.round(batteryRangeKm * KM_TO_MI) : 'N/A');
                 setVal('.battery_range_with_ac', batteryRangeWithAcKm !== 'N/A' ? Math.round(batteryRangeWithAcKm * KM_TO_MI) : 'N/A');
+                setVal('.overall_max_speed', overallMaxSpeedKmh !== 'N/A' ? Math.round(overallMaxSpeedKmh * KM_TO_MI) : 'N/A');
             } else {
                 setVal('.odometer', Math.round(odometerKm));
                 setVal('.total_range', Math.round(rangeKm));
@@ -647,7 +655,10 @@ async function loadVehicleData() {
                 setVal('.total_fuel_l', totalFuelL.toFixed(2));
                 setVal('.battery_range', batteryRangeKm !== 'N/A' ? Math.round(batteryRangeKm) : 'N/A');
                 setVal('.battery_range_with_ac', batteryRangeWithAcKm !== 'N/A' ? Math.round(batteryRangeWithAcKm) : 'N/A');
+                setVal('.overall_max_speed', overallMaxSpeedKmh !== 'N/A' ? Math.round(overallMaxSpeedKmh) : 'N/A');
             }
+
+            setVal('.all_countries', allCountries);
 
             // Populate new EV fields
             setVal('.battery_level', dashboard.battery_level !== undefined ? dashboard.battery_level : 'N/A');
@@ -668,21 +679,34 @@ async function loadVehicleData() {
             const lon = dashboard.longitude;
             const mapContainer = vehicleCard.querySelector('.location-map-container');
             if (lat && lon) {
-                const embedUrl = `https://www.google.com/maps?q=${lat},${lon}&z=15&output=embed`;
+                const embedUrl = `https://maps.google.com/maps?q=${lat},${lon}&z=15&output=embed`;
                 mapContainer.innerHTML = `<iframe src="${embedUrl}"></iframe>`;
             } else {
                 mapContainer.innerHTML = '<p style="text-align: center; padding-top: 50px; color: #888;">Location data not available.</p>';
             }
 
-            // Apply visibility settings
+            // Apply visibility settings and handle grid layout for odd numbers
             const enabledSensors = appConfig.dashboard_sensors || {};
             vehicleCard.querySelectorAll('.stat[data-stat-key]').forEach(el => {
                 const key = el.dataset.statKey;
-                // Default to showing the stat if it's not in the config
                 if (enabledSensors[key] === false) {
                     el.style.display = 'none';
+                } else {
+                    el.style.display = ''; // Ensure it's visible if config changes
                 }
             });
+
+            // NEW: Logic to make the last item in an odd-numbered grid span the full width
+            const visibleStats = Array.from(vehicleCard.querySelectorAll('.stat')).filter(
+                el => el.style.display !== 'none'
+            );
+            visibleStats.forEach(stat => stat.style.gridColumn = ''); // Reset any previous styling
+            if (visibleStats.length % 2 !== 0) {
+                const lastVisibleStat = visibleStats[visibleStats.length - 1];
+                if (lastVisibleStat) {
+                    lastVisibleStat.style.gridColumn = 'span 2';
+                }
+            }
 
             updateStatusPanel(vehicleCard, vehicleToRender.status);
             

@@ -39,3 +39,5 @@ dashboard_sensors:
   ev_level: true
   ev_range: true
   charging_status: true
+  max_speed: true
+  countries: true

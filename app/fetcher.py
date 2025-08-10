@@ -91,9 +91,11 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
             fuel_consumption_l_100km = getattr(trip, 'average_fuel_consumed', 0.0) or 0.0
             duration_seconds = getattr(trip, 'duration', datetime.timedelta(0)).total_seconds()
             average_speed_kmh = (distance_km / (duration_seconds / 3600)) if duration_seconds > 0 and distance_km > 0 else 0.0
-            ev_distance_km = getattr(trip, 'ev_distance', 0.0) or 0.0
-            ev_duration_seconds = getattr(trip, 'ev_duration', datetime.timedelta(0)).total_seconds()
-            score_global = getattr(trip, 'score', None)
+            
+            # Use the more detailed internal _trip object for scores and other stats
+            summary = trip._trip.summary if hasattr(trip, '_trip') and hasattr(trip._trip, 'summary') else None
+            scores = trip._trip.scores if hasattr(trip, '_trip') and hasattr(trip._trip, 'scores') else None
+            hdc = trip._trip.hdc if hasattr(trip, '_trip') and hasattr(trip._trip, 'hdc') else None
             
             route_data = None
             if fetch_full_route and hasattr(trip, 'route') and trip.route:
@@ -101,20 +103,51 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
 
             KM_TO_MI = 0.621371
             
+            # Get EV distance from HDC block if available, otherwise use the top-level attribute
+            ev_distance_km = hdc.ev_distance if hdc and hdc.ev_distance is not None else getattr(trip, 'ev_distance', 0.0)
+            
             # Create a dictionary of all new data points
             new_data = {
                 'end_timestamp': trip.end_time.astimezone(datetime.timezone.utc),
                 'start_lat': trip.locations.start.lat, 'start_lon': trip.locations.start.lon,
                 'end_lat': trip.locations.end.lat, 'end_lon': trip.locations.end.lon,
-                'distance_km': distance_km, 'fuel_consumption_l_100km': fuel_consumption_l_100km,
-                'duration_seconds': int(duration_seconds), 'average_speed_kmh': average_speed_kmh,
-                'ev_distance_km': ev_distance_km, 'ev_duration_seconds': int(ev_duration_seconds),
-                'score_global': score_global,
+                'distance_km': distance_km,
+                'fuel_consumption_l_100km': fuel_consumption_l_100km,
+                'duration_seconds': int(duration_seconds),
+                'average_speed_kmh': average_speed_kmh,
+
+                # Summary data from the internal _trip object
+                'max_speed_kmh': summary.max_speed if summary else None,
+                'countries': summary.countries if summary else None,
+                'length_overspeed_km': summary.length_overspeed if summary else None,
+                'duration_overspeed_seconds': summary.duration_overspeed if summary else None,
+                'length_highway_km': summary.length_highway if summary else None,
+                'duration_highway_seconds': summary.duration_highway if summary else None,
+                'night_trip': summary.night_trip if summary else None,
+
+                # Scores data from the internal _trip object (with fallback to old method)
+                'score_global': scores.global_ if scores else getattr(trip, 'score', None),
+                'score_acceleration': scores.acceleration if scores else None,
+                'score_braking': scores.braking if scores else None,
+                'score_advice': scores.advice if scores else None,
+                'score_constant_speed': scores.constant_speed if scores else None,
+                
+                # HDC (Hybrid Driving Coach) data
+                'ev_distance_km': ev_distance_km,
+                'ev_duration_seconds': hdc.ev_time if hdc and hdc.ev_time is not None else int(getattr(trip, 'ev_duration', datetime.timedelta(0)).total_seconds()),
+                'hdc_charge_duration_seconds': hdc.charge_time if hdc else None,
+                'hdc_charge_distance_km': hdc.charge_dist if hdc else None,
+                'hdc_eco_duration_seconds': hdc.eco_time if hdc else None,
+                'hdc_eco_distance_km': hdc.eco_dist if hdc else None,
+                'hdc_power_duration_seconds': hdc.power_time if hdc else None,
+                'hdc_power_distance_km': hdc.power_dist if hdc else None,
+
+                # Pre-calculated imperial/route values
                 'distance_mi': distance_km * KM_TO_MI,
                 'mpg': (235.214 / fuel_consumption_l_100km) if fuel_consumption_l_100km > 0 else 0.0,
                 'mpg_uk': (282.481 / fuel_consumption_l_100km) if fuel_consumption_l_100km > 0 else 0.0,
                 'average_speed_mph': average_speed_kmh * KM_TO_MI,
-                'ev_distance_mi': ev_distance_km * KM_TO_MI,
+                'ev_distance_mi': (ev_distance_km or 0.0) * KM_TO_MI,
                 'route': route_data
             }
 

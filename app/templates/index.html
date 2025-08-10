@@ -85,31 +85,24 @@
         .small-btn:hover { background-color: #5a6268; }
         .small-btn:disabled { background-color: #aaa; cursor: not-allowed; }
 
+        /* --- MODIFIED CSS FOR ROBUST GRID LINES --- */
         .vehicle-stats {
             display: grid;
             grid-template-columns: 1fr 1fr; /* Two-column layout */
-            gap: 0; /* Remove gaps for a table-like feel */
-            border: 1px solid #e0e0e0;
+            gap: 1px;                      /* This creates the grid lines */
+            background-color: #e0e0e0;     /* This is the color of the grid lines */
+            border: 1px solid #e0e0e0;     /* Keeps the outer border consistent */
             border-radius: 8px;
-            overflow: hidden; /* Clip children to rounded corners */
+            overflow: hidden;              /* Clips children to the rounded corners */
             margin-bottom: 20px;
         }
         .stat {
             padding: 12px 15px;
-            border-bottom: 1px solid #e0e0e0;
-        }
-        .stat:nth-child(odd) {
-            border-right: 1px solid #e0e0e0;
-        }
-        .stat:nth-child(4n-1),
-        .stat:nth-child(4n) {
-            background-color: #f9f9f9;
-        }
-        .stat:nth-last-child(-n+2) {
-            border-bottom: none;
+            background-color: #fff; /* All cells have a solid background */
         }
         .stat h3 { margin: 0 0 4px 0; font-size: 0.8em; color: #666; text-transform: uppercase; }
         .stat p { margin: 0; font-size: 1.3em; font-weight: bold; }
+        
         .charts { display: grid; grid-template-columns: 1fr; gap: 20px; }
         .charts { height: 350px; }
 
@@ -223,21 +216,10 @@
                 flex-direction: column;
             }
         }
+        
         @media (max-width: 600px) {
             .vehicle-stats {
-                grid-template-columns: 1fr; /* Single column layout */
-            }
-            .stat:nth-child(odd) {
-                border-right: none;
-            }
-            .stat:nth-child(even) {
-                background-color: #f9f9f9;
-            }
-            .stat {
-                border-bottom: 1px solid #e0e0e0 !important;
-            }
-            .stat:last-child {
-                border-bottom: none !important;
+                grid-template-columns: 1fr; /* Single column layout for mobile */
             }
             .chart-controls {
                 grid-template-columns: 1fr;
@@ -310,7 +292,7 @@
                 <span>Logs</span>
             </a>
             <a href="/settings" class="nav-link">
-                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61-.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61-.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19-.15-.24-.42.12-.64l2 3.46c.12.22.39.3.61-.22l2.49-1c.52.4 1.08.73 1.69-.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59-1.69-.98l2.49-1c-.23-.09.49 0 .61-.22l2-3.46c-.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61-.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19-.15-.24-.42.12-.64l2 3.46c.12.22.39.3.61-.22l2.49-1c.52.4 1.08.73 1.69-.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49-1c.23-.09.49 0 .61-.22l2-3.46c-.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
                 <span>Settings</span>
             </a>
         </nav>
@@ -387,6 +369,14 @@
                             <h3>Charging</h3>
                             <p><span class="charging_status">N/A</span></p>
                         </div>
+                        <div class="stat stat-max-speed" data-stat-key="max_speed">
+                            <h3>Max Speed Ever</h3>
+                            <p><span class="overall_max_speed">N/A</span></p>
+                        </div>
+                        <div class="stat stat-countries" data-stat-key="countries">
+                            <h3>Countries Visited</h3>
+                            <p><span class="all_countries">N/A</span></p>
+                        </div>
                     </div>
                     <h3 class="map-title">Current Location of Car</h3>
                     <div class="location-map-container">
@@ -412,6 +402,7 @@
                                     <option value="ev_duration_seconds">EV Duration</option>
                                     <option value="score_global">Driving Score</option>
                                     <option value="average_speed_kmh">Average Speed</option>
+                                    <option value="max_speed_kmh">Max Speed</option>
                                     <option value="duration_seconds">Trip Duration</option>
                                 </select>
                                 <button class="chart-icon-btn histogram-toggle-btn" title="Toggle Histogram View">
@@ -432,6 +423,7 @@
                                 <option value="ev_duration_seconds">EV Duration</option>
                                 <option value="score_global">Driving Score</option>
                                 <option value="average_speed_kmh">Average Speed</option>
+                                <option value="max_speed_kmh">Max Speed</option>
                                 <option value="duration_seconds">Trip Duration</option>
                             </select>
                         </div>
