@@ -67,6 +67,24 @@
         #heatmap-map { flex-grow: 1; }
         #heatmap-loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 1.5em; display: none; }
 
+        .filter-columns {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: flex-start;
+        }
+        .filter-columns > .form-group {
+            flex: 1 1 250px;
+            margin-bottom: 0;
+        }
+        .vertical-buttons {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .vertical-buttons > button {
+            margin-bottom: 5px;
+        }
+
         @media (max-width: 1024px) {
             .trips-layout { flex-direction: column; }
             #map-panel.is-overlay {
@@ -122,7 +140,7 @@
                 <span>Logs</span>
             </a>
             <a href="/settings" class="nav-link">
-                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61-.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24-.42.12-.64l2 3.46c.12.22.39.3.61-.22l2.49-1c.52.4 1.08.73 1.69-.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49-1c.23-.09.49 0 .61-.22l2-3.46c-.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61-.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19-.15-.24-.42.12-.64l2 3.46c.12.22.39.3.61-.22l2.49-1c.52.4 1.08.73 1.69-.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49-1c.23-.09.49 0 .61-.22l2-3.46c-.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
                 <span>Settings</span>
             </a>
         </nav>
@@ -133,7 +151,7 @@
         <div class="controls-container">
             <div class="collapsible-panel">
                 <div class="collapsible-header">
-                    <h3>Options & Filters <span id="filter-status-indicator" class="filter-indicator"></span></h3>
+                    <h3>Options & Filters <span id="trip-count-display" style="font-weight: normal; font-size: 0.9em; margin-left: 8px;"></span><span id="filter-status-indicator" class="filter-indicator"></span></h3>
                     <span class="toggle-indicator">&#9660;</span>
                 </div>
                 <div class="collapsible-content">
@@ -153,10 +171,33 @@
                             </select>
                         </div>
                     </div>
-                     <div class="form-group">
-                        <h4>Filter by Country</h4>
-                        <select id="country-select" multiple style="min-height: 100px;"></select>
+
+                    <div class="filter-columns">
+                        <div class="form-group">
+                            <h4>Analysis Tools</h4>
+                            <div class="tool-group">
+                                <h5>Filter by Area (Map)</h5>
+                                <div class="area-filter-buttons vertical-buttons">
+                                    <button id="filter-area-btn" class="small-btn" style="background-color: #5bc0de;">Area (Start/End)</button>
+                                    <button id="filter-start-area-btn" class="small-btn" style="background-color: #5cb85c;">Start Area</button>
+                                    <button id="filter-end-area-btn" class="small-btn" style="background-color: #337ab7;">End Area</button>
+                                    <button id="clear-map-filter-btn" class="small-btn" style="background-color: #d9534f; display: none;">Clear Map Filter</button>
+                                </div>
+                                <div id="active-filters-display" style="font-size: 0.8em; color: #666; margin-top: 10px; min-height: 1.2em;"></div>
+                            </div>
+                            <div class="tool-group">
+                                <h5>Visualization</h5>
+                                <div class="area-filter-buttons">
+                                    <button id="show-heatmap-btn" class="small-btn" style="background-color: #f0ad4e;">Show Heatmap</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <h4>Filter by Country</h4>
+                            <select id="country-select" multiple style="min-height: 150px;"></select>
+                        </div>
                     </div>
+
                     <div class="form-group view-options">
                         <h4>Visible Columns</h4>
                         <div id="column-selector">
@@ -190,25 +231,6 @@
                             <label><input type="checkbox" data-column="hdc-pwr-dur"> Power Dur.</label>
                             <label><input type="checkbox" data-column="hdc-chg-dist"> Charge Dist.</label>
                             <label><input type="checkbox" data-column="hdc-chg-dur"> Charge Dur.</label>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <h4>Analysis Tools</h4>
-                        <div class="tool-group">
-                            <h5>Filter by Area (Map)</h5>
-                            <div class="area-filter-buttons">
-                                <button id="filter-area-btn" class="small-btn" style="background-color: #5bc0de;">Area (Start/End)</button>
-                                <button id="filter-start-area-btn" class="small-btn" style="background-color: #5cb85c;">Start Area</button>
-                                <button id="filter-end-area-btn" class="small-btn" style="background-color: #337ab7;">End Area</button>
-                                <button id="clear-map-filter-btn" class="small-btn" style="background-color: #d9534f; display: none;">Clear Map Filter</button>
-                            </div>
-                            <div id="active-filters-display" style="font-size: 0.8em; color: #666; margin-top: 10px; min-height: 1.2em;"></div>
-                        </div>
-                        <div class="tool-group">
-                            <h5>Visualization</h5>
-                            <div class="area-filter-buttons">
-                                <button id="show-heatmap-btn" class="small-btn" style="background-color: #f0ad4e;">Show Heatmap</button>
-                            </div>
                         </div>
                     </div>
                 </div>

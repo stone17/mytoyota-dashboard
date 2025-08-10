@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const heatmapMapContainer = document.getElementById('heatmap-map');
     const closeHeatmapBtn = document.getElementById('close-heatmap-btn');
     const heatmapLoading = document.getElementById('heatmap-loading');
+    const tripCountDisplay = document.getElementById('trip-count-display');
     
     let currentSort = { by: 'start_timestamp', direction: 'desc' };
     let appConfig = { unit_system: 'metric' };
@@ -475,6 +476,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderTable(trips) {
+        if (tripCountDisplay) {
+            tripCountDisplay.textContent = `(${trips.length} trips displayed)`;
+        }
         displayedTrips = trips;
         const isImperial = appConfig.unit_system.startsWith('imperial');
         const isUk = appConfig.unit_system === 'imperial_uk';
