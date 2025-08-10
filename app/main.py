@@ -923,3 +923,115 @@ async def trigger_service_history_fetch(vin: str):
             _LOGGER.error(f"Failed to write updated cache file with service history: {e}")
 
     return history_data
+
+@app.get("/api/export/trips.csv")
+def export_trips_to_csv(
+    vin: str,
+    unit_system: str = "metric",
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    countries: Optional[str] = Query(None)
+):
+    """
+    Exports the currently filtered list of trips to a CSV file.
+    This endpoint re-uses the same filtering logic as the get_trips endpoint.
+    """
+    # Use a temporary database session
+    db = database.SessionLocal()
+    try:
+        # --- 1. Fetch filtered trip data (logic copied from get_trips) ---
+        query = db.query(database.Trip).options(defer(database.Trip.route))
+        query = query.filter(database.Trip.vin == vin)
+
+        if start_date:
+            start_dt = datetime.datetime.fromisoformat(start_date).replace(hour=0, minute=0, second=0)
+            query = query.filter(database.Trip.start_timestamp >= start_dt)
+        if end_date:
+            end_dt = datetime.datetime.fromisoformat(end_date).replace(hour=23, minute=59, second=59)
+            query = query.filter(database.Trip.start_timestamp <= end_dt)
+        
+        if countries:
+            country_list = [c.strip() for c in countries.split(',') if c.strip()]
+            if country_list:
+                country_filters = [func.instr(database.Trip.countries, f'"{country}"') > 0 for country in country_list]
+                query = query.filter(or_(*country_filters))
+
+        trips = query.order_by(database.Trip.start_timestamp.desc()).all()
+
+        # --- 2. Prepare CSV data in memory ---
+        output = io.StringIO()
+        writer = csv.writer(output, delimiter=';')
+        
+        is_imperial = unit_system.startswith('imperial')
+        is_uk = unit_system == 'imperial_uk'
+        dist_unit = "mi" if is_imperial else "km"
+        speed_unit = "mph" if is_imperial else "kmh"
+        consumption_unit = f"mpg_{'uk' if is_uk else 'us'}" if is_imperial else "l_100km"
+
+        # --- 3. Write CSV Header ---
+        headers = [
+            "start_timestamp_utc", "end_timestamp_utc", "start_address", "end_address",
+            f"distance_{dist_unit}", f"consumption_{consumption_unit}", "duration_seconds", 
+            f"average_speed_{speed_unit}", f"max_speed_{speed_unit}",
+            f"ev_distance_{dist_unit}", "ev_duration_seconds", "score_global", "score_acceleration",
+            "score_braking", "score_constant_speed", "night_trip", "countries",
+            f"overspeed_distance_{dist_unit}", "overspeed_duration_seconds", f"highway_distance_{dist_unit}", "highway_duration_seconds",
+            f"hdc_eco_distance_{dist_unit}", "hdc_eco_duration_seconds", f"hdc_power_distance_{dist_unit}", "hdc_power_duration_seconds",
+            f"hdc_charge_distance_{dist_unit}", "hdc_charge_duration_seconds"
+        ]
+        writer.writerow(headers)
+
+        # --- 4. Write Data Rows ---
+        for trip in trips:
+            # Perform unit conversions on the fly for the export
+            if is_imperial:
+                trip.distance_mi = trip.distance_km * 0.621371 if trip.distance_km is not None else None
+                trip.average_speed_mph = trip.average_speed_kmh * 0.621371 if trip.average_speed_kmh is not None else None
+                trip.max_speed_mph = trip.max_speed_kmh * 0.621371 if trip.max_speed_kmh is not None else None
+                trip.ev_distance_mi = trip.ev_distance_km * 0.621371 if trip.ev_distance_km is not None else None
+                trip.length_overspeed_mi = trip.length_overspeed_km * 0.621371 if trip.length_overspeed_km is not None else None
+                trip.length_highway_mi = trip.length_highway_km * 0.621371 if trip.length_highway_km is not None else None
+                trip.hdc_eco_distance_mi = trip.hdc_eco_distance_km * 0.621371 if trip.hdc_eco_distance_km is not None else None
+                trip.hdc_power_distance_mi = trip.hdc_power_distance_km * 0.621371 if trip.hdc_power_distance_km is not None else None
+                trip.hdc_charge_distance_mi = trip.hdc_charge_distance_km * 0.621371 if trip.hdc_charge_distance_km is not None else None
+                
+                if trip.fuel_consumption_l_100km and trip.fuel_consumption_l_100km > 0:
+                    trip.mpg_us = 235.214 / trip.fuel_consumption_l_100km
+                    trip.mpg_uk = 282.481 / trip.fuel_consumption_l_100km
+                else:
+                    trip.mpg_us = 0.0
+                    trip.mpg_uk = 0.0
+
+            row = [
+                trip.start_timestamp, trip.end_timestamp, trip.start_address, trip.end_address,
+                trip.distance_mi if is_imperial else trip.distance_km,
+                trip.mpg_uk if is_uk else (trip.mpg_us if is_imperial else trip.fuel_consumption_l_100km),
+                trip.duration_seconds,
+                trip.average_speed_mph if is_imperial else trip.average_speed_kmh,
+                trip.max_speed_mph if is_imperial else trip.max_speed_kmh,
+                trip.ev_distance_mi if is_imperial else trip.ev_distance_km,
+                trip.ev_duration_seconds, trip.score_global, trip.score_acceleration,
+                trip.score_braking, trip.score_constant_speed, trip.night_trip, 
+                ",".join(trip.countries) if trip.countries else "",
+                trip.length_overspeed_mi if is_imperial else trip.length_overspeed_km,
+                trip.duration_overspeed_seconds,
+                trip.length_highway_mi if is_imperial else trip.length_highway_km,
+                trip.duration_highway_seconds,
+                trip.hdc_eco_distance_mi if is_imperial else trip.hdc_eco_distance_km,
+                trip.hdc_eco_duration_seconds,
+                trip.hdc_power_distance_mi if is_imperial else trip.hdc_power_distance_km,
+                trip.hdc_power_duration_seconds,
+                trip.hdc_charge_distance_mi if is_imperial else trip.hdc_charge_distance_km,
+                trip.hdc_charge_duration_seconds
+            ]
+            writer.writerow(row)
+
+        output.seek(0)
+        # --- 5. Return the CSV file as a streaming response ---
+        return StreamingResponse(
+            output,
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=trips_export_{vin}_{datetime.date.today()}.csv"}
+        )
+    finally:
+        db.close()

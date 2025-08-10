@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeHeatmapBtn = document.getElementById('close-heatmap-btn');
     const heatmapLoading = document.getElementById('heatmap-loading');
     const tripCountDisplay = document.getElementById('trip-count-display');
+    const exportCsvBtn = document.getElementById('export-csv-btn');
     
     let currentSort = { by: 'start_timestamp', direction: 'desc' };
     let appConfig = { unit_system: 'metric' };
@@ -842,6 +843,39 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem(COLUMN_ORDER_KEY, JSON.stringify(newOrder));
             reorderTableBody(newOrder);
         }
+    });
+
+    exportCsvBtn.addEventListener('click', () => {
+        const selectedVin = vinSelect.value;
+        if (!selectedVin) {
+            alert("Please select a vehicle first.");
+            return;
+        }
+
+        // Construct the URL with the same parameters used to load the trip table
+        const params = new URLSearchParams({
+            vin: selectedVin,
+            unit_system: appConfig.unit_system
+        });
+
+        const periodDays = periodSelect.value;
+        if (periodDays !== 'all') {
+            const date = new Date();
+            date.setDate(date.getDate() - parseInt(periodDays, 10));
+            params.append('start_date', date.toISOString().split('T')[0]);
+        }
+        
+        const selectedCountries = Array.from(countrySelect.selectedOptions).map(opt => opt.value);
+        if (selectedCountries.length > 0 && !selectedCountries.includes('all')) {
+            params.append('countries', selectedCountries.join(','));
+        }
+
+        // Note: Area filters are applied client-side, so we need to pass the full trip list
+        // from the server. The current implementation correctly omits area filters,
+        // so the CSV will contain all trips matching the Period and Country filters.
+
+        // Trigger the download by navigating to the export URL
+        window.location.href = `/api/export/trips.csv?${params.toString()}`;
     });
 
     async function init() {
