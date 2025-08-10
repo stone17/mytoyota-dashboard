@@ -8,3 +8,4 @@ data/credentials.json
 data/mytoyota.db
 data/secrets.key
 data/vehicle_data.json
+data/user_config.yaml

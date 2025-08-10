@@ -21,7 +21,7 @@ from . import fetcher
 from . import database
 from . import mqtt
 from .credentials_manager import get_username, save_credentials
-from .config import settings, load_config, CONFIG_PATH, DATA_DIR
+from .config import settings, load_config, USER_CONFIG_PATH
 from .logging_config import setup_logging
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import defer
@@ -707,55 +707,42 @@ def get_config():
     """API endpoint to get the current configuration."""
     return settings
 
-# In app/main.py
+def deep_merge(source, destination):
+    """Recursively merge dictionaries. User settings (source) overwrite defaults (destination)."""
+    for key, value in source.items():
+        if isinstance(value, dict):
+            node = destination.setdefault(key, {})
+            deep_merge(value, node)
+        else:
+            destination[key] = value
+    return destination
 
 @app.post("/api/config")
 def update_config(new_settings: dict = Body(...)):
-    """API endpoint to update the configuration file."""
+    """API endpoint to update and save configuration to the user-specific config file."""
     try:
-        # Read the whole config file to preserve structure and comments
-        with open(CONFIG_PATH, 'r') as f:
-            current_config = yaml.safe_load(f) or {}
+        # 1. Read the existing user config to preserve unchanged settings
+        try:
+            with open(USER_CONFIG_PATH, 'r') as f:
+                current_user_config = yaml.safe_load(f) or {}
+        except FileNotFoundError:
+            current_user_config = {}
 
-        # Update polling settings
-        if 'polling' in new_settings.get('web_server', {}):
-            current_config.setdefault('web_server', {})['polling'] = new_settings['web_server']['polling']
-            if 'data_refresh_interval_seconds' in current_config.get('web_server', {}):
-                del current_config['web_server']['data_refresh_interval_seconds']
-        
-        if 'mqtt' in new_settings:
-            # If a password is not provided, keep the old one to avoid accidental deletion.
-            if 'password' not in new_settings.get('mqtt', {}) and current_config.get('mqtt', {}).get('password'):
-                new_settings.setdefault('mqtt', {})['password'] = current_config['mqtt']['password']
-            
-            current_config['mqtt'] = new_settings['mqtt']
+        # 2. Deep merge the new settings from the UI into the existing user settings
+        updated_user_config = deep_merge(new_settings, current_user_config)
 
-        if 'api_retries' in new_settings:
-            current_config['api_retries'] = new_settings['api_retries']
-        if 'api_retry_delay_seconds' in new_settings:
-            current_config['api_retry_delay_seconds'] = new_settings['api_retry_delay_seconds']
-        if 'unit_system' in new_settings:
-            current_config['unit_system'] = new_settings['unit_system']
-        if 'dashboard_sensors' in new_settings:
-            current_config['dashboard_sensors'] = new_settings['dashboard_sensors']
-        if 'log_history_size' in new_settings:
-            current_config['log_history_size'] = max(10, int(new_settings['log_history_size']))
-        if 'reverse_geocode_enabled' in new_settings:
-            current_config['reverse_geocode_enabled'] = new_settings['reverse_geocode_enabled']
-        if 'fetch_full_trip_route' in new_settings:
-            current_config['fetch_full_trip_route'] = new_settings['fetch_full_trip_route']
+        # 3. Write the result back to user_config.yaml
+        with open(USER_CONFIG_PATH, 'w') as f:
+            yaml.dump(updated_user_config, f, default_flow_style=False, sort_keys=False)
 
-        # Write the updated config back to the file
-        with open(CONFIG_PATH, 'w') as f:
-            yaml.dump(current_config, f, default_flow_style=False, sort_keys=False)
-
-        # Reload the configuration into memory so the changes are reflected immediately.
+        # 4. Reload the configuration into memory for the running app
         load_config()
 
-        return {"message": "Settings saved successfully. Changes will be applied on the next poll."}
+        return {"message": "Settings saved successfully."}
     except Exception as e:
-        logging.error(f"Error updating config file: {e}")
-        raise HTTPException(status_code=500, detail="Failed to write to configuration file.")
+        _LOGGER.error(f"Error updating user config file: {e}")
+        raise HTTPException(status_code=500, detail="Failed to write to user configuration file.")
+
 
 @app.post("/api/vehicles/{vin}/fetch_trips")
 async def trigger_trip_fetch(vin: str, period_data: dict = Body(...)):
