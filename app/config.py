@@ -14,13 +14,17 @@ USER_CONFIG_PATH = DATA_DIR / "user_config.yaml"
 
 settings = {}
 
-def deep_merge(source, destination):
-    """Recursively merge dictionaries. User settings (source) overwrite defaults (destination)."""
+def deep_merge(source: dict, destination: dict) -> dict:
+    """
+    Richer, more robust recursive merge of dictionaries.
+    The 'source' dictionary's values overwrite the 'destination' dictionary's values.
+    """
     for key, value in source.items():
-        if isinstance(value, dict):
-            node = destination.setdefault(key, {})
-            deep_merge(value, node)
+        if isinstance(value, dict) and key in destination and isinstance(destination[key], dict):
+            # If both source and destination have a dict for this key, recurse
+            deep_merge(value, destination[key])
         else:
+            # Otherwise, just overwrite the destination value with the source value
             destination[key] = value
     return destination
 

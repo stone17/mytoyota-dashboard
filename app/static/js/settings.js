@@ -233,7 +233,6 @@ document.addEventListener('DOMContentLoaded', () => {
         saveConfig(newSettings, mqttStatusMessage);
     });
 
-    // --- New: MQTT Test Button Handler ---
     mqttTestBtn.addEventListener('click', async () => {
         showMessage(mqttStatusMessage, 'Sending test message based on latest saved settings...', 'info');
         try {
@@ -297,6 +296,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     async function saveConfig(newSettings, messageElement) {
+        console.log("Attempting to save new settings:", JSON.stringify(newSettings, null, 2));
         try {
             const response = await fetch('/api/config', {
                 method: 'POST',
@@ -304,6 +304,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify(newSettings),
             });
             const result = await response.json();
+            console.log("Received response from server:", {
+                ok: response.ok,
+                status: response.status,
+                body: result
+            });
             if (response.ok) {
                 showMessage(messageElement, result.message, 'success');
             } else {
@@ -311,6 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             showMessage(messageElement, `Error: ${error.message}`, 'error');
+            console.error("Error during saveConfig:", error);
         }
     }
 

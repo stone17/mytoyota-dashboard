@@ -3,6 +3,7 @@ import asyncio
 import json
 import csv
 import io
+import importlib
 import yaml
 import time
 import datetime
@@ -22,7 +23,8 @@ from . import fetcher
 from . import database
 from . import mqtt
 from .credentials_manager import get_username, save_credentials
-from .config import settings, load_config, USER_CONFIG_PATH
+from . import config as app_config
+from .config import USER_CONFIG_PATH
 from .logging_config import setup_logging
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import defer
@@ -33,7 +35,7 @@ _LOGGER = logging.getLogger(__name__)
 
 # --- Live Log Streaming Setup ---
 # Get the desired log history size from config, with a sensible default.
-log_history_size = settings.get("log_history_size", 200)
+log_history_size = app_config.settings.get("log_history_size", 200)
 # A thread-safe, memory-efficient deque to hold the last N log messages for new clients.
 log_history: Deque[Dict] = deque(maxlen=log_history_size)
 # An asyncio queue for broadcasting new log messages to connected clients.
@@ -77,7 +79,7 @@ async def schedule_fetch():
         except Exception as e:
             logging.error(f"Error in scheduled fetch: {e}", exc_info=True)
 
-        web_server_settings = settings.get("web_server", {})
+        web_server_settings = app_config.settings.get("web_server", {})
         polling_settings = web_server_settings.get("polling", {})
         mode = polling_settings.get("mode", "interval")
 
@@ -109,7 +111,7 @@ async def startup_event():
     database.init_db()
     logging.info("Application startup...")
 
-    web_server_settings = settings.get("web_server", {})
+    web_server_settings = app_config.settings.get("web_server", {})
     polling_settings = web_server_settings.get("polling", {})
     # Fallback to the old key for backward compatibility
     refresh_interval = polling_settings.get("interval_seconds") or web_server_settings.get("data_refresh_interval_seconds", 3600)
@@ -758,17 +760,7 @@ def update_credentials(creds: dict = Body(...)):
 @app.get("/api/config")
 def get_config():
     """API endpoint to get the current configuration."""
-    return settings
-
-def deep_merge(source, destination):
-    """Recursively merge dictionaries. User settings (source) overwrite defaults (destination)."""
-    for key, value in source.items():
-        if isinstance(value, dict):
-            node = destination.setdefault(key, {})
-            deep_merge(value, node)
-        else:
-            destination[key] = value
-    return destination
+    return app_config.settings
 
 @app.post("/api/config")
 def update_config(new_settings: dict = Body(...)):
@@ -782,14 +774,14 @@ def update_config(new_settings: dict = Body(...)):
             current_user_config = {}
 
         # 2. Deep merge the new settings from the UI into the existing user settings
-        updated_user_config = deep_merge(new_settings, current_user_config)
+        updated_user_config = app_config.deep_merge(new_settings, current_user_config)
 
         # 3. Write the result back to user_config.yaml
         with open(USER_CONFIG_PATH, 'w') as f:
             yaml.dump(updated_user_config, f, default_flow_style=False, sort_keys=False)
 
         # 4. Reload the configuration into memory for the running app
-        load_config()
+        importlib.reload(app_config)
 
         return {"message": "Settings saved successfully."}
     except Exception as e:
