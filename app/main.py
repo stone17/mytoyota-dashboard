@@ -7,6 +7,7 @@ import yaml
 import time
 import datetime
 import logging
+import subprocess
 from collections import deque
 from typing import Deque, Dict, Optional
 
@@ -644,6 +645,59 @@ def get_heatmap_data(vin: str):
     finally:
         db.close()
 
+@app.post("/api/update")
+async def update_application():
+    """
+    Updates the application by pulling the latest changes from the git repository
+    and restarting the docker-compose service.
+    """
+    try:
+        logging.info("Update process started via API.")
+
+        # Sanity Check 1: Check for unmerged changes
+        logging.info("Checking for unmerged changes...")
+        status_process = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
+        if status_process.stdout:
+            logging.error(f"Unmerged changes detected:\n{status_process.stdout}")
+            raise HTTPException(status_code=400, detail="There are unmerged changes in the repository. Please resolve them before updating.")
+
+        # Step 1: Git Pull
+        logging.info("Pulling latest changes from git...")
+        pull_process = subprocess.run(["git", "pull"], capture_output=True, text=True)
+        if pull_process.returncode != 0:
+            logging.error(f"Git pull failed: {pull_process.stderr}")
+            raise HTTPException(status_code=500, detail=f"Git pull failed: {pull_process.stderr}")
+        
+        update_message = "No new updates."
+        if "Already up to date." not in pull_process.stdout:
+            update_message = f"Git pull successful:\n{pull_process.stdout}"
+        
+        logging.info(update_message)
+
+        # Step 2: Docker-compose up --build
+        logging.info("Restarting docker-compose service...")
+        # Try with "docker compose" first for newer docker versions
+        restart_process = subprocess.run(["docker", "compose", "up", "-d", "--build"], capture_output=True, text=True)
+        
+        # If it fails, try with "docker-compose" for older versions
+        if restart_process.returncode != 0:
+            logging.warning("`docker compose` command failed. Trying with `docker-compose`.")
+            restart_process = subprocess.run(["docker-compose", "up", "-d", "--build"], capture_output=True, text=True)
+
+        if restart_process.returncode != 0:
+            logging.error(f"Docker compose restart failed: {restart_process.stderr}")
+            raise HTTPException(status_code=500, detail=f"Docker compose restart failed: {restart_process.stderr}")
+        
+        logging.info("Docker compose restart successful.")
+
+        return {"message": f"{update_message}\nApplication update initiated successfully. The service is restarting."}
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logging.error(f"Error during update process: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred during the update process.")
+
+
 @app.post("/api/force_poll")
 async def force_poll():
     """Manually triggers a data fetch."""
@@ -852,39 +906,6 @@ async def trigger_geocoding_backfill():
     except Exception as e:
         logging.error(f"Error during manual geocoding backfill: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred during the geocoding backfill.")
-
-@app.post("/api/backfill_units")
-def backfill_imperial_units():
-    """One-off utility to calculate and save imperial units for all existing trips."""
-    db = database.SessionLocal()
-    try:
-        _LOGGER.info("Starting backfill process for imperial units...")
-        # Find all trips where UK MPG hasn't been calculated yet
-        trips_to_update = db.query(database.Trip).filter(database.Trip.mpg_uk == None).all()
-        
-        if not trips_to_update:
-            return {"message": "No trips needed backfilling. All data is up to date."}
-
-        KM_TO_MI = 0.621371
-        for trip in trips_to_update:
-            if trip.distance_km is not None:
-                trip.distance_mi = trip.distance_km * KM_TO_MI
-            if trip.ev_distance_km is not None:
-                trip.ev_distance_mi = trip.ev_distance_km * KM_TO_MI
-            if trip.average_speed_kmh is not None:
-                trip.average_speed_mph = trip.average_speed_kmh * KM_TO_MI
-            trip.mpg = (235.214 / trip.fuel_consumption_l_100km) if trip.fuel_consumption_l_100km and trip.fuel_consumption_l_100km > 0 else 0.0
-            trip.mpg_uk = (282.481 / trip.fuel_consumption_l_100km) if trip.fuel_consumption_l_100km and trip.fuel_consumption_l_100km > 0 else 0.0
-        
-        db.commit()
-        _LOGGER.info(f"Successfully backfilled imperial units for {len(trips_to_update)} trips.")
-        return {"message": f"Successfully backfilled imperial units for {len(trips_to_update)} trips."}
-    except Exception as e:
-        db.rollback()
-        _LOGGER.error(f"Error during imperial unit backfill: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="An error occurred during the backfill process.")
-    finally:
-        db.close()
 
 @app.post("/api/vehicles/{vin}/service_history")
 async def trigger_service_history_fetch(vin: str):

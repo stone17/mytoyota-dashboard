@@ -238,30 +238,18 @@
         </section>
 
         <section class="settings-section">
-            <h2>Import Trip History</h2>
-            <p>Upload a trip history CSV file exported from the Toyota app. The filename must start with the vehicle's VIN (e.g., <code>SB1..._2024-01-01_2024-12-31.csv</code>).</p>
-            <form id="import-form">
-                <div class="form-group">
-                    <label for="csv-file">CSV File</label>
-                    <input type="file" id="csv-file" name="csv_file" accept=".csv">
-                </div>
-                <button type="submit">Import Trips</button>
-                <p id="import-status-message" class="status-message"></p>
-            </form>
-        </section>
-
-        <section class="settings-section">
-            <h2>Data Utilities</h2>
-            <p>Perform one-time maintenance tasks on your data.</p>
+            <h2>Application Management</h2>
+            <p>Update the application to the latest version from the repository and restart the service.</p>
             <div class="form-group">
-                <button id="backfill-units-btn">Backfill Imperial Units</button>
-                <p>If you've just updated, click this to calculate imperial units (miles, MPG) for all your existing trips. This is a one-time operation.</p>
+                <button id="update-app-btn" type="button">Update Application</button>
+                <p>This will pull the latest changes from the Git repository and restart the Docker container.</p>
             </div>
-            <p id="backfill-units-message" class="status-message"></p>
+            <p id="update-app-message" class="status-message"></p>
         </section>
 
     </main>
 
+    <script src="/static/js/update.js?v={{ cache_buster }}"></script>
     <script src="/static/js/settings.js?v={{ cache_buster }}"></script>
 </body>
 </html>

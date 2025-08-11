@@ -27,11 +27,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const intervalSettingsDiv = document.getElementById('interval-settings');
     const fixedTimeSettingsDiv = document.getElementById('fixed-time-settings');
 
-    const importForm = document.getElementById('import-form');
-    const importStatusMessage = document.getElementById('import-status-message');
-
-    const backfillUnitsBtn = document.getElementById('backfill-units-btn');
-    const backfillUnitsMessage = document.getElementById('backfill-units-message');
     const backfillGeocodeBtn = document.getElementById('backfill-geocode-btn');
     
     // --- Define available sensors ---
@@ -317,36 +312,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             showMessage(messageElement, `Error: ${error.message}`, 'error');
         }
-    }
-
-    // --- CSV Import ---
-    importForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        showMessage(importStatusMessage, 'Import functionality is handled via a separate endpoint.', 'info');
-    });
-
-    // --- Data Utilities ---
-    if (backfillUnitsBtn) {
-        backfillUnitsBtn.addEventListener('click', async () => {
-            backfillUnitsBtn.disabled = true;
-            backfillUnitsBtn.textContent = 'Backfilling...';
-            showMessage(backfillUnitsMessage, 'Starting backfill process. This may take a moment...', 'info');
-    
-            try {
-                const response = await fetch('/api/backfill_units', { method: 'POST' });
-                const result = await response.json();
-                if (response.ok) {
-                    showMessage(backfillUnitsMessage, result.message, 'success');
-                } else {
-                    throw new Error(result.detail || 'Unknown error');
-                }
-            } catch (error) {
-                showMessage(backfillUnitsMessage, `Error: ${error.message}`, 'error');
-            } finally {
-                backfillUnitsBtn.disabled = false;
-                backfillUnitsBtn.textContent = 'Backfill Imperial Units';
-            }
-        });
     }
 
     if (backfillGeocodeBtn) {
