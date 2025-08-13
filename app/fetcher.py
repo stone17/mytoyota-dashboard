@@ -4,7 +4,9 @@ import json
 import os
 import datetime
 import logging
+import httpx
 from pathlib import Path
+from typing import Optional
 
 import aiofiles
 import aiofiles.os
@@ -27,6 +29,47 @@ CACHE_LOCK = asyncio.Lock()
 GEOCODE_SEMAPHORE = asyncio.Semaphore(1)
 
 
+async def get_address_from_coords(lat: float, lon: float) -> Optional[str]:
+    """Fetches a human-readable address from coordinates using Nominatim."""
+    if not lat or not lon:
+        return None
+    
+    # Nominatim requires a custom User-Agent. Add addressdetails=1 to get component parts.
+    headers = {"User-Agent": "MyToyota-Dashboard/1.0"}
+    url = f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lon}&addressdetails=1"
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+
+            # Construct a shorter address from its component parts
+            address = data.get("address", {})
+            road = address.get("road")
+            house_number = address.get("house_number")
+            city = address.get("city") or address.get("town") or address.get("village")
+            postcode = address.get("postcode")
+
+            parts = []
+            if road:
+                full_street = f"{road} {house_number}" if house_number else road
+                parts.append(full_street)
+            if postcode:
+                parts.append(postcode)
+            if city:
+                parts.append(city)
+            
+            if parts:
+                return ", ".join(parts)
+            
+            # Fallback to the full display name if we can't build a shorter one
+            return data.get("display_name", "Unavailable")
+
+    except (httpx.RequestError, httpx.HTTPStatusError, json.JSONDecodeError) as e:
+        _LOGGER.error(f"Failed to reverse geocode coordinates ({lat}, {lon}): {e}")
+        return "Unavailable"
+
 async def _reverse_geocode_trip(trip_id: int):
     """Performs reverse geocoding for a specific trip, respecting the semaphore."""
     async with GEOCODE_SEMAPHORE:
@@ -44,15 +87,9 @@ async def _reverse_geocode_trip(trip_id: int):
                 db.commit()
                 return
 
-            loop = asyncio.get_running_loop()
-            geolocator = Nominatim(user_agent="mytoyota_dashboard", timeout=10)
-            reverse = RateLimiter(geolocator.reverse, min_delay_seconds=1.1, return_value_on_exception=None)
-
-            start_location = await loop.run_in_executor(None, reverse, f"{trip.start_lat}, {trip.start_lon}")
-            end_location = await loop.run_in_executor(None, reverse, f"{trip.end_lat}, {trip.end_lon}")
-
-            trip.start_address = start_location.address if start_location else "Unknown"
-            trip.end_address = end_location.address if end_location else "Unknown"
+            # FIX: Use the shared get_address_from_coords function for consistency and simplicity.
+            trip.start_address = await get_address_from_coords(trip.start_lat, trip.start_lon) or "Unknown"
+            trip.end_address = await get_address_from_coords(trip.end_lat, trip.end_lon) or "Unknown"
 
             db.commit()
             _LOGGER.info(f"Successfully geocoded trip {trip_id}.")
@@ -212,7 +249,7 @@ async def _update_vehicle_statistics(vehicle, vehicle_info_dict):
     vehicle_info_dict["statistics"]["daily"] = await process_stats(daily_summary)
 
 
-def _build_vehicle_info_dict(vehicle):
+async def _build_vehicle_info_dict(vehicle):
     """Builds the main vehicle information dictionary from the vehicle object."""
     vehicle_info = {
         "vin": vehicle.vin,
@@ -224,6 +261,13 @@ def _build_vehicle_info_dict(vehicle):
 
     if vehicle.dashboard:
         d = vehicle.dashboard
+        latitude = getattr(vehicle.location, 'latitude', None) if hasattr(vehicle, 'location') else None
+        longitude = getattr(vehicle.location, 'longitude', None) if hasattr(vehicle, 'location') else None
+        
+        address = None
+        if latitude and longitude and settings.get("reverse_geocode_enabled", False):
+            address = await get_address_from_coords(latitude, longitude)
+
         vehicle_info["dashboard"] = {
             "odometer": getattr(d, "odometer", None),
             "fuel_level": getattr(d, "fuel_level", None),
@@ -233,8 +277,9 @@ def _build_vehicle_info_dict(vehicle):
             "battery_range": getattr(d, "battery_range", None),
             "battery_range_with_ac": getattr(d, "battery_range_with_ac", None),
             "charging_status": getattr(d, "charging_status", None),
-            "latitude": getattr(vehicle.location, 'latitude', None) if hasattr(vehicle, 'location') else None,
-            "longitude": getattr(vehicle.location, 'longitude', None) if hasattr(vehicle, 'location') else None,
+            "latitude": latitude,
+            "longitude": longitude,
+            "address": address
         }
 
     doors_status = {}
@@ -347,7 +392,7 @@ async def _process_vehicle(vehicle, db_session):
                 _LOGGER.error(f"Failed to update vehicle {vin} after all retries.")
                 raise
 
-    vehicle_info = _build_vehicle_info_dict(vehicle)
+    vehicle_info = await _build_vehicle_info_dict(vehicle)
     await _update_vehicle_statistics(vehicle, vehicle_info)
     
     new_odometer = vehicle_info.get("dashboard", {}).get("odometer")
@@ -373,26 +418,42 @@ async def _process_vehicle(vehicle, db_session):
     else:
         _LOGGER.info(f"Odometer for {vin} has not changed. Skipping trip fetch.")
     
-    # --- New: Calculate and add overall statistics to the vehicle_info dict ---
+    # Initialize overall stats to ensure keys exist even if no trips are found
+    vehicle_info["statistics"]["overall"] = {
+        "total_ev_distance_km": 0,
+        "total_fuel_l": 0.0,
+        "total_duration_seconds": 0,
+        "ev_ratio_percent": 0.0,
+        "fuel_consumption_l_100km": 0.0,
+        "total_highway_distance_km": 0,
+        "score_global": None
+    }
+    
+    # --- Correctly calculate and add all overall statistics to the vehicle_info dict ---
     stats = db_session.query(
         func.sum(database.Trip.distance_km).label("total_distance"),
         func.sum(database.Trip.ev_distance_km).label("total_ev_distance"),
         func.sum(database.Trip.fuel_consumption_l_100km * database.Trip.distance_km / 100).label("total_fuel"),
-        func.sum(database.Trip.duration_seconds).label("total_duration_seconds")
+        func.sum(database.Trip.duration_seconds).label("total_duration_seconds"),
+        func.sum(database.Trip.length_highway_km).label("total_highway_distance"),
+        func.avg(database.Trip.score_global).label("score_global")
     ).filter(database.Trip.vin == vin).first()
     
     if stats and stats.total_distance is not None and stats.total_distance > 0:
         total_distance = stats.total_distance
         total_ev_distance = stats.total_ev_distance or 0.0
         total_fuel = stats.total_fuel or 0.0
+        total_highway_distance = stats.total_highway_distance or 0.0
         
-        vehicle_info["statistics"]["overall"] = {
+        vehicle_info["statistics"]["overall"].update({
             "total_ev_distance_km": round(total_ev_distance),
             "total_fuel_l": round(total_fuel, 2),
             "total_duration_seconds": stats.total_duration_seconds or 0,
             "ev_ratio_percent": round((total_ev_distance / total_distance) * 100, 1),
-            "fuel_consumption_l_100km": round((total_fuel / total_distance) * 100, 2) if total_fuel > 0 else 0.0
-        }
+            "fuel_consumption_l_100km": round((total_fuel / total_distance) * 100, 2) if total_fuel > 0 else 0.0,
+            "total_highway_distance_km": round(total_highway_distance),
+            "score_global": round(stats.score_global) if stats.score_global is not None else None
+        })
         _LOGGER.debug(f"Calculated overall stats for {vin}: {vehicle_info['statistics']['overall']}")
     
     return vehicle_info

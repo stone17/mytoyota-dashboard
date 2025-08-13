@@ -27,6 +27,11 @@ mqtt:
     total_range: true
     battery_level: true
     ev_range: true
+    score: false
+    location_lat_long: false
+    location_address: false
+    highway_distance: false
+    total_ev_distance: false
 dashboard_sensors:
   odometer: true
   range: true

@@ -3,13 +3,13 @@ import logging
 import json
 from paho.mqtt import client as mqtt_client
 
-from .config import settings
+from . import config as app_config
 
 _LOGGER = logging.getLogger(__name__)
 
 # This function remains the same
 def get_client() -> mqtt_client.Client | None:
-    config = settings.get("mqtt", {})
+    config =  app_config.settings.get("mqtt", {})
     _LOGGER.debug(f"MQTT configuration found: {config}")
     if not config.get("enabled"):
         _LOGGER.info("MQTT is not enabled in settings. Skipping connection.")
@@ -40,7 +40,7 @@ def publish_autodiscovery_configs(client: mqtt_client.Client, vehicle_data: dict
     Publishes the configuration messages for MQTT Auto Discovery.
     This tells Domoticz/Home Assistant how to create the devices.
     """
-    config = settings.get("mqtt", {})
+    config = app_config.settings.get("mqtt", {})
     vin = vehicle_data.get("vin")
     if not vin:
         return
@@ -51,10 +51,9 @@ def publish_autodiscovery_configs(client: mqtt_client.Client, vehicle_data: dict
     base_topic = config.get("base_topic", "mytoyota/{vin}").format(vin=vin)
     enabled_sensors = config.get("enabled_sensors", {})
     
-    unit_system = settings.get("unit_system", "metric")
+    unit_system =  app_config.settings.get("unit_system", "metric")
     is_imperial = unit_system.startswith("imperial")
     
-    odom_unit = "mi" if is_imperial else "km"
     consump_unit = "MPG" if is_imperial else "L/100km"
     range_unit = "mi" if is_imperial else "km"
 
@@ -68,7 +67,7 @@ def publish_autodiscovery_configs(client: mqtt_client.Client, vehicle_data: dict
     # Define all possible sensors
     all_sensors = {
         "odometer": {
-            "component": "sensor", "name": "Odometer", "unit_of_measurement": odom_unit, "icon": "mdi:counter",
+            "component": "sensor", "name": "Odometer", "unit_of_measurement": range_unit, "icon": "mdi:counter",
             "value_template": "{{ value_json.value | int }}"
         },
         "fuel_level": {
@@ -80,8 +79,8 @@ def publish_autodiscovery_configs(client: mqtt_client.Client, vehicle_data: dict
             "value_template": "{{ value_json.value | float(2) }}"
         },
         "lock_status": {
-            "component": "binary_sensor", "name": "Lock Status", "device_class": "lock",
-            "payload_on": "UNLOCKED", "payload_off": "LOCKED"
+            "component": "sensor", "name": "Lock Status", "icon": "mdi:lock",
+            "value_template": "{{ value_json.value }}"
         },
         "total_range": {
             "component": "sensor", "name": "Total Range", "unit_of_measurement": range_unit, "icon": "mdi:map-marker-distance",
@@ -93,6 +92,26 @@ def publish_autodiscovery_configs(client: mqtt_client.Client, vehicle_data: dict
         },
         "ev_range": {
             "component": "sensor", "name": "EV Range", "unit_of_measurement": range_unit, "icon": "mdi:map-marker-distance",
+            "value_template": "{{ value_json.value | int }}"
+        },
+        "score": {
+            "component": "sensor", "name": "Global Score", "unit_of_measurement": "%", "icon": "mdi:star-circle-outline",
+            "value_template": "{{ value_json.value | int }}"
+        },
+        "location_lat_long": {
+            "component": "sensor", "name": "Location Lat/Long", "icon": "mdi:map-marker",
+            "value_template": "{{ value_json.value }}"
+        },
+        "location_address": {
+            "component": "sensor", "name": "Location Address", "icon": "mdi:map-marker",
+            "value_template": "{{ value_json.value }}"
+        },
+        "highway_distance": {
+            "component": "sensor", "name": "Total Highway Distance", "unit_of_measurement": range_unit, "icon": "mdi:road-variant",
+            "value_template": "{{ value_json.value | int }}"
+        },
+        "total_ev_distance": {
+            "component": "sensor", "name": "Total EV Distance", "unit_of_measurement": range_unit, "icon": "mdi:leaf",
             "value_template": "{{ value_json.value | int }}"
         }
     }
@@ -114,6 +133,9 @@ def publish_autodiscovery_configs(client: mqtt_client.Client, vehicle_data: dict
             **{k: v for k, v in sensor_config.items() if k not in ["component", "name"]}
         }
 
+        if not payload.get("unit_of_measurement"):
+            payload.pop("unit_of_measurement", None)
+
         _LOGGER.debug(f"Publishing discovery config to '{config_topic}': {json.dumps(payload)}")
         client.publish(config_topic, json.dumps(payload), retain=True)
 
@@ -122,7 +144,7 @@ def publish_vehicle_data(client: mqtt_client.Client, vehicle_data: dict):
     Publishes key vehicle statistics to the broker using an existing client.
     """
     _LOGGER.info(f"Preparing to publish MQTT data for VIN: {vehicle_data.get('vin')}")
-    config = settings.get("mqtt", {})
+    config =  app_config.settings.get("mqtt", {})
     try:
         vin = vehicle_data.get("vin")
         if not vin:
@@ -131,9 +153,12 @@ def publish_vehicle_data(client: mqtt_client.Client, vehicle_data: dict):
         base_topic = config.get("base_topic", "mytoyota/{vin}").format(vin=vin)
         enabled_sensors = config.get("enabled_sensors", {})
         
-        unit_system = settings.get("unit_system", "metric")
+        unit_system =  app_config.settings.get("unit_system", "metric")
         is_imperial = unit_system.startswith("imperial")
         KM_TO_MI = 0.621371
+
+        dashboard = vehicle_data.get("dashboard", {})
+        overall_stats = vehicle_data.get("statistics", {}).get("overall", {})
 
         # Helper function for logging
         def log_skip(sensor_name):
@@ -141,7 +166,7 @@ def publish_vehicle_data(client: mqtt_client.Client, vehicle_data: dict):
 
         # Publish Odometer
         if enabled_sensors.get("odometer", False):
-            odometer_km = vehicle_data.get("dashboard", {}).get("odometer")
+            odometer_km = dashboard.get("odometer")
             if odometer_km is not None:
                 odom_value = round(odometer_km * KM_TO_MI) if is_imperial else round(odometer_km)
                 client.publish(f"{base_topic}/odometer", json.dumps({"value": odom_value}))
@@ -151,14 +176,13 @@ def publish_vehicle_data(client: mqtt_client.Client, vehicle_data: dict):
         # Publish Lock Status
         if enabled_sensors.get("lock_status", False):
             status = vehicle_data.get("status", {})
-            # Lock status is calculated, so it should always have a value.
             all_locked = all(door.get("locked") for door in status.get("doors", {}).values()) if status.get("doors") else False
-            lock_payload = "LOCKED" if all_locked else "UNLOCKED"
-            client.publish(f"{base_topic}/lock_status", lock_payload)
+            lock_payload = "Locked" if all_locked else "Open"
+            client.publish(f"{base_topic}/lock_status", json.dumps({"value": lock_payload}))
 
         # Publish Fuel Level
         if enabled_sensors.get("fuel_level", False):
-            fuel_level = vehicle_data.get("dashboard", {}).get("fuel_level")
+            fuel_level = dashboard.get("fuel_level")
             if fuel_level is not None:
                 client.publish(f"{base_topic}/fuel_level", json.dumps({"value": fuel_level}))
             else:
@@ -166,7 +190,7 @@ def publish_vehicle_data(client: mqtt_client.Client, vehicle_data: dict):
 
         # Publish Fuel Consumption
         if enabled_sensors.get("fuel_consumption", False):
-            consumption_l100km = vehicle_data.get("statistics", {}).get("overall", {}).get("fuel_consumption_l_100km")
+            consumption_l100km = overall_stats.get("fuel_consumption_l_100km")
             if consumption_l100km is not None:
                 consump_value = consumption_l100km
                 if is_imperial and consumption_l100km > 0:
@@ -178,7 +202,7 @@ def publish_vehicle_data(client: mqtt_client.Client, vehicle_data: dict):
         
         # Publish Total Range
         if enabled_sensors.get("total_range", False):
-            range_km = vehicle_data.get("dashboard", {}).get("total_range")
+            range_km = dashboard.get("total_range")
             if range_km is not None:
                 range_value = round(range_km * KM_TO_MI) if is_imperial else round(range_km)
                 client.publish(f"{base_topic}/total_range", json.dumps({"value": range_value}))
@@ -187,7 +211,7 @@ def publish_vehicle_data(client: mqtt_client.Client, vehicle_data: dict):
         
         # Publish EV Battery Level
         if enabled_sensors.get("battery_level", False):
-            battery_level = vehicle_data.get("dashboard", {}).get("battery_level")
+            battery_level = dashboard.get("battery_level")
             if battery_level is not None:
                 client.publish(f"{base_topic}/battery_level", json.dumps({"value": battery_level}))
             else:
@@ -195,13 +219,59 @@ def publish_vehicle_data(client: mqtt_client.Client, vehicle_data: dict):
 
         # Publish EV Range
         if enabled_sensors.get("ev_range", False):
-            ev_range_km = vehicle_data.get("dashboard", {}).get("battery_range")
+            ev_range_km = dashboard.get("battery_range")
             if ev_range_km is not None:
                 ev_range_value = round(ev_range_km * KM_TO_MI) if is_imperial else round(ev_range_km)
                 client.publish(f"{base_topic}/ev_range", json.dumps({"value": ev_range_value}))
             else:
                 log_skip("ev_range")
+
+        # --- Publish New Sensors ---
+
+        # Publish Global Score
+        if enabled_sensors.get("score", False):
+            score = overall_stats.get("score_global")
+            if score is not None:
+                client.publish(f"{base_topic}/score", json.dumps({"value": score}))
+            else:
+                log_skip("score")
         
+        # Publish Location Lat/Long
+        if enabled_sensors.get("location_lat_long", False):
+            lat = dashboard.get("latitude")
+            lon = dashboard.get("longitude")
+            if lat is not None and lon is not None:
+                client.publish(f"{base_topic}/location_lat_long", json.dumps({"value": f"{lat}, {lon}"}))
+            else:
+                log_skip("location_lat_long")
+
+        # Publish Location Address
+        if enabled_sensors.get("location_address", False):
+            address = dashboard.get("address")
+            # FIX: More robust check for a valid address string
+            if address and address != "Unavailable":
+                client.publish(f"{base_topic}/location_address", json.dumps({"value": address}))
+            else:
+                log_skip("location_address")
+        
+        # Publish Total Highway Distance
+        if enabled_sensors.get("highway_distance", False):
+            highway_dist_km = overall_stats.get("total_highway_distance_km")
+            if highway_dist_km is not None:
+                dist_value = round(highway_dist_km * KM_TO_MI) if is_imperial else round(highway_dist_km)
+                client.publish(f"{base_topic}/highway_distance", json.dumps({"value": dist_value}))
+            else:
+                log_skip("highway_distance")
+
+        # Publish Total EV Distance
+        if enabled_sensors.get("total_ev_distance", False):
+            ev_dist_km = overall_stats.get("total_ev_distance_km")
+            if ev_dist_km is not None:
+                dist_value = round(ev_dist_km * KM_TO_MI) if is_imperial else round(ev_dist_km)
+                client.publish(f"{base_topic}/total_ev_distance", json.dumps({"value": dist_value}))
+            else:
+                log_skip("total_ev_distance")
+
         _LOGGER.info(f"Finished publishing data for VIN {vin}")
     except Exception as e:
         _LOGGER.error(f"Error publishing vehicle data to MQTT for VIN {vin}: {e}", exc_info=True)

@@ -37,7 +37,12 @@ document.addEventListener('DOMContentLoaded', () => {
         'fuel_consumption': 'Fuel Consumption',
         'total_range': 'Total Range',
         'battery_level': 'EV Battery %',
-        'ev_range': 'EV Range'
+        'ev_range': 'EV Range',
+        'score': 'Global Score',
+        'location_lat_long': 'Location (Lat/Long)',
+        'location_address': 'Location (Address)',
+        'highway_distance': 'Total Highway Distance',
+        'total_ev_distance': 'Total EV Distance'
     };
     
     const ALL_DASHBOARD_STATS = {
