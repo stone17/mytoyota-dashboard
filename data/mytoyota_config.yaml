@@ -29,7 +29,7 @@ mqtt:
     ev_range: true
     score: false
     location_lat_long: false
-    location_address: false
+    location: false
     highway_distance: false
     total_ev_distance: false
 dashboard_sensors:

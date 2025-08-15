@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'ev_range': 'EV Range',
         'score': 'Global Score',
         'location_lat_long': 'Location (Lat/Long)',
-        'location_address': 'Location (Address)',
+        'location': 'Location (Address)',
         'highway_distance': 'Total Highway Distance',
         'total_ev_distance': 'Total EV Distance'
     };

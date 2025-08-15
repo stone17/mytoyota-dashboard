@@ -102,7 +102,7 @@ def publish_autodiscovery_configs(client: mqtt_client.Client, vehicle_data: dict
             "component": "sensor", "name": "Location Lat/Long", "icon": "mdi:map-marker",
             "value_template": "{{ value_json.value }}"
         },
-        "location_address": {
+        "location": {
             "component": "sensor", "name": "Location Address", "icon": "mdi:map-marker",
             "value_template": "{{ value_json.value }}"
         },
@@ -246,13 +246,13 @@ def publish_vehicle_data(client: mqtt_client.Client, vehicle_data: dict):
                 log_skip("location_lat_long")
 
         # Publish Location Address
-        if enabled_sensors.get("location_address", False):
+        if enabled_sensors.get("location", False):
             address = dashboard.get("address")
             # FIX: More robust check for a valid address string
             if address and address != "Unavailable":
-                client.publish(f"{base_topic}/location_address", json.dumps({"value": address}))
+                client.publish(f"{base_topic}/location", json.dumps({"value": address}))
             else:
-                log_skip("location_address")
+                log_skip("location")
         
         # Publish Total Highway Distance
         if enabled_sensors.get("highway_distance", False):
