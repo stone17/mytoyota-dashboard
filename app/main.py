@@ -7,6 +7,7 @@ import importlib
 import yaml
 import time
 import datetime
+import re
 import logging
 import subprocess
 from collections import deque
@@ -936,6 +937,60 @@ async def trigger_service_history_fetch(vin: str):
             _LOGGER.error(f"Failed to write updated cache file with service history: {e}")
 
     return history_data
+
+@app.post("/api/settings/polling")
+async def update_polling_settings(new_polling_settings: dict = Body(...)):
+    """
+    API endpoint to dynamically update polling settings.
+    Allows changing the polling mode and interval/fixed time.
+    
+    Example Body for interval mode:
+    {"mode": "interval", "interval_seconds": 300}
+    
+    Example Body for fixed_time mode:
+    {"mode": "fixed_time", "fixed_time": "08:30"}
+    """
+    try:
+        # Validate input
+        if "mode" in new_polling_settings:
+            if new_polling_settings["mode"] not in ["interval", "fixed_time"]:
+                raise HTTPException(status_code=400, detail="Invalid 'mode'. Must be 'interval' or 'fixed_time'.")
+            
+            if new_polling_settings["mode"] == "interval":
+                interval = new_polling_settings.get("interval_seconds")
+                if not isinstance(interval, (int, float)) or interval <= 0:
+                    raise HTTPException(status_code=400, detail="'interval_seconds' must be a positive number for 'interval' mode.")
+            elif new_polling_settings["mode"] == "fixed_time":
+                fixed_time = new_polling_settings.get("fixed_time")
+                if not isinstance(fixed_time, str) or not re.match(r"^\d{2}:\d{2}$", fixed_time):
+                    raise HTTPException(status_code=400, detail="'fixed_time' must be in 'HH:MM' format for 'fixed_time' mode.")
+        
+        # 1. Read the existing user config to preserve unchanged settings
+        try:
+            with open(USER_CONFIG_PATH, 'r') as f:
+                current_user_config = yaml.safe_load(f) or {}
+        except FileNotFoundError:
+            current_user_config = {}
+
+        # 2. Construct the full path for deep_merge and merge the new polling settings
+        # This ensures that only the 'polling' section within 'web_server' is updated.
+        new_settings_full_path = {"web_server": {"polling": new_polling_settings}}
+        updated_user_config = app_config.deep_merge(new_settings_full_path, current_user_config)
+
+        # 3. Write the result back to user_config.yaml
+        with open(USER_CONFIG_PATH, 'w') as f:
+            yaml.dump(updated_user_config, f, default_flow_style=False, sort_keys=False)
+
+        # 4. Reload the configuration into memory for the running app
+        importlib.reload(app_config)
+        _LOGGER.info(f"Polling settings updated to: {new_polling_settings}")
+
+        return {"message": "Polling settings updated successfully."}
+    except HTTPException as e:
+        raise e # Re-raise FastAPI HTTPExceptions
+    except Exception as e:
+        _LOGGER.error(f"Error updating polling settings: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to update polling settings.")
 
 @app.get("/api/export/trips.csv")
 def export_trips_to_csv(
