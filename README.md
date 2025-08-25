@@ -184,20 +184,41 @@ You can create a Lua script in Domoticz to automatically adjust the dashboard's 
     commandArray = {}
 
     -- Check if the device that changed is the one we care about
-    if devicechanged[charger_device_name] then
-        local url = string.format("http://%s:%s/api/settings/polling", dashboard_ip, dashboard_port)
-        local curl_command
+    if devicechanged then
+        if devicechanged[charger_device_name] then
 
-        if devicechanged[charger_device_name] == 'On' then
-            print(string.format("Car charging started. Setting dashboard polling to %d seconds.", high_frequency_interval))
-            curl_command = string.format("curl --silent -X POST -H 'Content-Type: application/json' -d '{\"mode\": \"interval\", \"interval_seconds\": %d}' %s", high_frequency_interval, url)
-        elseif devicechanged[charger_device_name] == 'Off' then
-            print(string.format("Car charging stopped. Resetting dashboard polling to %d seconds.", normal_frequency_interval))
-            curl_command = string.format("curl --silent -X POST -H 'Content-Type: application/json' -d '{\"mode\": \"interval\", \"interval_seconds\": %d}' %s", normal_frequency_interval, url)
-        end
+            -- Construct the base URL for the API endpoint
+            local url = string.format("http://%s:%s/api/settings/polling", dashboard_ip, dashboard_port)
+            local curl_command
 
-        if curl_command then
-            table.insert(commandArray, {['Execute'] = curl_command})
+            -- If the charger was turned ON
+            if devicechanged[charger_device_name] == 'On' then
+                print(string.format("Car charging started. Setting dashboard polling to %d seconds.", high_frequency_interval))
+                
+                -- Construct the curl command to set the high-frequency interval
+                curl_command = string.format(
+                    "curl --silent -X POST -H 'Content-Type: application/json' -d '{\"mode\": \"interval\", \"interval_seconds\": %d}' %s",
+                    high_frequency_interval,
+                    url
+                )
+
+            -- If the charger was turned OFF
+            elseif devicechanged[charger_device_name] == 'Off' then
+                print(string.format("Car charging stopped. Resetting dashboard polling to %d seconds.", normal_frequency_interval))
+                
+                -- Construct the curl command to set the normal (slower) interval
+                curl_command = string.format(
+                    "curl --silent -X POST -H 'Content-Type: application/json' -d '{\"mode\": \"interval\", \"interval_seconds\": %d}' %s",
+                    normal_frequency_interval,
+                    url
+                )
+            end
+
+            -- If a command was constructed, execute it immediately.
+            -- os.execute() is blocking, but for a quick local network call, it's reliable.
+            if curl_command then
+                os.execute(curl_command)
+            end
         end
     end
 
