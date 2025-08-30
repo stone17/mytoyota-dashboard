@@ -199,6 +199,7 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
 
             # --- Step 3: If no existing trip, create a new one ---
             new_trip = database.Trip(
+                id=trip.id,
                 vin=vehicle.vin,
                 start_timestamp=start_ts_utc,
                 start_address="Geocoding...", # Default for new trips
