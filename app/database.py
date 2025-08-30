@@ -59,7 +59,7 @@ class VehicleReading(Base):
 class Trip(Base):
     __tablename__ = "trips"
 
-    id = Column(String, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=False)
     vin = Column(String, index=True)
     start_timestamp = Column(DateTime, index=True)
     end_timestamp = Column(DateTime)
@@ -158,18 +158,6 @@ def _add_missing_columns(engine):
 def init_db():
     """Initializes the database and creates tables if they don't exist."""
     DATA_DIR.mkdir(exist_ok=True)
-
-    # --- Recovery logic for failed migration ---
-    # This will run once to restore the original database if it was affected.
-    inspector = inspect(engine)
-    db_tables = inspector.get_table_names()
-    if 'trips_old' in db_tables and 'trips' not in db_tables:
-        _LOGGER.warning("Detected 'trips_old' table from a failed migration. Restoring original 'trips' table...")
-        with engine.connect() as connection:
-            with connection.begin():
-                connection.execute(text('ALTER TABLE trips_old RENAME TO trips'))
-        _LOGGER.info("Successfully restored 'trips' table from 'trips_old'.")
-    # --- End recovery logic ---
 
     # create_all is safe to call even if the table was created during migration
     Base.metadata.create_all(bind=engine)
