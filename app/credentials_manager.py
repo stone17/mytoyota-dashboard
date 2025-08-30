@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 
 from . import security
-from .config import settings, DATA_DIR
+from .config import DATA_DIR
 
 _LOGGER = logging.getLogger(__name__)
 

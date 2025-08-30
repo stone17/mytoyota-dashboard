@@ -12,7 +12,7 @@ A self-hosted web dashboard to visualize your Toyota vehicle's data, including l
 *   **MQTT Integration:** Push live vehicle data to an MQTT broker for integration with home automation systems like Home Assistant and Domoticz. Includes support for Home Assistant MQTT Auto-Discovery.
 *   **Secure Credential Management:** Securely save your MyToyota username and password via the web interface.  Credentials are encrypted on disk.
 *   **Configurable Polling:** Set the data refresh schedule to a fixed interval or a specific time of day.
-*   **Dynamic Polling API:** Control polling frequency via HTTP POST requests, enabling integration with external systems like Domoticz.
+*   **Dynamic Control via MQTT:** Control application settings (like polling frequency) via MQTT commands, enabling robust integration with external systems.
 *   **Docker Support:** Easy to deploy and update using Docker and Docker Compose.
 
 ## Screenshot
@@ -135,9 +135,23 @@ The base settings are stored on the `data/mytoyota_config.yaml` file and should 
     *   `interval_seconds`: The interval for `interval` mode.
     *   `fixed_time`: The time for `fixed_time` mode (e.g., `"07:00"`).
 
-## Dynamic Polling Control via API
+## Dynamic Control via MQTT (Recommended)
 
-The application exposes an API endpoint (`POST /api/settings/polling`) that allows for dynamic control over the data polling schedule. This is particularly useful for integrating with home automation systems to increase the polling frequency only when needed (e.g., when your car is charging) and reduce it at other times to save resources and API calls.
+The application can listen for commands on a dedicated MQTT topic to dynamically change settings. This is the recommended method for integrating with home automation systems as it's flexible and doesn't require opening extra ports in your firewall.
+
+*   **Command Topic:** `<mqtt_base_topic>/command`
+*   **Payload Format:** A JSON object specifying the setting to change and its new value.
+
+**Example Payload to change polling:**
+```json
+{
+  "setting": "polling",
+  "value": {
+    "mode": "interval",
+    "interval_seconds": 300
+  }
+}
+```
 
 ### Example: Integrating with Domoticz
 
@@ -145,7 +159,7 @@ You can create a Lua script in Domoticz to automatically adjust the dashboard's 
 
 **Prerequisites:**
 *   A device in Domoticz representing your car charger (e.g., a switch that is `On` when charging).
-*   The `curl` command-line tool must be installed on the system running Domoticz.
+*   The `mosquitto-clients` package (which includes `mosquitto_pub`) must be installed on the system running Domoticz.
 
 **Steps:**
 
@@ -155,18 +169,21 @@ You can create a Lua script in Domoticz to automatically adjust the dashboard's 
 
     ```lua
     -- script_device_dashboard_polling.lua
-    -- This script dynamically changes the mytoyota-dashboard polling rate
+    -- This script dynamically changes the mytoyota-dashboard polling rate via MQTT
     -- based on the status of a car charger device.
 
     -- =========================================================================
     -- =====                USER CONFIGURATION - CHANGE THIS!                =====
     -- =========================================================================
 
-    -- The IP address or hostname of your dashboard application
-    local dashboard_ip = "192.168.1.123" 
+    -- The IP address or hostname of your MQTT Broker
+    local mqtt_broker_ip = "192.168.1.100"
+    local mqtt_broker_port = "1883"
+    -- local mqtt_user = "myuser" -- Uncomment and set if your broker requires authentication
+    -- local mqtt_pass = "mypass" -- Uncomment and set if your broker requires authentication
 
-    -- The port your dashboard is running on (default is 8000)
-    local dashboard_port = "8000"
+    -- The base topic configured in the dashboard's MQTT settings
+    local dashboard_base_topic = "mytoyota"
 
     -- The EXACT name of your car charger switch device in Domoticz
     local charger_device_name = "Car Charger" 
@@ -183,41 +200,32 @@ You can create a Lua script in Domoticz to automatically adjust the dashboard's 
 
     commandArray = {}
 
-    -- Check if the device that changed is the one we care about
-    if devicechanged then
+    -- The devicechanged table is only populated on a device event.
+    if (devicechanged) then
         if devicechanged[charger_device_name] then
+            local command_topic = string.format("%s/command", dashboard_base_topic)
+            local payload
 
-            -- Construct the base URL for the API endpoint
-            local url = string.format("http://%s:%s/api/settings/polling", dashboard_ip, dashboard_port)
-            local curl_command
-
-            -- If the charger was turned ON
             if devicechanged[charger_device_name] == 'On' then
-                print(string.format("Car charging started. Setting dashboard polling to %d seconds.", high_frequency_interval))
-                
-                -- Construct the curl command to set the high-frequency interval
-                curl_command = string.format(
-                    "curl --silent -X POST -H 'Content-Type: application/json' -d '{\"mode\": \"interval\", \"interval_seconds\": %d}' %s",
-                    high_frequency_interval,
-                    url
-                )
-
-            -- If the charger was turned OFF
+                print(string.format("Car charging started. Setting dashboard polling to %d seconds via MQTT.", high_frequency_interval))
+                payload = string.format('{"setting": "polling", "value": {"mode": "interval", "interval_seconds": %d}}', high_frequency_interval)
             elseif devicechanged[charger_device_name] == 'Off' then
-                print(string.format("Car charging stopped. Resetting dashboard polling to %d seconds.", normal_frequency_interval))
-                
-                -- Construct the curl command to set the normal (slower) interval
-                curl_command = string.format(
-                    "curl --silent -X POST -H 'Content-Type: application/json' -d '{\"mode\": \"interval\", \"interval_seconds\": %d}' %s",
-                    normal_frequency_interval,
-                    url
-                )
+                print(string.format("Car charging stopped. Resetting dashboard polling to %d seconds via MQTT.", normal_frequency_interval))
+                payload = string.format('{"setting": "polling", "value": {"mode": "interval", "interval_seconds": %d}}', normal_frequency_interval)
             end
 
-            -- If a command was constructed, execute it immediately.
-            -- os.execute() is blocking, but for a quick local network call, it's reliable.
-            if curl_command then
-                os.execute(curl_command)
+            if payload then
+                local auth_string = ""
+                if mqtt_user and mqtt_pass then
+                    auth_string = string.format('-u "%s" -P "%s"', mqtt_user, mqtt_pass)
+                end
+                
+                local mqtt_command = string.format(
+                    "mosquitto_pub -h %s -p %s %s -t '%s' -m '%s'",
+                    mqtt_broker_ip, mqtt_broker_port, auth_string, command_topic, payload
+                )
+                
+                os.execute(mqtt_command)
             end
         end
     end
@@ -226,10 +234,14 @@ You can create a Lua script in Domoticz to automatically adjust the dashboard's 
     ```
 
 3.  **Customize and Save:**
-    *   Update the variables in the `USER CONFIGURATION` section of the script to match your setup (dashboard IP, charger device name, etc.).
+    *   Update the variables in the `USER CONFIGURATION` section of the script to match your MQTT broker and Domoticz setup.
     *   Save and enable the script.
 
-Now, whenever your charger device turns on or off in Domoticz, it will send a request to the dashboard to update its polling interval accordingly.
+Now, whenever your charger device turns on or off in Domoticz, it will publish a command to the dashboard's MQTT topic to update its polling interval.
+
+## Dynamic Polling Control via API (Alternative)
+
+The application exposes an API endpoint (`POST /api/settings/polling`) that allows for dynamic control over the data polling schedule. This is particularly useful for integrating with home automation systems to increase the polling frequency only when needed (e.g., when your car is charging) and reduce it at other times to save resources and API calls.
 
 ## Using MQTT with Domoticz
 

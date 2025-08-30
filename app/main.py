@@ -3,12 +3,12 @@ import asyncio
 import json
 import csv
 import io
-import importlib
 import yaml
 import time
 import datetime
 import re
 import logging
+import os
 import subprocess
 from collections import deque
 from typing import Deque, Dict, Optional
@@ -18,14 +18,14 @@ from fastapi import FastAPI, HTTPException, Request, Body, UploadFile, File, Que
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+import paho.mqtt.client as paho
 from sqlalchemy import func, or_
 
 from . import fetcher
 from . import database
 from . import mqtt
 from .credentials_manager import get_username, save_credentials
-from . import config as app_config
-from .config import USER_CONFIG_PATH
+from .config import config_manager
 from .logging_config import setup_logging
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import defer
@@ -36,7 +36,7 @@ _LOGGER = logging.getLogger(__name__)
 
 # --- Live Log Streaming Setup ---
 # Get the desired log history size from config, with a sensible default.
-log_history_size = app_config.settings.get("log_history_size", 200)
+log_history_size = config_manager.settings.get("log_history_size", 200)
 # A thread-safe, memory-efficient deque to hold the last N log messages for new clients.
 log_history: Deque[Dict] = deque(maxlen=log_history_size)
 # An asyncio queue for broadcasting new log messages to connected clients.
@@ -75,12 +75,19 @@ async def schedule_fetch():
     """Runs the data fetcher on a schedule."""
     while True:
         try:
-            # MODIFIED: Call the new unified fetch cycle function.
-            await fetcher.run_fetch_cycle()
+            # Fetcher now returns the data
+            all_vehicles_data = await fetcher.run_fetch_cycle()
+
+            # Main application is now responsible for publishing
+            if hasattr(app.state, "mqtt_handler") and app.state.mqtt_handler and all_vehicles_data:
+                _LOGGER.info(f"Publishing data for {len(all_vehicles_data)} vehicles to MQTT...")
+                for vehicle_data in all_vehicles_data:
+                    # Publish with autodiscovery configs
+                    app.state.mqtt_handler.publish(vehicle_data, autodiscovery=True)
         except Exception as e:
             logging.error(f"Error in scheduled fetch: {e}", exc_info=True)
 
-        web_server_settings = app_config.settings.get("web_server", {})
+        web_server_settings = config_manager.settings.get("web_server", {})
         polling_settings = web_server_settings.get("polling", {})
         mode = polling_settings.get("mode", "interval")
 
@@ -112,7 +119,13 @@ async def startup_event():
     database.init_db()
     logging.info("Application startup...")
 
-    web_server_settings = app_config.settings.get("web_server", {})
+    # --- Setup persistent MQTT client for listening to commands ---
+    mqtt_settings = config_manager.settings.get("mqtt", {})
+    if mqtt_settings.get("enabled"):
+        app.state.mqtt_handler = mqtt.MqttHandler()
+        app.state.mqtt_handler.start_listener()
+
+    web_server_settings = config_manager.settings.get("web_server", {})
     polling_settings = web_server_settings.get("polling", {})
     # Fallback to the old key for backward compatibility
     refresh_interval = polling_settings.get("interval_seconds") or web_server_settings.get("data_refresh_interval_seconds", 3600)
@@ -134,6 +147,12 @@ async def startup_event():
             await schedule_fetch()
 
         asyncio.create_task(delayed_schedule_fetch())
+
+@app.on_event("shutdown")
+def shutdown_event():
+    """On shutdown, gracefully disconnect the MQTT client."""
+    if hasattr(app.state, "mqtt_handler") and app.state.mqtt_handler:
+        app.state.mqtt_handler.stop_listener()
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
@@ -705,11 +724,15 @@ async def update_application():
 async def force_poll():
     """Manually triggers a data fetch."""
     try:
-        logging.info("Manual poll triggered via API.")
-        await fetcher.run_fetch_cycle()
+        _LOGGER.info("Manual poll triggered via API.")
+        all_vehicles_data = await fetcher.run_fetch_cycle()
+        if hasattr(app.state, "mqtt_handler") and app.state.mqtt_handler and all_vehicles_data:
+            _LOGGER.info(f"Publishing data for {len(all_vehicles_data)} vehicles to MQTT...")
+            for vehicle_data in all_vehicles_data:
+                app.state.mqtt_handler.publish(vehicle_data, autodiscovery=True)
         return {"message": "Data poll completed successfully."}
     except Exception as e:
-        logging.error(f"Error during manual poll: {e}", exc_info=True)
+        _LOGGER.error(f"Error during manual poll: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred during the data poll.")
 
 @app.post("/api/mqtt/test")
@@ -719,25 +742,20 @@ async def mqtt_test():
     """
     _LOGGER.info("MQTT test message triggered via API.")
     
+    if not hasattr(app.state, "mqtt_handler") or not app.state.mqtt_handler:
+        raise HTTPException(status_code=400, detail="MQTT is not enabled or configured correctly. Please check settings.")
+
     vehicles = await get_cached_vehicle_data()
     if not vehicles:
         raise HTTPException(status_code=404, detail="No cached vehicle data found. Please run a poll first.")
 
-    mqtt_client = mqtt.get_client()
-    if not mqtt_client:
-        raise HTTPException(status_code=400, detail="MQTT is not enabled or configured correctly. Please check settings.")
-
     try:
         for vehicle in vehicles:
-            mqtt.publish_autodiscovery_configs(mqtt_client, vehicle)
-            mqtt.publish_vehicle_data(mqtt_client, vehicle)
+            app.state.mqtt_handler.publish(vehicle, autodiscovery=True)
         return {"message": "Test message sent successfully to MQTT broker."}
     except Exception as e:
         _LOGGER.error(f"Error during MQTT test publish: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="An error occurred while sending the MQTT message.")
-    finally:
-        if mqtt_client:
-            mqtt.disconnect(mqtt_client)
 
 @app.get("/api/credentials")
 def get_stored_username():
@@ -761,7 +779,7 @@ def update_credentials(creds: dict = Body(...)):
 @app.get("/api/config")
 def get_config():
     """API endpoint to get the current configuration."""
-    return app_config.settings
+    return config_manager.settings
 
 @app.post("/api/config")
 def update_config(new_settings: dict = Body(...)):
@@ -769,20 +787,20 @@ def update_config(new_settings: dict = Body(...)):
     try:
         # 1. Read the existing user config to preserve unchanged settings
         try:
-            with open(USER_CONFIG_PATH, 'r') as f:
+            with open(config_manager.user_config_path, 'r') as f:
                 current_user_config = yaml.safe_load(f) or {}
         except FileNotFoundError:
             current_user_config = {}
 
         # 2. Deep merge the new settings from the UI into the existing user settings
-        updated_user_config = app_config.deep_merge(new_settings, current_user_config)
+        updated_user_config = config_manager._deep_merge(new_settings, current_user_config)
 
         # 3. Write the result back to user_config.yaml
-        with open(USER_CONFIG_PATH, 'w') as f:
+        with open(config_manager.user_config_path, 'w') as f:
             yaml.dump(updated_user_config, f, default_flow_style=False, sort_keys=False)
 
         # 4. Reload the configuration into memory for the running app
-        importlib.reload(app_config)
+        config_manager.load()
 
         return {"message": "Settings saved successfully."}
     except Exception as e:
@@ -937,60 +955,6 @@ async def trigger_service_history_fetch(vin: str):
             _LOGGER.error(f"Failed to write updated cache file with service history: {e}")
 
     return history_data
-
-@app.post("/api/settings/polling")
-async def update_polling_settings(new_polling_settings: dict = Body(...)):
-    """
-    API endpoint to dynamically update polling settings.
-    Allows changing the polling mode and interval/fixed time.
-    
-    Example Body for interval mode:
-    {"mode": "interval", "interval_seconds": 300}
-    
-    Example Body for fixed_time mode:
-    {"mode": "fixed_time", "fixed_time": "08:30"}
-    """
-    try:
-        # Validate input
-        if "mode" in new_polling_settings:
-            if new_polling_settings["mode"] not in ["interval", "fixed_time"]:
-                raise HTTPException(status_code=400, detail="Invalid 'mode'. Must be 'interval' or 'fixed_time'.")
-            
-            if new_polling_settings["mode"] == "interval":
-                interval = new_polling_settings.get("interval_seconds")
-                if not isinstance(interval, (int, float)) or interval <= 0:
-                    raise HTTPException(status_code=400, detail="'interval_seconds' must be a positive number for 'interval' mode.")
-            elif new_polling_settings["mode"] == "fixed_time":
-                fixed_time = new_polling_settings.get("fixed_time")
-                if not isinstance(fixed_time, str) or not re.match(r"^\d{2}:\d{2}$", fixed_time):
-                    raise HTTPException(status_code=400, detail="'fixed_time' must be in 'HH:MM' format for 'fixed_time' mode.")
-        
-        # 1. Read the existing user config to preserve unchanged settings
-        try:
-            with open(USER_CONFIG_PATH, 'r') as f:
-                current_user_config = yaml.safe_load(f) or {}
-        except FileNotFoundError:
-            current_user_config = {}
-
-        # 2. Construct the full path for deep_merge and merge the new polling settings
-        # This ensures that only the 'polling' section within 'web_server' is updated.
-        new_settings_full_path = {"web_server": {"polling": new_polling_settings}}
-        updated_user_config = app_config.deep_merge(new_settings_full_path, current_user_config)
-
-        # 3. Write the result back to user_config.yaml
-        with open(USER_CONFIG_PATH, 'w') as f:
-            yaml.dump(updated_user_config, f, default_flow_style=False, sort_keys=False)
-
-        # 4. Reload the configuration into memory for the running app
-        importlib.reload(app_config)
-        _LOGGER.info(f"Polling settings updated to: {new_polling_settings}")
-
-        return {"message": "Polling settings updated successfully."}
-    except HTTPException as e:
-        raise e # Re-raise FastAPI HTTPExceptions
-    except Exception as e:
-        _LOGGER.error(f"Error updating polling settings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to update polling settings.")
 
 @app.get("/api/export/trips.csv")
 def export_trips_to_csv(

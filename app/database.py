@@ -7,9 +7,9 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import inspect, text
 from sqlalchemy.types import TypeDecorator, TEXT
 
-from .config import DATA_DIR
+from .config import config_manager, DATA_DIR
 
-DB_FILE = DATA_DIR / "mytoyota.db"
+DB_FILE = DATA_DIR / config_manager.settings.get("database_filename", "mytoyota.db")
 DATABASE_URL = f"sqlite:///{DB_FILE.resolve()}"
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
@@ -59,18 +59,18 @@ class VehicleReading(Base):
 class Trip(Base):
     __tablename__ = "trips"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(String, primary_key=True, index=True)
     vin = Column(String, index=True)
     start_timestamp = Column(DateTime, index=True)
     end_timestamp = Column(DateTime)
-    start_address = Column(String)
+    start_address = Column(String, nullable=True)
     start_lat = Column(Float, nullable=True)
     start_lon = Column(Float, nullable=True)
-    end_address = Column(String)
+    end_address = Column(String, nullable=True)
     end_lat = Column(Float, nullable=True)
     end_lon = Column(Float, nullable=True)
-    distance_km = Column(Float)
-    fuel_consumption_l_100km = Column(Float)
+    distance_km = Column(Float, nullable=True)
+    fuel_consumption_l_100km = Column(Float, nullable=True)
     duration_seconds = Column(Integer, nullable=True)
     average_speed_kmh = Column(Float, nullable=True)
     max_speed_kmh = Column(Float, nullable=True)
@@ -103,6 +103,21 @@ class Trip(Base):
     average_speed_mph = Column(Float, nullable=True)
     ev_distance_mi = Column(Float, nullable=True)
     route = Column(SafeJSON, nullable=True)
+
+class ServiceHistory(Base):
+    __tablename__ = "service_history"
+
+    id = Column(String, primary_key=True, index=True)
+    vin = Column(String, index=True)
+    service_date = Column(DateTime)
+    mileage = Column(Float)
+    unit = Column(String)
+    service_provider = Column(String, nullable=True)
+    service_category = Column(String, nullable=True)
+    notes = Column(String, nullable=True)
+    customer_created_record = Column(Boolean)
+    ro_number = Column(String, nullable=True)
+    operations_performed = Column(SafeJSON, nullable=True)
 
 def _add_missing_columns(engine):
     """
@@ -143,6 +158,20 @@ def _add_missing_columns(engine):
 def init_db():
     """Initializes the database and creates tables if they don't exist."""
     DATA_DIR.mkdir(exist_ok=True)
+
+    # --- Recovery logic for failed migration ---
+    # This will run once to restore the original database if it was affected.
+    inspector = inspect(engine)
+    db_tables = inspector.get_table_names()
+    if 'trips_old' in db_tables and 'trips' not in db_tables:
+        _LOGGER.warning("Detected 'trips_old' table from a failed migration. Restoring original 'trips' table...")
+        with engine.connect() as connection:
+            with connection.begin():
+                connection.execute(text('ALTER TABLE trips_old RENAME TO trips'))
+        _LOGGER.info("Successfully restored 'trips' table from 'trips_old'.")
+    # --- End recovery logic ---
+
+    # create_all is safe to call even if the table was created during migration
     Base.metadata.create_all(bind=engine)
     # Run the migration to add missing columns after ensuring tables exist
     _add_missing_columns(engine)
@@ -190,5 +219,69 @@ def get_latest_trip_timestamp(vin: str) -> datetime.datetime | None:
         if latest_trip:
             return latest_trip.start_timestamp
         return None
+    finally:
+        db.close()
+
+def insert_trips(trips: list):
+    """
+    Inserts a list of trip objects into the database in a single session.
+    This is a convenience function for testing and potential bulk operations.
+    """
+    db = SessionLocal()
+    try:
+        for trip_data in trips:
+            # The test mock might not have all attributes, so we use getattr()
+            new_trip = Trip(
+                id=trip_data.id,
+                vin=trip_data.vin,
+                start_timestamp=trip_data.start_timestamp,
+                end_timestamp=trip_data.end_timestamp,
+                start_address=getattr(trip_data, 'start_address', None),
+                end_address=getattr(trip_data, 'end_address', None),
+                distance_km=trip_data.distance_km,
+                fuel_consumption_l_100km=trip_data.fuel_consumption_l_100km
+            )
+            db.merge(new_trip)
+        db.commit()
+        _LOGGER.info(f"Successfully inserted/updated {len(trips)} trips.")
+    except Exception as e:
+        db.rollback()
+        _LOGGER.error(f"Error during bulk trip insert: {e}", exc_info=True)
+    finally:
+        db.close()
+
+def get_all_trips() -> list:
+    """Fetches all trips from the database. Used primarily for testing."""
+    db = SessionLocal()
+    try:
+        # A simple conversion to dict for testing purposes
+        return [{"vin": t.vin, "distance_km": t.distance_km} for t in db.query(Trip).all()]
+    finally:
+        db.close()
+
+def insert_service_history(vin: str, service_histories: list):
+    """Inserts or updates service history records for a given VIN."""
+    db = SessionLocal()
+    try:
+        for item in service_histories:
+            record = ServiceHistory(
+                id=item.get("service_history_id"),
+                vin=vin,
+                service_date=datetime.datetime.fromisoformat(item.get("service_date")) if item.get("service_date") else None,
+                mileage=item.get("mileage"),
+                unit=item.get("unit"),
+                service_provider=item.get("service_provider"),
+                service_category=item.get("service_category"),
+                notes=item.get("notes"),
+                customer_created_record=item.get("customer_created_record"),
+                ro_number=item.get("ro_number"),
+                operations_performed=item.get("operations_performed")
+            )
+            db.merge(record)
+        db.commit()
+        _LOGGER.info(f"Successfully inserted/updated {len(service_histories)} service history records for VIN {vin}.")
+    except Exception as e:
+        db.rollback()
+        _LOGGER.error(f"Error during service history insert for VIN {vin}: {e}", exc_info=True)
     finally:
         db.close()

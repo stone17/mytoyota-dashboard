@@ -1,7 +1,6 @@
 # app/fetcher.py
 import asyncio
 import json
-import os
 import datetime
 import logging
 import httpx
@@ -15,12 +14,10 @@ from geopy.geocoders import Nominatim
 from geopy.extra.rate_limiter import RateLimiter
 from pytoyoda.exceptions import ToyotaLoginError, ToyotaApiError
 from . import database
-from . import mqtt
 from .credentials_manager import load_credentials
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func
-
-from .config import settings, DATA_DIR
+from .config import config_manager, DATA_DIR
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -81,7 +78,7 @@ async def _reverse_geocode_trip(trip_id: int):
                 _LOGGER.debug(f"Trip {trip_id} already geocoded or not found. Skipping.")
                 return
 
-            if not settings.get('reverse_geocode_enabled', True):
+            if not config_manager.settings.get('reverse_geocode_enabled', True):
                 trip.start_address = f"{trip.start_lat}, {trip.start_lon}"
                 trip.end_address = f"{trip.end_lat}, {trip.end_lon}"
                 db.commit()
@@ -104,7 +101,7 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
     """Helper function to fetch, process, and save trip summaries for a given period."""
     _LOGGER.info(f"Fetching trip summaries for VIN {vehicle.vin} from {from_date} to {to_date}...")
 
-    fetch_full_route = settings.get("fetch_full_trip_route", False)
+    fetch_full_route = config_manager.settings.get("fetch_full_trip_route", False)
     all_trips = await vehicle.get_trips(from_date=from_date, to_date=to_date, full_route=fetch_full_route)
 
     if not isinstance(all_trips, list):
@@ -265,7 +262,7 @@ async def _build_vehicle_info_dict(vehicle):
         longitude = getattr(vehicle.location, 'longitude', None) if hasattr(vehicle, 'location') else None
         
         address = None
-        if latitude and longitude and settings.get("reverse_geocode_enabled", False):
+        if latitude and longitude and config_manager.settings.get("reverse_geocode_enabled", False):
             address = await get_address_from_coords(latitude, longitude)
 
         vehicle_info["dashboard"] = {
@@ -376,8 +373,8 @@ async def _process_vehicle(vehicle, db_session):
     vin = vehicle.vin
     _LOGGER.info(f"Processing vehicle: {vin} ({vehicle.alias})")
 
-    api_retries = settings.get("api_retries", 3)
-    api_retry_delay = settings.get("api_retry_delay_seconds", 5)
+    api_retries = config_manager.settings.get("api_retries", 3)
+    api_retry_delay = config_manager.settings.get("api_retry_delay_seconds", 5)
 
     for attempt in range(api_retries + 1):
         try:
@@ -470,11 +467,6 @@ async def run_fetch_cycle():
 
     client = MyT(username=username, password=password, use_metric=True)
     all_vehicle_data = []
-    
-    _LOGGER.info("Checking MQTT settings and attempting to initialize client...")
-    mqtt_client = mqtt.get_client()
-    if not mqtt_client:
-        _LOGGER.info("MQTT client not created (check settings or connection errors). Publishing will be skipped.")
 
     try:
         vin_to_service_history = {}
@@ -508,11 +500,6 @@ async def run_fetch_cycle():
                         res["service_history"] = vin_to_service_history[vin]
                         _LOGGER.debug(f"Restored service history for VIN {vin}.")
                     all_vehicle_data.append(res)
-                    
-                    if mqtt_client:
-                        mqtt.publish_autodiscovery_configs(mqtt_client, res)
-                        _LOGGER.debug(f"Handing over vehicle data for VIN {vin} to MQTT publisher.")
-                        mqtt.publish_vehicle_data(mqtt_client, res)
 
                 elif isinstance(res, Exception):
                     _LOGGER.error(f"An error occurred while processing a vehicle: {res}", exc_info=True)
@@ -531,14 +518,13 @@ async def run_fetch_cycle():
             
     except Exception as e:
         _LOGGER.error(f"An unexpected error occurred in the fetch cycle: {e}", exc_info=True)
+        return None
     finally:
-        if mqtt_client:
-            _LOGGER.debug("Disconnecting MQTT client.")
-            mqtt.disconnect(mqtt_client)
-            
         if client and hasattr(client, "_session") and client._session and not client._session.is_closed:
             await client._session.aclose()
             _LOGGER.info("Pytoyoda client session closed.")
+            
+    return all_vehicle_data
 
 
 async def backfill_trips(vin: str, period: str):
