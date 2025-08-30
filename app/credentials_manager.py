@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 
 from . import security
-from .config import DATA_DIR
+from .config import config_manager, DATA_DIR
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ def load_credentials() -> tuple[str | None, str | None]:
         _LOGGER.debug("Credentials file not found.")
 
     _LOGGER.debug("Falling back to mytoyota_config.yaml for credentials.")
-    config_creds = settings.get("credentials", {})
+    config_creds = config_manager.settings.get("credentials", {})
     if config_creds.get("username") and config_creds.get("password"):
         _LOGGER.warning("Loading credentials from mytoyota_config.yaml. Please migrate via Settings page.")
         return config_creds.get("username"), config_creds.get("password")
