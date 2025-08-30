@@ -59,7 +59,7 @@ class VehicleReading(Base):
 class Trip(Base):
     __tablename__ = "trips"
 
-    id = Column(Integer, primary_key=True, index=True, autoincrement=False)
+    id = Column(Integer, primary_key=True, index=True)
     vin = Column(String, index=True)
     start_timestamp = Column(DateTime, index=True)
     end_timestamp = Column(DateTime)
