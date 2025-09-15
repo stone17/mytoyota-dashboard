@@ -1,5 +1,6 @@
 # app/mqtt.py
 import logging
+import asyncio
 import os
 import json
 from paho.mqtt import client as mqtt_client
@@ -12,9 +13,10 @@ _LOGGER = logging.getLogger(__name__)
 class MqttHandler:
     """A class to manage all MQTT interactions, including publishing and listening for commands."""
 
-    def __init__(self):
+    def __init__(self, loop: Optional[asyncio.AbstractEventLoop] = None):
         """Initializes the MqttHandler."""
         self.listener_client: Optional[mqtt_client.Client] = None
+        self.loop = loop
         _LOGGER.info("MqttHandler initialized.")
 
     # --- Command Listener Methods ---
@@ -32,11 +34,27 @@ class MqttHandler:
             try:
                 _LOGGER.info(f"Processing command with payload: {msg.payload.decode()}")
                 payload = json.loads(msg.payload.decode())
+
+                # Handle action-based commands (like force_poll)
+                command = payload.get("command")
+                if command == "force_poll":
+                    if self.loop:
+                        _LOGGER.info("Scheduling a force poll due to MQTT command.")
+                        asyncio.run_coroutine_threadsafe(self._run_poll_and_publish(), self.loop)
+                    else:
+                        _LOGGER.error("Cannot trigger force_poll via MQTT: event loop not available to MqttHandler.")
+                    return # Command handled
+
+                # Handle settings-based commands
                 setting = payload.get("setting")
                 value = payload.get("value")
 
-                if not setting or not isinstance(value, dict):
-                    _LOGGER.error("Invalid MQTT command payload. 'setting' and 'value' are required and 'value' must be an object.")
+                if not setting:
+                    _LOGGER.error("Invalid MQTT command payload. Must contain either a 'command' (e.g., 'force_poll') or a 'setting' to modify.")
+                    return
+
+                if not isinstance(value, dict):
+                    _LOGGER.error(f"Invalid MQTT command payload for setting '{setting}'. The 'value' must be an object.")
                     return
 
                 if setting == "polling":
@@ -51,6 +69,20 @@ class MqttHandler:
                 _LOGGER.error("Failed to decode MQTT command payload as JSON.")
             except Exception as e:
                 _LOGGER.error(f"Error processing MQTT command: {e}", exc_info=True)
+
+    async def _run_poll_and_publish(self):
+        """Async helper to run a fetch cycle and publish results. To be called from the event loop."""
+        from . import fetcher  # Local import to avoid circular dependency
+        _LOGGER.info("Manual poll triggered via MQTT command.")
+        try:
+            all_vehicles_data = await fetcher.run_fetch_cycle()
+            if all_vehicles_data:
+                _LOGGER.info(f"Publishing data for {len(all_vehicles_data)} vehicles to MQTT after poll...")
+                for vehicle_data in all_vehicles_data:
+                    # `self` is the MqttHandler instance
+                    self.publish(vehicle_data, autodiscovery=True)
+        except Exception as e:
+            _LOGGER.error(f"Error during MQTT-triggered poll: {e}", exc_info=True)
 
     def _on_connect(self, client, userdata, flags, rc):
         """Callback for MQTT connection."""

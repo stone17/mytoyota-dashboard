@@ -122,7 +122,9 @@ async def startup_event():
     # --- Setup persistent MQTT client for listening to commands ---
     mqtt_settings = config_manager.settings.get("mqtt", {})
     if mqtt_settings.get("enabled"):
-        app.state.mqtt_handler = mqtt.MqttHandler()
+        # Get the current running loop and pass it to the handler so it can schedule async tasks
+        loop = asyncio.get_running_loop()
+        app.state.mqtt_handler = mqtt.MqttHandler(loop=loop)
         app.state.mqtt_handler.start_listener()
 
     web_server_settings = config_manager.settings.get("web_server", {})

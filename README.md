@@ -12,7 +12,7 @@ A self-hosted web dashboard to visualize your Toyota vehicle's data, including l
 *   **MQTT Integration:** Push live vehicle data to an MQTT broker for integration with home automation systems like Home Assistant and Domoticz. Includes support for Home Assistant MQTT Auto-Discovery.
 *   **Secure Credential Management:** Securely save your MyToyota username and password via the web interface.  Credentials are encrypted on disk.
 *   **Configurable Polling:** Set the data refresh schedule to a fixed interval or a specific time of day.
-*   **Dynamic Control via MQTT:** Control application settings (like polling frequency) via MQTT commands, enabling robust integration with external systems.
+*   **Dynamic Control via MQTT:** Trigger data refreshes and control application settings (like polling frequency) via MQTT commands.
 *   **Docker Support:** Easy to deploy and update using Docker and Docker Compose.
 
 ## Screenshot
@@ -137,12 +137,27 @@ The base settings are stored on the `data/mytoyota_config.yaml` file and should 
 
 ## Dynamic Control via MQTT (Recommended)
 
-The application can listen for commands on a dedicated MQTT topic to dynamically change settings. This is the recommended method for integrating with home automation systems as it's flexible and doesn't require opening extra ports in your firewall.
+The application can listen for commands on a dedicated MQTT topic to trigger actions or dynamically change settings. This is the recommended method for integrating with home automation systems as it's flexible and doesn't require opening extra ports in your firewall.
 
 *   **Command Topic:** `<mqtt_base_topic>/command`
-*   **Payload Format:** A JSON object specifying the setting to change and its new value.
+*   **Payload Format:** A JSON object.
 
-**Example Payload to change polling:**
+**Example 1: Triggering an immediate data refresh**
+
+Publish this payload to force the application to poll for new data immediately. This is useful for getting the latest status on demand from your automation system.
+
+*   **Payload:**
+    ```json
+    {
+      "command": "force_poll"
+    }
+    ```
+
+**Example 2: Changing the polling schedule**
+
+Publish this payload to change a setting, such as the polling frequency.
+
+*   **Payload:**
 ```json
 {
   "setting": "polling",
