@@ -804,6 +804,9 @@ def update_config(new_settings: dict = Body(...)):
         # 4. Reload the configuration into memory for the running app
         config_manager.load()
 
+        # 5. Re-apply logging settings
+        setup_logging()
+
         return {"message": "Settings saved successfully."}
     except Exception as e:
         _LOGGER.error(f"Error updating user config file: {e}")

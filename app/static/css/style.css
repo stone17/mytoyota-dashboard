@@ -127,3 +127,111 @@ body {
     color: #888;
     text-align: right;
 }
+
+.settings-section {
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    margin-bottom: 30px;
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.settings-section:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+}
+
+.settings-section h2 {
+    margin-top: 0;
+    color: #00529b;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 10px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.form-group input[type="text"],
+.form-group input[type="password"],
+.form-group input[type="number"],
+.form-group input[type="time"],
+.form-group input[type="file"],
+.form-group select {
+    width: 100%;
+    padding: 8px;
+    box-sizing: border-box;
+    max-width: 450px;
+}
+
+.form-group p {
+    font-size: 0.9em;
+    color: #666;
+    margin-top: 5px;
+}
+
+.status-message {
+    margin-top: 15px;
+    padding: 10px;
+    border-radius: 4px;
+    display: none;
+}
+
+.status-message.success {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.status-message.error {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.status-message.info {
+    background-color: #cce5ff;
+    color: #004085;
+}
+
+/* Logs Page */
+.logs-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.logs-header h2 {
+    margin: 0;
+}
+
+.log-settings-container {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+}
+
+.logs-container {
+    background: #1e1e1e; /* Dark background for logs */
+    color: #d4d4d4; /* Light text */
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.9em;
+    padding: 20px;
+    border-radius: 8px;
+    height: 70vh;
+    overflow-y: scroll;
+    white-space: pre; /* Keep whitespace and newlines */
+    border: 1px solid #333;
+}
+
+.log-line.INFO { color: #d4d4d4; }
+.log-line.DEBUG { color: #888; }
+.log-line.WARNING { color: #f0ad4e; font-weight: bold; }
+.log-line.ERROR { color: #d9534f; font-weight: bold; }
+.log-line.CRITICAL { background-color: #d9534f; color: white; font-weight: bold; padding: 1px 4px; border-radius: 3px; }

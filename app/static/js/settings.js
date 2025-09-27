@@ -9,7 +9,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const apiRetriesForm = document.getElementById('api-retries-form');
     const displaySettingsForm = document.getElementById('display-settings-form');
     const dashboardDisplayForm = document.getElementById('dashboard-display-form');
-    const loggingSettingsForm = document.getElementById('logging-settings-form');
     const geocodingSettingsForm = document.getElementById('geocoding-settings-form');
     const mqttSettingsForm = document.getElementById('mqtt-settings-form');
 
@@ -17,7 +16,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const apiRetriesStatusMessage = document.getElementById('api-retries-status-message');
     const displayStatusMessage = document.getElementById('display-status-message');
     const dashboardDisplayStatusMessage = document.getElementById('dashboard-display-status-message');
-    const loggingStatusMessage = document.getElementById('logging-status-message');
     const geocodingStatusMessage = document.getElementById('geocoding-status-message');
     const mqttStatusMessage = document.getElementById('mqtt-status-message');
     const mqttTestBtn = document.getElementById('mqtt-test-btn');
@@ -161,7 +159,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 cb.checked = enabledDashboardSensors[cb.dataset.sensorKey] !== false; // Default to true if not present
             });
 
-            document.getElementById('log-history-size').value = config.log_history_size || 200;
             document.getElementById('reverse-geocode-enabled').checked = config.reverse_geocode_enabled !== false;
             document.getElementById('fetch-full-route').checked = config.fetch_full_trip_route || false;
             
@@ -280,15 +277,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         const newSettings = { dashboard_sensors: enabledSensors };
         saveConfig(newSettings, dashboardDisplayStatusMessage);
-    });
-
-    loggingSettingsForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const formData = new FormData(loggingSettingsForm);
-        const newSettings = {
-            log_history_size: parseInt(formData.get('log_history_size'), 10),
-        };
-        saveConfig(newSettings, loggingStatusMessage);
     });
 
     geocodingSettingsForm.addEventListener('submit', (e) => {
