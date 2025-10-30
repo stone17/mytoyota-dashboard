@@ -11,34 +11,53 @@ document.addEventListener('DOMContentLoaded', () => {
         logContent.textContent = 'Connecting to log stream...';
 
         const eventSource = new EventSource('/api/logs');
-        let isFirstMessage = true;
 
-        eventSource.onmessage = function(event) {
+        function appendLogLine(logData, fragment = null) {
+            const logLine = document.createElement('span');
+            logLine.className = `log-line ${logData.level}`;
+            logLine.textContent = logData.message;
+
+            const target = fragment || logContent;
+            target.appendChild(logLine);
+            target.appendChild(document.createTextNode('\n'));
+        }
+
+        eventSource.addEventListener('history', function(event) {
             try {
-                if (isFirstMessage) {
-                    logContent.innerHTML = ''; // Clear "Connecting..." message
-                    isFirstMessage = false;
+                logContent.innerHTML = ''; // Clear "Connecting..." message
+                const history = JSON.parse(event.data);
+                const fragment = document.createDocumentFragment();
+
+                history.forEach(logData => appendLogLine(logData, fragment));
+
+                logContent.appendChild(fragment);
+                logContent.scrollTop = logContent.scrollHeight; // Scroll to bottom after batch update
+            } catch (e) {
+                console.error("Failed to parse log history:", event.data, e);
+                logContent.textContent = 'Error loading log history.';
+            }
+        });
+
+        eventSource.addEventListener('message', function(event) {
+            try {
+                if (logContent.textContent.startsWith('Connecting')) {
+                    logContent.innerHTML = ''; // Clear "Connecting..." if no history was received
                 }
                 const logData = JSON.parse(event.data);
-                const logLine = document.createElement('span');
-                logLine.className = `log-line ${logData.level}`;
-                logLine.textContent = logData.message;
-                
-                logContent.appendChild(logLine);
-                logContent.appendChild(document.createTextNode('\n')); // Keep the newline separation
+                appendLogLine(logData);
 
                 // Trim old log lines if the total exceeds the limit
-                while (logContent.childNodes.length > MAX_LOG_LINES * 2) { // *2 because of the text nodes
+                while (logContent.childNodes.length > MAX_LOG_LINES * 2) { // *2 because of text nodes
                     logContent.removeChild(logContent.firstChild);
-                    logContent.removeChild(logContent.firstChild); // Remove the accompanying text node
+                    logContent.removeChild(logContent.firstChild); // Remove accompanying text node
                 }
-                
+
                 // Auto-scroll to the bottom
                 logContent.scrollTop = logContent.scrollHeight;
             } catch (e) {
                 console.error("Failed to parse log data:", event.data, e);
             }
-        };
+        });
 
         eventSource.onerror = function() {
             logContent.textContent += '\n--- Connection to log stream lost. Reconnecting... ---\n';
