@@ -1,0 +1,48 @@
+logging_level: DEBUG
+api_retries: 5
+api_retry_delay_seconds: 20
+web_server:
+  host: 0.0.0.0
+  port: 8000
+  polling:
+    mode: interval
+    interval_seconds: 3600
+    fixed_time: 07:00
+log_history_size: 200
+unit_system: metric
+reverse_geocode_enabled: true
+fetch_full_trip_route: true
+mqtt:
+  enabled: false
+  host: 192.168.1.200
+  port: 1883
+  username: ''
+  base_topic: mytoyota/{vin}
+  discovery_prefix: homeassistant
+  enabled_sensors:
+    odometer: true
+    lock_status: true
+    fuel_level: true
+    fuel_consumption: true
+    total_range: true
+    battery_level: true
+    ev_range: true
+    score: false
+    location_lat_long: false
+    location: false
+    highway_distance: false
+    total_ev_distance: false
+dashboard_sensors:
+  odometer: true
+  range: true
+  total_ev_distance: true
+  fuel_level: true
+  daily_distance: true
+  consumption: true
+  total_fuel: true
+  duration: true
+  ev_level: true
+  ev_range: true
+  charging_status: true
+  max_speed: true
+  countries: true
