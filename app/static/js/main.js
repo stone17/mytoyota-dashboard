@@ -196,17 +196,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const baseData1 = createBaseData(metric1);
         if (baseData1) {
-            datasets.push({
-                label: baseData1.config.label,
-                data: baseData1.data,
-                borderColor: `${baseData1.config.color}80`,
-                backgroundColor: `${baseData1.config.color}33`,
-                fill: !isRollingAvgLeft,
-                tension: 0.1,
-                pointRadius: 2,
-                yAxisID: 'y'
-            });
-
             if (isRollingAvgLeft) {
                 const rollingAvgData = calculateRollingAverage(baseData1.data, 7);
                 datasets.push({
@@ -218,6 +207,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     tension: 0.4,
                     pointRadius: 0,
                     borderDash: [5, 5],
+                    yAxisID: 'y'
+                });
+            } else {
+                 datasets.push({
+                    label: baseData1.config.label,
+                    data: baseData1.data,
+                    borderColor: `${baseData1.config.color}80`,
+                    backgroundColor: `${baseData1.config.color}33`,
+                    fill: true,
+                    tension: 0.1,
+                    pointRadius: 2,
                     yAxisID: 'y'
                 });
             }
@@ -232,17 +232,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const baseData2 = createBaseData(metric2);
         if (baseData2) {
-            datasets.push({
-                label: baseData2.config.label,
-                data: baseData2.data,
-                borderColor: `${baseData2.config.color}80`,
-                backgroundColor: `${baseData2.config.color}33`,
-                fill: !isRollingAvgRight,
-                tension: 0.1,
-                pointRadius: 2,
-                yAxisID: 'y1'
-            });
-
             if (isRollingAvgRight) {
                 const rollingAvgData = calculateRollingAverage(baseData2.data, 7);
                 datasets.push({
@@ -254,6 +243,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     tension: 0.4,
                     pointRadius: 0,
                     borderDash: [5, 5],
+                    yAxisID: 'y1'
+                });
+            } else {
+                datasets.push({
+                    label: baseData2.config.label,
+                    data: baseData2.data,
+                    borderColor: `${baseData2.config.color}80`,
+                    backgroundColor: `${baseData2.config.color}33`,
+                    fill: true,
+                    tension: 0.1,
+                    pointRadius: 2,
                     yAxisID: 'y1'
                 });
             }
@@ -278,21 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 interaction: { mode: 'index', intersect: false, },
                 scales: { x: { title: { display: true, text: 'Date' } }, ...yAxes },
                 plugins: {
-                    legend: {
-                        display: true,
-                        labels: {
-                            // Custom filter to hide legend items for the raw data when its rolling average is shown
-                            filter: function(legendItem, chartData) {
-                                const label = legendItem.text;
-                                const isAvg = label.includes('(7-day Avg)');
-                                if (isAvg) return true; // Always show rolling average legends
-
-                                // Check if a corresponding rolling average dataset exists
-                                const hasRollingAvg = chartData.datasets.some(d => d.label === `${label} (7-day Avg)`);
-                                return !hasRollingAvg; // Hide the raw data legend if rolling average is active
-                            }
-                        }
-                    },
+                    legend: { display: true },
                     tooltip: {
                         callbacks: {
                             title: (tooltipItems) => new Date(dailyData[tooltipItems[0].dataIndex].date).toLocaleDateString(),
