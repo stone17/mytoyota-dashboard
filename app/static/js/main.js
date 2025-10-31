@@ -661,7 +661,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             updateStatusPanel(vehicleCard, vehicleToRender.status);
-            
+
+            applyStatOrder(vehicleCard, vehicleToRender.vin);
+            initSortableStats(vehicleCard, vehicleToRender.vin);
+
             const refreshBtn = vehicleCard.querySelector('.force-poll');
             if (refreshBtn) {
                 refreshBtn.addEventListener('click', (e) => handlePollRequest('/api/force_poll', e.target));
@@ -791,6 +794,42 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally {
             allPollButtons.forEach(btn => btn.disabled = false);
             clickedButton.textContent = originalText;
+        }
+    }
+
+    function initSortableStats(vehicleCard, vin) {
+        const statsContainer = vehicleCard.querySelector('.vehicle-stats');
+        if (!statsContainer) return;
+
+        new Sortable(statsContainer, {
+            animation: 150,
+            ghostClass: 'sortable-ghost',
+            onUpdate: () => {
+                const statOrder = Array.from(statsContainer.children).map(s => s.dataset.statKey);
+                localStorage.setItem(`statOrder-${vin}`, JSON.stringify(statOrder));
+            },
+        });
+    }
+
+    function applyStatOrder(vehicleCard, vin) {
+        const savedOrder = localStorage.getItem(`statOrder-${vin}`);
+        if (savedOrder) {
+            try {
+                const statOrder = JSON.parse(savedOrder);
+                const statsContainer = vehicleCard.querySelector('.vehicle-stats');
+                const stats = Array.from(statsContainer.children);
+                const statMap = new Map(stats.map(s => [s.dataset.statKey, s]));
+
+                statOrder.forEach(key => {
+                    const stat = statMap.get(key);
+                    if (stat) {
+                        statsContainer.appendChild(stat);
+                    }
+                });
+            } catch (e) {
+                console.error("Error applying saved stat order:", e);
+                localStorage.removeItem(`statOrder-${vin}`);
+            }
         }
     }
 
