@@ -763,6 +763,9 @@ document.addEventListener('DOMContentLoaded', () => {
             setUIState(); // Set initial state
             updateChart(); // Initial chart render
 
+            applyPanelOrder(vehicleCard, vehicleToRender.vin);
+            initSortablePanels(vehicleCard, vehicleToRender.vin);
+
             vehicleContainer.appendChild(vehicleFragment);
         }
         catch (error) {
@@ -791,6 +794,42 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally {
             allPollButtons.forEach(btn => btn.disabled = false);
             clickedButton.textContent = originalText;
+        }
+    }
+
+    function initSortablePanels(vehicleCard, vin) {
+        const panelsContainer = vehicleCard.querySelector('.panels-container');
+        if (!panelsContainer) return;
+
+        const sortable = new Sortable(panelsContainer, {
+            animation: 150,
+            ghostClass: 'sortable-ghost',
+            onUpdate: () => {
+                const panelOrder = Array.from(panelsContainer.children).map(p => p.dataset.panelKey);
+                localStorage.setItem(`panelOrder-${vin}`, JSON.stringify(panelOrder));
+            },
+        });
+    }
+
+    function applyPanelOrder(vehicleCard, vin) {
+        const savedOrder = localStorage.getItem(`panelOrder-${vin}`);
+        if (savedOrder) {
+            try {
+                const panelOrder = JSON.parse(savedOrder);
+                const panelsContainer = vehicleCard.querySelector('.panels-container');
+                const panels = Array.from(panelsContainer.children);
+                const panelMap = new Map(panels.map(p => [p.dataset.panelKey, p]));
+
+                panelOrder.forEach(key => {
+                    const panel = panelMap.get(key);
+                    if (panel) {
+                        panelsContainer.appendChild(panel);
+                    }
+                });
+            } catch (e) {
+                console.error("Error applying saved panel order:", e);
+                localStorage.removeItem(`panelOrder-${vin}`);
+            }
         }
     }
 
