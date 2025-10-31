@@ -21,6 +21,25 @@ document.addEventListener('DOMContentLoaded', () => {
         return factor / l100km;
     }
 
+    function calculateRollingAverage(data, windowSize) {
+        if (!data || data.length < windowSize) return new Array(data.length).fill(null);
+
+        const averages = new Array(data.length).fill(null);
+        for (let i = windowSize - 1; i < data.length; i++) {
+            let sum = 0;
+            let count = 0;
+            for (let j = 0; j < windowSize; j++) {
+                const value = data[i - j];
+                if (value !== null && value !== undefined) {
+                    sum += value;
+                    count++;
+                }
+            }
+            averages[i] = count > 0 ? sum / count : null;
+        }
+        return averages;
+    }
+
     async function loadConfig() {
         try {
             const response = await fetch('/api/config');
@@ -67,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return `${contextString} Avg. ${config.label}: <strong>${avg.toFixed(1)} ${unit}</strong> (Median: <strong>${median.toFixed(1)} ${unit}</strong>)`;
     };
 
-    async function renderHistoryChart(vin, canvas, metric1, metric2, period, isHistogram) {
+    async function renderHistoryChart(vin, canvas, metric1, metric2, period, isHistogram, isRollingAvgLeft, isRollingAvgRight) {
         try {
             if (vehicleCharts[vin]) {
                 vehicleCharts[vin].destroy();
@@ -105,7 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 duration_seconds: {
                     label: 'Trip Duration', unit: { metric: 'minutes', imperial: 'minutes' }, color: '#777'
                 },
-                none: { label: 'None', unit: '', color: '#fff' }
+                none: { label: 'None', unit: { metric: '', imperial: '' }, color: '#fff' }
             };
 
             // Fetch total trip count for the header
@@ -132,7 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 const dailyResponse = await fetch(`/api/vehicles/${vin}/daily_summary?period=${period}`);
                 const dailyData = await dailyResponse.json();
-                renderLineChart(canvas, dailyData, metric1, metric2, isImperial, isUk, metricConfig, vin);
+                renderLineChart(canvas, dailyData, metric1, metric2, isImperial, isUk, metricConfig, vin, isRollingAvgLeft, isRollingAvgRight);
 
                 const summary1 = calculateSummary(dailyData.map(d => d[metric1]), metric1, isImperial, isUk, metricConfig, 'day');
                 const summary2 = calculateSummary(dailyData.map(d => d[metric2]), metric2, isImperial, isUk, metricConfig, 'day');
@@ -146,29 +165,57 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function renderLineChart(canvas, dailyData, metric1, metric2, isImperial, isUk, metricConfig, vin) {
+    function renderLineChart(canvas, dailyData, metric1, metric2, isImperial, isUk, metricConfig, vin, isRollingAvgLeft, isRollingAvgRight) {
         const labels = dailyData.map(d => new Date(d.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
         const datasets = [];
         const yAxes = {};
-        const createDataset = (metric, yAxisID) => {
+
+        const createDataset = (metric, yAxisID, isRollingAvg) => {
             if (!metric || metric === 'none') return null;
             let data = dailyData.map(d => d[metric]);
             const config = metricConfig[metric];
+
             if (isImperial && config.convert) {
-                data = data.map(val => val === null ? null : config.convert(val));
+                data = data.map(val => (val === null || val === undefined) ? null : config.convert(val));
             }
             if (metric === 'ev_duration_seconds' || metric === 'duration_seconds') {
                 data = data.map(s => s ? (s / 60) : 0);
             }
-            return {
-                label: config.label, data: data, borderColor: config.color,
-                backgroundColor: `${config.color}33`, fill: true, tension: 0.1,
-                pointRadius: 2, yAxisID: yAxisID
-            };
+
+            if (isRollingAvg) {
+                const rollingAvgData = calculateRollingAverage(data, 7);
+                return {
+                    label: `${config.label} (7-day Avg)`,
+                    data: rollingAvgData,
+                    borderColor: config.color,
+                    backgroundColor: 'transparent',
+                    fill: false,
+                    tension: 0.4,
+                    pointRadius: 0,
+                    borderDash: [5, 5],
+                    yAxisID: yAxisID
+                };
+            } else {
+                return {
+                    label: config.label,
+                    data: data,
+                    borderColor: `${config.color}80`,
+                    backgroundColor: `${config.color}33`,
+                    fill: true,
+                    tension: 0.1,
+                    pointRadius: 2,
+                    yAxisID: yAxisID
+                };
+            }
         };
-        const dataset1 = createDataset(metric1, 'y');
+
+        const dataset1 = createDataset(metric1, 'y', false);
         if (dataset1) {
             datasets.push(dataset1);
+            if (isRollingAvgLeft) {
+                const rollingAvgDataset1 = createDataset(metric1, 'y', true);
+                if (rollingAvgDataset1) datasets.push(rollingAvgDataset1);
+            }
             const config1 = metricConfig[metric1];
             yAxes.y = {
                 type: 'linear', display: true, position: 'left',
@@ -176,9 +223,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 grid: { color: '#ddd' }
             };
         }
-        const dataset2 = createDataset(metric2, 'y1');
+
+        const dataset2 = createDataset(metric2, 'y1', false);
         if (dataset2) {
             datasets.push(dataset2);
+             if (isRollingAvgRight) {
+                const rollingAvgDataset2 = createDataset(metric2, 'y1', true);
+                if (rollingAvgDataset2) datasets.push(rollingAvgDataset2);
+            }
             const config2 = metricConfig[metric2];
             yAxes.y1 = {
                 type: 'linear', display: true, position: 'right',
@@ -186,23 +238,51 @@ document.addEventListener('DOMContentLoaded', () => {
                 grid: { drawOnChartArea: false }
             };
         }
+
         if (datasets.length === 0) {
             yAxes.y = { display: true, beginAtZero: true };
         }
+
         vehicleCharts[vin] = new Chart(canvas, {
-            type: 'line', data: { labels: labels, datasets: datasets },
+            type: 'line',
+            data: { labels: labels, datasets: datasets },
             options: {
                 responsive: true, maintainAspectRatio: false,
                 interaction: { mode: 'index', intersect: false, },
                 scales: { x: { title: { display: true, text: 'Date' } }, ...yAxes },
                 plugins: {
-                    legend: { display: datasets.length > 1 },
+                    legend: {
+                        display: true,
+                        labels: {
+                            // Custom filter to hide legend items for the raw data when its rolling average is shown
+                            filter: function(legendItem, chartData) {
+                                const label = legendItem.text;
+                                const isAvg = label.includes('(7-day Avg)');
+                                if (isAvg) return true; // Always show rolling average legends
+
+                                // Check if a corresponding rolling average dataset exists
+                                const hasRollingAvg = chartData.datasets.some(d => d.label === `${label} (7-day Avg)`);
+                                return !hasRollingAvg; // Hide the raw data legend if rolling average is active
+                            }
+                        }
+                    },
                     tooltip: {
                         callbacks: {
                             title: (tooltipItems) => new Date(dailyData[tooltipItems[0].dataIndex].date).toLocaleDateString(),
                             label: (context) => {
-                                const metric = context.dataset.yAxisID === 'y' ? metric1 : metric2;
+                                let metric = context.dataset.yAxisID === 'y' ? metric1 : metric2;
+                                // Handle cases where the label might be for the rolling average
+                                const isAvg = context.dataset.label.includes('(7-day Avg)');
+                                if (isAvg) {
+                                    const baseLabel = context.dataset.label.replace(' (7-day Avg)', '');
+                                    // Find the metric key from the base label
+                                    const metricKey = Object.keys(metricConfig).find(key => metricConfig[key].label === baseLabel);
+                                    if (metricKey) metric = metricKey;
+                                }
+
                                 const config = metricConfig[metric];
+                                if (!config) return context.dataset.label || '';
+
                                 let label = context.dataset.label || '';
                                 if (label) label += ': ';
                                 if (context.parsed.y !== null) {
@@ -725,6 +805,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const rightMetricSelect = vehicleCard.querySelector('.chart-metric-select[data-axis="right"]');
             const periodSelect = vehicleCard.querySelector('.chart-period-select');
             const histogramToggleBtn = vehicleCard.querySelector('.histogram-toggle-btn');
+            const rollingAvgToggleBtnLeft = vehicleCard.querySelector('.rolling-avg-toggle-btn[data-axis="left"]');
+            const rollingAvgToggleBtnRight = vehicleCard.querySelector('.rolling-avg-toggle-btn[data-axis="right"]');
             const chartCanvas = vehicleCard.querySelector('.history-chart');
             const settingsKey = `chartSettings-${vehicleToRender.vin}`;
 
@@ -733,13 +815,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 let metric2 = rightMetricSelect.value;
                 const period = periodSelect.value;
                 const isHistogram = histogramToggleBtn ? histogramToggleBtn.classList.contains('active') : false;
+                const isRollingAvgLeft = rollingAvgToggleBtnLeft ? rollingAvgToggleBtnLeft.classList.contains('active') : false;
+                const isRollingAvgRight = rollingAvgToggleBtnRight ? rollingAvgToggleBtnRight.classList.contains('active') : false;
                 
                 if (isHistogram) {
                     metric2 = 'none';
                 }
 
-                localStorage.setItem(settingsKey, JSON.stringify({ metric1, metric2, period, isHistogram }));
-                renderHistoryChart(vehicleToRender.vin, chartCanvas, metric1, metric2, period, isHistogram);
+                localStorage.setItem(settingsKey, JSON.stringify({ metric1, metric2, period, isHistogram, isRollingAvgLeft, isRollingAvgRight }));
+                renderHistoryChart(vehicleToRender.vin, chartCanvas, metric1, metric2, period, isHistogram, isRollingAvgLeft, isRollingAvgRight);
             };
             
             const savedSettings = localStorage.getItem(settingsKey);
@@ -751,6 +835,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     periodSelect.value = settings.period || '30';
                     if (histogramToggleBtn && (settings.isHistogram || settings.isDistribution)) {
                         histogramToggleBtn.classList.add('active');
+                    }
+                    if (rollingAvgToggleBtnLeft && settings.isRollingAvgLeft) {
+                        rollingAvgToggleBtnLeft.classList.add('active');
+                    }
+                    if (rollingAvgToggleBtnRight && settings.isRollingAvgRight) {
+                        rollingAvgToggleBtnRight.classList.add('active');
                     }
                 }
                 catch (e) {
@@ -769,6 +859,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateChart();
                 });
                 rightMetricSelect.disabled = histogramToggleBtn.classList.contains('active');
+            }
+
+            if (rollingAvgToggleBtnLeft) {
+                rollingAvgToggleBtnLeft.addEventListener('click', () => {
+                    rollingAvgToggleBtnLeft.classList.toggle('active');
+                    updateChart();
+                });
+            }
+            if (rollingAvgToggleBtnRight) {
+                rollingAvgToggleBtnRight.addEventListener('click', () => {
+                    rollingAvgToggleBtnRight.classList.toggle('active');
+                    updateChart();
+                });
             }
 
             leftMetricSelect.addEventListener('change', updateChart);
