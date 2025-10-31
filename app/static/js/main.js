@@ -429,171 +429,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-    
-    // NEW: Extracted original line chart logic into its own function for clarity
-    function renderLineChart(canvas, dailyData, metric1, metric2, isImperial, isUk, metricConfig, vin) {
-        const labels = dailyData.map(d => new Date(d.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
-        const datasets = [];
-        const yAxes = {};
-        const createDataset = (metric, yAxisID) => {
-            if (!metric || metric === 'none') return null;
-            let data = dailyData.map(d => d[metric]);
-            const config = metricConfig[metric];
-            if (isImperial && config.convert) {
-                data = data.map(val => val === null ? null : config.convert(val));
-            }
-            if (metric === 'ev_duration_seconds' || metric === 'duration_seconds') {
-                data = data.map(s => s ? (s / 60) : 0);
-            }
-            return {
-                label: config.label, data: data, borderColor: config.color,
-                backgroundColor: `${config.color}33`, fill: true, tension: 0.1,
-                pointRadius: 2, yAxisID: yAxisID
-            };
-        };
-        const dataset1 = createDataset(metric1, 'y');
-        if (dataset1) {
-            datasets.push(dataset1);
-            const config1 = metricConfig[metric1];
-            yAxes.y = {
-                type: 'linear', display: true, position: 'left',
-                title: { display: true, text: `${config1.label} (${config1.unit[isImperial ? 'imperial' : 'metric']})` },
-                grid: { color: '#ddd' }
-            };
-        }
-        const dataset2 = createDataset(metric2, 'y1');
-        if (dataset2) {
-            datasets.push(dataset2);
-            const config2 = metricConfig[metric2];
-            yAxes.y1 = {
-                type: 'linear', display: true, position: 'right',
-                title: { display: true, text: `${config2.label} (${config2.unit[isImperial ? 'imperial' : 'metric']})` },
-                grid: { drawOnChartArea: false }
-            };
-        }
-        if (datasets.length === 0) {
-            yAxes.y = { display: true, beginAtZero: true };
-        }
-        vehicleCharts[vin] = new Chart(canvas, {
-            type: 'line', data: { labels: labels, datasets: datasets },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                interaction: { mode: 'index', intersect: false, },
-                scales: { x: { title: { display: true, text: 'Date' } }, ...yAxes },
-                plugins: {
-                    legend: { display: datasets.length > 1 },
-                    tooltip: {
-                        callbacks: {
-                            title: (tooltipItems) => new Date(dailyData[tooltipItems[0].dataIndex].date).toLocaleDateString(),
-                            label: (context) => {
-                                const metric = context.dataset.yAxisID === 'y' ? metric1 : metric2;
-                                const config = metricConfig[metric];
-                                let label = context.dataset.label || '';
-                                if (label) label += ': ';
-                                if (context.parsed.y !== null) {
-                                    const unit = config.unit[isImperial ? 'imperial' : 'metric'];
-                                    label += `${context.parsed.y.toFixed(1)} ${unit}`;
-                                }
-                                return label;
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    // NEW: Function for rendering the distribution plot
-    function renderDistributionPlot(canvas, dailyData, metric1, metric2, isImperial, isUk, metricConfig, vin) {
-        const datasets = [];
-        const yAxes = {};
-        let allLabels = [];
-        const getMetricData = (metric) => {
-            let values = dailyData.map(d => d[metric]).filter(v => v !== null && v !== undefined && v > 0);
-            const config = metricConfig[metric];
-            if (isImperial && config.convert) {
-                values = values.map(config.convert);
-            }
-            return values;
-        };
-        const calculateStats = (data) => {
-            if (data.length === 0) return { mean: 0, stdDev: 0 };
-            const mean = data.reduce((a, b) => a + b) / data.length;
-            const stdDev = Math.sqrt(data.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / data.length);
-            return { mean, stdDev };
-        };
-        const generateNormalCurve = (data, bins, binSize, minValue) => {
-            if (data.length < 2) return [];
-            const { mean, stdDev } = calculateStats(data);
-            if (stdDev === 0) return [];
-            const curvePoints = [];
-            const normalPdf = (x) => (1 / (stdDev * Math.sqrt(2 * Math.PI))) * Math.exp(-0.5 * Math.pow((x - mean) / stdDev, 2));
-            for (let i = 0; i < bins.length; i++) {
-                const x = minValue + (i + 0.5) * binSize;
-                curvePoints.push(normalPdf(x));
-            }
-            return curvePoints;
-        };
-        const processMetric = (metric, yAxisID) => {
-            const config = metricConfig[metric];
-            const values = getMetricData(metric);
-            if (values.length < 4) return;
-            const numBins = Math.ceil(1 + Math.log2(values.length));
-            const minValue = Math.min(...values);
-            const maxValue = Math.max(...values);
-            const range = maxValue - minValue;
-            if (range === 0) return;
-            const binSize = range / numBins;
-            const bins = new Array(numBins).fill(0);
-            const labels = [];
-            for (let i = 0; i < numBins; i++) {
-                labels.push((minValue + i * binSize).toFixed(1));
-            }
-            if (labels.length > allLabels.length) allLabels = labels;
-            for (const value of values) {
-                let binIndex = Math.floor((value - minValue) / binSize);
-                if (value === maxValue) binIndex = numBins - 1;
-                if (binIndex >= 0 && binIndex < numBins) bins[binIndex]++;
-            }
-            const curveData = generateNormalCurve(values, bins, binSize, minValue);
-            if (yAxisID === 'y' && metric2 === 'none') {
-                datasets.push({
-                    type: 'bar', label: `Frequency`, data: bins.map(d => d / values.length),
-                    yAxisID: yAxisID, backgroundColor: `${config.color}66`, barPercentage: 1.0, categoryPercentage: 1.0
-                });
-            }
-            datasets.push({
-                type: 'line', label: config.label, data: curveData, yAxisID: yAxisID,
-                borderColor: config.color, backgroundColor: 'transparent',
-                pointRadius: 0, borderWidth: 2, tension: 0.4
-            });
-            yAxes[yAxisID] = {
-                type: 'linear', position: yAxisID === 'y' ? 'left' : 'right',
-                title: { display: true, text: `Probability Density` },
-                grid: { drawOnChartArea: yAxisID === 'y1' ? false : true, color: '#ddd' },
-            };
-        };
-        if (metric1 && metric1 !== 'none') processMetric(metric1, 'y');
-        if (metric2 && metric2 !== 'none') processMetric(metric2, 'y1');
-        if (datasets.length === 0) {
-            const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.font = "16px sans-serif";
-            ctx.fillStyle = "#888";
-            ctx.textAlign = "center";
-            ctx.fillText("Not enough data for distribution plot.", canvas.width / 2, canvas.height / 2);
-            return;
-        }
-        vehicleCharts[vin] = new Chart(canvas, {
-            type: 'bar', data: { labels: allLabels, datasets },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                interaction: { mode: 'index', intersect: false },
-                scales: { x: { title: { display: true, text: `Value` } }, ...yAxes },
-                plugins: { tooltip: { callbacks: { title: (context) => metricConfig[context[0].dataset.label] || context[0].dataset.label } } }
-            }
-        });
-    }
 
     function updateStatusPanel(panel, vehicleStatus) {
         if (!vehicleStatus) return;
@@ -878,32 +713,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (histogramToggleBtn) {
                 histogramToggleBtn.addEventListener('click', () => {
-                    const isHistogramActive = histogramToggleBtn.classList.toggle('active');
+                    const isNowActive = histogramToggleBtn.classList.toggle('active');
 
-                    // Disable right axis and rolling average buttons when histogram is active
-                    rightMetricSelect.disabled = isHistogramActive;
-                    if (rollingAvgToggleBtnLeft) rollingAvgToggleBtnLeft.disabled = isHistogramActive;
-                    if (rollingAvgToggleBtnRight) rollingAvgToggleBtnRight.disabled = isHistogramActive;
+                    rightMetricSelect.disabled = isNowActive;
+                    if (rollingAvgToggleBtnRight) rollingAvgToggleBtnRight.disabled = isNowActive;
 
-                    if (isHistogramActive) {
+                    if (isNowActive) {
                         rightMetricSelect.value = 'none';
-                        // Deactivate rolling average if it's on
+                        // Mutually exclusive: turn off rolling average for the left axis
                         if (rollingAvgToggleBtnLeft) rollingAvgToggleBtnLeft.classList.remove('active');
                         if (rollingAvgToggleBtnRight) rollingAvgToggleBtnRight.classList.remove('active');
                     }
                     updateChart();
                 });
-
-                // Initial state update based on saved settings
-                const isInitiallyHistogram = histogramToggleBtn.classList.contains('active');
-                rightMetricSelect.disabled = isInitiallyHistogram;
-                if (rollingAvgToggleBtnLeft) rollingAvgToggleBtnLeft.disabled = isInitiallyHistogram;
-                if (rollingAvgToggleBtnRight) rollingAvgToggleBtnRight.disabled = isInitiallyHistogram;
             }
 
             if (rollingAvgToggleBtnLeft) {
                 rollingAvgToggleBtnLeft.addEventListener('click', () => {
-                    rollingAvgToggleBtnLeft.classList.toggle('active');
+                    const isNowActive = rollingAvgToggleBtnLeft.classList.toggle('active');
+                    // Mutually exclusive: turn off histogram if rolling avg is activated
+                    if (isNowActive && histogramToggleBtn && histogramToggleBtn.classList.contains('active')) {
+                        histogramToggleBtn.classList.remove('active');
+                        rightMetricSelect.disabled = false;
+                        if (rollingAvgToggleBtnRight) rollingAvgToggleBtnRight.disabled = false;
+                    }
                     updateChart();
                 });
             }
@@ -912,6 +745,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     rollingAvgToggleBtnRight.classList.toggle('active');
                     updateChart();
                 });
+            }
+
+            // Set initial state from saved settings
+            const isInitiallyHistogram = histogramToggleBtn && histogramToggleBtn.classList.contains('active');
+            if (isInitiallyHistogram) {
+                rightMetricSelect.disabled = true;
+                if (rollingAvgToggleBtnRight) rollingAvgToggleBtnRight.disabled = true;
             }
 
             leftMetricSelect.addEventListener('change', updateChart);
