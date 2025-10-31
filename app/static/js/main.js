@@ -169,9 +169,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderHistogramPlot(canvas, tripData.values, metric1, isImperial, isUk, metricConfig, vin);
                 summaryContainer.innerHTML = calculateSummary(tripData.values, metric1, isImperial, isUk, metricConfig, 'trip');
             } else {
-                const dailyResponse = await fetch(`/api/vehicles/${vin}/daily_summary?period=${period}`);
+                // --- CHANGE 1: Adjust period for fetch if rolling average is on ---
+                let adjustedPeriod = period;
+                const rollingAvgWindow = 7; // Based on calculateWeightedRollingAverage
+                const isRollingAvg = isRollingAvgLeft || isRollingAvgRight;
+
+                // Check if period is a number (e.g., "30", "90") and not "all"
+                if (isRollingAvg && !isNaN(parseInt(period, 10))) {
+                    adjustedPeriod = parseInt(period, 10) + rollingAvgWindow;
+                }
+                // --- End of change ---
+
+                const dailyResponse = await fetch(`/api/vehicles/${vin}/daily_summary?period=${adjustedPeriod}`);
                 const dailyData = await dailyResponse.json();
-                renderLineChart(canvas, dailyData, metric1, metric2, isImperial, isUk, metricConfig, vin, isRollingAvgLeft, isRollingAvgRight);
+                
+                // Pass the *original* period to renderLineChart so it knows how to trim
+                renderLineChart(canvas, dailyData, metric1, metric2, isImperial, isUk, metricConfig, vin, isRollingAvgLeft, isRollingAvgRight, period);
 
                 const summary1 = calculateSummary(dailyData.map(d => d[metric1]), metric1, isImperial, isUk, metricConfig, 'day');
                 const summary2 = calculateSummary(dailyData.map(d => d[metric2]), metric2, isImperial, isUk, metricConfig, 'day');
@@ -185,7 +198,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function renderLineChart(canvas, dailyData, metric1, metric2, isImperial, isUk, metricConfig, vin, isRollingAvgLeft, isRollingAvgRight) {
+    // --- CHANGE 2: Add 'originalPeriod' parameter and logic to trim data ---
+    function renderLineChart(canvas, dailyData, metric1, metric2, isImperial, isUk, metricConfig, vin, isRollingAvgLeft, isRollingAvgRight, originalPeriod) {
         if (!dailyData || dailyData.length === 0) {
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -196,24 +210,51 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const labels = dailyData.map(d => new Date(d.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
+        const isRollingAvg = isRollingAvgLeft || isRollingAvgRight;
+        
+        // --- Slicing Logic ---
+        // If we fetched extra data for rolling avg, slice it now for the chart
+        let chartData = [...dailyData];
+        if (isRollingAvg && !isNaN(parseInt(originalPeriod, 10)) && dailyData.length > parseInt(originalPeriod, 10)) {
+            const startIndex = dailyData.length - parseInt(originalPeriod, 10);
+            chartData = dailyData.slice(startIndex);
+        }
+        // --- End Slicing Logic ---
+
+        // Use the sliced 'chartData' for labels
+        const labels = chartData.map(d => new Date(d.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
         const datasets = [];
         const yAxes = {};
 
-        const createDataset = (metric, yAxisID, isRollingAvg) => {
+        // If metrics are the same, force both datasets to use the 'y' (left) axis.
+        const syncAxes = (metric1 === metric2 && metric1 !== 'none');
+        const yAxisID2 = syncAxes ? 'y' : 'y1';
+
+        const createDataset = (metric, yAxisID, isRollingAvgY) => { // Renamed isRollingAvg to isRollingAvgY to avoid scope conflict
             if (!metric || metric === 'none') return null;
 
             const config = metricConfig[metric];
             let data;
 
-            if (isRollingAvg) {
+            if (isRollingAvgY) {
                 if (metric === 'fuel_consumption_l_100km') {
+                    // Calculate based on the *full* dataset
                     data = calculateWeightedRollingAverage(dailyData);
                 } else {
+                    // Calculate based on the *full* dataset
                     data = calculateSimpleRollingAverage(dailyData.map(d => d[metric]));
                 }
+
+                // --- Slice the calculated rolling data ---
+                if (isRollingAvg && !isNaN(parseInt(originalPeriod, 10)) && dailyData.length > parseInt(originalPeriod, 10)) {
+                    const startIndex = dailyData.length - parseInt(originalPeriod, 10);
+                    data = data.slice(startIndex);
+                }
+                // --- End slice ---
+
             } else {
-                data = dailyData.map(d => d[metric]);
+                // Non-rolling data comes from the *sliced* chartData
+                data = chartData.map(d => d[metric]);
             }
 
             if (isImperial && config.convert) {
@@ -224,22 +265,23 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             return {
-                label: isRollingAvg ? `${config.label} (7-day Avg)` : config.label,
+                label: isRollingAvgY ? `${config.label} (7-day Avg)` : config.label,
                 data: data,
                 borderColor: config.color,
-                backgroundColor: isRollingAvg ? 'transparent' : `${config.color}33`,
+                backgroundColor: isRollingAvgY ? 'transparent' : `${config.color}33`,
                 yAxisID: yAxisID,
                 tension: 0.1,
-                fill: !isRollingAvg,
-                borderDash: isRollingAvg ? [5, 5] : [],
-                pointRadius: isRollingAvg ? 0 : 2
+                fill: !isRollingAvgY,
+                borderDash: isRollingAvgY ? [5, 5] : [],
+                pointRadius: isRollingAvgY ? 0 : 2
             };
         };
 
         const dataset1 = createDataset(metric1, 'y', isRollingAvgLeft);
         if (dataset1) datasets.push(dataset1);
 
-        const dataset2 = createDataset(metric2, 'y1', isRollingAvgRight);
+        // Use the dynamic yAxisID2 here
+        const dataset2 = createDataset(metric2, yAxisID2, isRollingAvgRight);
         if (dataset2) datasets.push(dataset2);
 
         const config1 = metricConfig[metric1];
@@ -252,7 +294,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const config2 = metricConfig[metric2];
-        if (metric2 !== 'none') {
+        // Only create the right axis if we are NOT syncing
+        if (metric2 !== 'none' && !syncAxes) {
             yAxes.y1 = {
                 type: 'linear', display: true, position: 'right',
                 title: { display: true, text: `${config2.label} (${config2.unit[isImperial ? 'imperial' : 'metric']})` },
@@ -274,7 +317,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 plugins: {
                     tooltip: {
                         callbacks: {
-                            title: (tooltipItems) => new Date(dailyData[tooltipItems[0].dataIndex].date).toLocaleDateString(),
+                            // Use sliced 'chartData' for the tooltip title
+                            title: (tooltipItems) => new Date(chartData[tooltipItems[0].dataIndex].date).toLocaleDateString(),
                             label: (context) => {
                                 let metric = context.dataset.yAxisID === 'y' ? metric1 : metric2;
                                 let config = metricConfig[metric];
@@ -669,9 +713,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Mutual exclusion: Histogram vs Rolling Average
                 if (isHistogram && isRollingAvg) {
-                    // Decide which one takes precedence, e.g., disable rolling avg if histogram is on
+                    // This is handled by the click handlers
                     rollingAvgBtnLeft.classList.remove('active');
                     rollingAvgBtnRight.classList.remove('active');
+
                 }
 
                 // Update right axis controls based on histogram state
@@ -681,9 +726,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     rightMetricSelect.value = 'none';
                     rollingAvgBtnRight.classList.remove('active');
                 }
-
-                // Rolling average buttons should be disabled if histogram is active
-                rollingAvgBtnLeft.disabled = isHistogram;
             };
 
             histogramToggleBtn.addEventListener('click', () => {
