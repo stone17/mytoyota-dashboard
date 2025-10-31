@@ -166,11 +166,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderLineChart(canvas, dailyData, metric1, metric2, isImperial, isUk, metricConfig, vin, isRollingAvgLeft, isRollingAvgRight) {
+        if (!dailyData || dailyData.length === 0) {
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.font = "16px sans-serif";
+            ctx.fillStyle = "#888";
+            ctx.textAlign = "center";
+            ctx.fillText("No historical data available for the selected period.", canvas.width / 2, canvas.height / 2);
+            return;
+        }
+
         const labels = dailyData.map(d => new Date(d.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
         const datasets = [];
         const yAxes = {};
 
-        const createDataset = (metric, yAxisID, isRollingAvg) => {
+        const createBaseData = (metric) => {
             if (!metric || metric === 'none') return null;
             let data = dailyData.map(d => d[metric]);
             const config = metricConfig[metric];
@@ -181,41 +191,37 @@ document.addEventListener('DOMContentLoaded', () => {
             if (metric === 'ev_duration_seconds' || metric === 'duration_seconds') {
                 data = data.map(s => s ? (s / 60) : 0);
             }
+            return { data, config };
+        };
 
-            if (isRollingAvg) {
-                const rollingAvgData = calculateRollingAverage(data, 7);
-                return {
-                    label: `${config.label} (7-day Avg)`,
+        const baseData1 = createBaseData(metric1);
+        if (baseData1) {
+            datasets.push({
+                label: baseData1.config.label,
+                data: baseData1.data,
+                borderColor: `${baseData1.config.color}80`,
+                backgroundColor: `${baseData1.config.color}33`,
+                fill: !isRollingAvgLeft,
+                tension: 0.1,
+                pointRadius: 2,
+                yAxisID: 'y'
+            });
+
+            if (isRollingAvgLeft) {
+                const rollingAvgData = calculateRollingAverage(baseData1.data, 7);
+                datasets.push({
+                    label: `${baseData1.config.label} (7-day Avg)`,
                     data: rollingAvgData,
-                    borderColor: config.color,
+                    borderColor: baseData1.config.color,
                     backgroundColor: 'transparent',
                     fill: false,
                     tension: 0.4,
                     pointRadius: 0,
                     borderDash: [5, 5],
-                    yAxisID: yAxisID
-                };
-            } else {
-                return {
-                    label: config.label,
-                    data: data,
-                    borderColor: `${config.color}80`,
-                    backgroundColor: `${config.color}33`,
-                    fill: true,
-                    tension: 0.1,
-                    pointRadius: 2,
-                    yAxisID: yAxisID
-                };
+                    yAxisID: 'y'
+                });
             }
-        };
 
-        const dataset1 = createDataset(metric1, 'y', false);
-        if (dataset1) {
-            datasets.push(dataset1);
-            if (isRollingAvgLeft) {
-                const rollingAvgDataset1 = createDataset(metric1, 'y', true);
-                if (rollingAvgDataset1) datasets.push(rollingAvgDataset1);
-            }
             const config1 = metricConfig[metric1];
             yAxes.y = {
                 type: 'linear', display: true, position: 'left',
@@ -224,13 +230,34 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         }
 
-        const dataset2 = createDataset(metric2, 'y1', false);
-        if (dataset2) {
-            datasets.push(dataset2);
-             if (isRollingAvgRight) {
-                const rollingAvgDataset2 = createDataset(metric2, 'y1', true);
-                if (rollingAvgDataset2) datasets.push(rollingAvgDataset2);
+        const baseData2 = createBaseData(metric2);
+        if (baseData2) {
+            datasets.push({
+                label: baseData2.config.label,
+                data: baseData2.data,
+                borderColor: `${baseData2.config.color}80`,
+                backgroundColor: `${baseData2.config.color}33`,
+                fill: !isRollingAvgRight,
+                tension: 0.1,
+                pointRadius: 2,
+                yAxisID: 'y1'
+            });
+
+            if (isRollingAvgRight) {
+                const rollingAvgData = calculateRollingAverage(baseData2.data, 7);
+                datasets.push({
+                    label: `${baseData2.config.label} (7-day Avg)`,
+                    data: rollingAvgData,
+                    borderColor: baseData2.config.color,
+                    backgroundColor: 'transparent',
+                    fill: false,
+                    tension: 0.4,
+                    pointRadius: 0,
+                    borderDash: [5, 5],
+                    yAxisID: 'y1'
+                });
             }
+
             const config2 = metricConfig[metric2];
             yAxes.y1 = {
                 type: 'linear', display: true, position: 'right',
@@ -851,14 +878,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (histogramToggleBtn) {
                 histogramToggleBtn.addEventListener('click', () => {
-                    histogramToggleBtn.classList.toggle('active');
-                    rightMetricSelect.disabled = histogramToggleBtn.classList.contains('active');
-                    if (histogramToggleBtn.classList.contains('active')) {
+                    const isHistogramActive = histogramToggleBtn.classList.toggle('active');
+
+                    // Disable right axis and rolling average buttons when histogram is active
+                    rightMetricSelect.disabled = isHistogramActive;
+                    if (rollingAvgToggleBtnLeft) rollingAvgToggleBtnLeft.disabled = isHistogramActive;
+                    if (rollingAvgToggleBtnRight) rollingAvgToggleBtnRight.disabled = isHistogramActive;
+
+                    if (isHistogramActive) {
                         rightMetricSelect.value = 'none';
+                        // Deactivate rolling average if it's on
+                        if (rollingAvgToggleBtnLeft) rollingAvgToggleBtnLeft.classList.remove('active');
+                        if (rollingAvgToggleBtnRight) rollingAvgToggleBtnRight.classList.remove('active');
                     }
                     updateChart();
                 });
-                rightMetricSelect.disabled = histogramToggleBtn.classList.contains('active');
+
+                // Initial state update based on saved settings
+                const isInitiallyHistogram = histogramToggleBtn.classList.contains('active');
+                rightMetricSelect.disabled = isInitiallyHistogram;
+                if (rollingAvgToggleBtnLeft) rollingAvgToggleBtnLeft.disabled = isInitiallyHistogram;
+                if (rollingAvgToggleBtnRight) rollingAvgToggleBtnRight.disabled = isInitiallyHistogram;
             }
 
             if (rollingAvgToggleBtnLeft) {
