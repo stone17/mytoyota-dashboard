@@ -303,22 +303,30 @@ async def get_vehicle_data():
         return vehicles_data
 
 async def log_stream_generator(request: Request):
-    """Yields historical and then live log messages as Server-Sent Events."""
-    # Send the recent history to the new client
-    for log_entry in list(log_history):
-        if await request.is_disconnected():
-            break
-        yield f"data: {json.dumps(log_entry)}\n\n"
+    """
+    Yields historical logs as a single batch, then streams live log messages
+    as Server-Sent Events.
+    """
+    # Send the entire recent history to the new client in one go.
+    # The client will handle this initial batch differently.
+    initial_history = list(log_history)
+    if initial_history:
+        yield f"event: history\ndata: {json.dumps(initial_history)}\n\n"
     
-    # Now, stream new logs as they arrive in the queue
+    # Now, stream new logs as they arrive in the queue.
     while True:
         if await request.is_disconnected():
+            _LOGGER.debug("Log stream client disconnected.")
             break
         try:
+            # Wait for a new log entry to become available in the queue.
             log_entry = await asyncio.wait_for(log_queue.get(), timeout=30)
-            yield f"data: {json.dumps(log_entry)}\n\n"
+            # Send the new log entry with a 'message' event type.
+            yield f"event: message\ndata: {json.dumps(log_entry)}\n\n"
             log_queue.task_done()
         except asyncio.TimeoutError:
+            # If no log arrives in 30 seconds, send a keep-alive comment.
+            # This prevents the connection from being closed by proxies or the browser.
             yield ": keep-alive\n\n"
 
 @app.get("/api/logs")
