@@ -422,13 +422,19 @@
                                         <path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/>
                                     </svg>
                                 </button>
+                                <button class="chart-icon-btn rolling-avg-btn" data-axis="left" title="Toggle 7-day Rolling Average">
+                                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px">
+                                        <path d="M0 0h24v24H0V0z" fill="none"/><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6h-6z"/>
+                                    </svg>
+                                </button>
                             </div>
                         </div>
 
                         <div class="input-container right-axis">
-                            <select id="chart-metric-right-axis" class="chart-metric-select" data-axis="right">
-                                <option value="none" selected>None</option>
-                                <option value="distance_km">Distance</option>
+                            <div class="input-with-icon">
+                                <select id="chart-metric-right-axis" class="chart-metric-select" data-axis="right">
+                                    <option value="none" selected>None</option>
+                                    <option value="distance_km">Distance</option>
                                 <option value="fuel_consumption_l_100km">Consumption</option>
                                 <option value="ev_distance_km">EV Distance</option>
                                 <option value="ev_duration_seconds">EV Duration</option>
@@ -437,6 +443,12 @@
                                 <option value="max_speed_kmh">Max Speed</option>
                                 <option value="duration_seconds">Trip Duration</option>
                             </select>
+                            <button class="chart-icon-btn rolling-avg-btn" data-axis="right" title="Toggle 7-day Rolling Average">
+                                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px">
+                                    <path d="M0 0h24v24H0V0z" fill="none"/><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6h-6z"/>
+                                </svg>
+                            </button>
+                        </div>
                         </div>
                         
                         <div class="input-container period">

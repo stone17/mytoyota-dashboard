@@ -422,6 +422,7 @@ def get_daily_summary(vin: str, period: str = "30"):
             {
                 "date": day,
                 "distance_km": round(data["distance"], 2),
+                "fuel_total_l": round(data["fuel"], 2),
                 "fuel_consumption_l_100km": round((data["fuel"] / data["distance"]) * 100, 2) if data["fuel"] > 0 and data["distance"] > 0 else 0.0,
                 "ev_distance_km": round(data.get("ev_distance", 0), 2),
                 "ev_duration_seconds": data.get("ev_duration", 0),
