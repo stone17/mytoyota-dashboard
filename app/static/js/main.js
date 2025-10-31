@@ -661,7 +661,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             updateStatusPanel(vehicleCard, vehicleToRender.status);
-            
+
+            applyStatOrder(vehicleCard, vehicleToRender.vin);
+            initSortableStats(vehicleCard, vehicleToRender.vin);
+
             const refreshBtn = vehicleCard.querySelector('.force-poll');
             if (refreshBtn) {
                 refreshBtn.addEventListener('click', (e) => handlePollRequest('/api/force_poll', e.target));
@@ -763,9 +766,6 @@ document.addEventListener('DOMContentLoaded', () => {
             setUIState(); // Set initial state
             updateChart(); // Initial chart render
 
-            applyPanelOrder(vehicleCard, vehicleToRender.vin);
-            initSortablePanels(vehicleCard, vehicleToRender.vin);
-
             vehicleContainer.appendChild(vehicleFragment);
         }
         catch (error) {
@@ -797,38 +797,38 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function initSortablePanels(vehicleCard, vin) {
-        const panelsContainer = vehicleCard.querySelector('.panels-container');
-        if (!panelsContainer) return;
+    function initSortableStats(vehicleCard, vin) {
+        const statsContainer = vehicleCard.querySelector('.vehicle-stats');
+        if (!statsContainer) return;
 
-        const sortable = new Sortable(panelsContainer, {
+        new Sortable(statsContainer, {
             animation: 150,
             ghostClass: 'sortable-ghost',
             onUpdate: () => {
-                const panelOrder = Array.from(panelsContainer.children).map(p => p.dataset.panelKey);
-                localStorage.setItem(`panelOrder-${vin}`, JSON.stringify(panelOrder));
+                const statOrder = Array.from(statsContainer.children).map(s => s.dataset.statKey);
+                localStorage.setItem(`statOrder-${vin}`, JSON.stringify(statOrder));
             },
         });
     }
 
-    function applyPanelOrder(vehicleCard, vin) {
-        const savedOrder = localStorage.getItem(`panelOrder-${vin}`);
+    function applyStatOrder(vehicleCard, vin) {
+        const savedOrder = localStorage.getItem(`statOrder-${vin}`);
         if (savedOrder) {
             try {
-                const panelOrder = JSON.parse(savedOrder);
-                const panelsContainer = vehicleCard.querySelector('.panels-container');
-                const panels = Array.from(panelsContainer.children);
-                const panelMap = new Map(panels.map(p => [p.dataset.panelKey, p]));
+                const statOrder = JSON.parse(savedOrder);
+                const statsContainer = vehicleCard.querySelector('.vehicle-stats');
+                const stats = Array.from(statsContainer.children);
+                const statMap = new Map(stats.map(s => [s.dataset.statKey, s]));
 
-                panelOrder.forEach(key => {
-                    const panel = panelMap.get(key);
-                    if (panel) {
-                        panelsContainer.appendChild(panel);
+                statOrder.forEach(key => {
+                    const stat = statMap.get(key);
+                    if (stat) {
+                        statsContainer.appendChild(stat);
                     }
                 });
             } catch (e) {
-                console.error("Error applying saved panel order:", e);
-                localStorage.removeItem(`panelOrder-${vin}`);
+                console.error("Error applying saved stat order:", e);
+                localStorage.removeItem(`statOrder-${vin}`);
             }
         }
     }
