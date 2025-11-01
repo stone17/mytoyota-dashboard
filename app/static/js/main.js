@@ -530,15 +530,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const vehicles = await response.json();
             vehicleContainer.innerHTML = '';
-            let vehicleToRender;
+
             if (vehicles.length === 0) {
-                vehicleToRender = {
-                    vin: "N/A", alias: "<a href=\"/settings\">Please enter credentials</a>", model_name: "",
-                    dashboard: {}, statistics: { overall: {}, daily: {} }, status: {}, last_updated: "Never"
-                };
-            } else {
-                vehicleToRender = vehicles[0];
+                const wrapper = document.createElement('div');
+                wrapper.className = 'vehicle-wrapper';
+                wrapper.innerHTML = `<h2>No Vehicle Data</h2><p>Please go to the <a href="/settings">Settings</a> page to enter your credentials.</p>`;
+                vehicleContainer.appendChild(wrapper);
+                return; // Stop execution if no vehicles are loaded
             }
+
+            const vehicleToRender = vehicles[0];
             const vehicleFragment = vehicleTemplate.content.cloneNode(true);
             const vehicleCard = vehicleFragment.querySelector('.vehicle-wrapper');
             const get = (obj, path, def = 'N/A') => path.split('.').reduce((o, k) => (o && o[k] != null) ? o[k] : def, obj);
