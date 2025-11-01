@@ -665,14 +665,15 @@ document.addEventListener('DOMContentLoaded', () => {
             applyStatOrder(vehicleCard, vehicleToRender.vin);
 
             const editBtn = vehicleCard.querySelector('.edit-stats-btn');
-            const saveBtn = vehicleCard.querySelector('.save-stats-btn');
             const modalOverlay = vehicleCard.querySelector('.modal-overlay');
             const closeModalBtns = vehicleCard.querySelectorAll('.close-modal-btn');
 
-            editBtn.addEventListener('click', () => {
-                modalOverlay.style.display = 'flex';
-                populateStatsEditor(vehicleCard, vehicleToRender.vin);
-            });
+            if (editBtn) {
+                editBtn.addEventListener('click', () => {
+                    modalOverlay.style.display = 'flex';
+                    populateStatsEditor(vehicleCard, vehicleToRender.vin);
+                });
+            }
 
             const closeModal = async () => {
                 const editorList = vehicleCard.querySelector('.stats-editor-list');
