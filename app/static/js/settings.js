@@ -8,19 +8,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const pollingSettingsForm = document.getElementById('polling-settings-form');
     const apiRetriesForm = document.getElementById('api-retries-form');
     const displaySettingsForm = document.getElementById('display-settings-form');
-    const dashboardDisplayForm = document.getElementById('dashboard-display-form');
     const geocodingSettingsForm = document.getElementById('geocoding-settings-form');
     const mqttSettingsForm = document.getElementById('mqtt-settings-form');
 
     const pollingStatusMessage = document.getElementById('polling-status-message');
     const apiRetriesStatusMessage = document.getElementById('api-retries-status-message');
     const displayStatusMessage = document.getElementById('display-status-message');
-    const dashboardDisplayStatusMessage = document.getElementById('dashboard-display-status-message');
     const geocodingStatusMessage = document.getElementById('geocoding-status-message');
     const mqttStatusMessage = document.getElementById('mqtt-status-message');
     const mqttTestBtn = document.getElementById('mqtt-test-btn');
     const mqttSensorSelection = document.getElementById('mqtt-sensor-selection');
-    const dashboardSensorSelection = document.getElementById('dashboard-sensor-selection');
 
     const intervalSettingsDiv = document.getElementById('interval-settings');
     const fixedTimeSettingsDiv = document.getElementById('fixed-time-settings');
@@ -41,23 +38,6 @@ document.addEventListener('DOMContentLoaded', () => {
         'location': 'Location (Address)',
         'highway_distance': 'Total Highway Distance',
         'total_ev_distance': 'Total EV Distance'
-    };
-    
-    const ALL_DASHBOARD_STATS = {
-        'odometer': 'Odometer',
-        'range': 'Range Left',
-        'total_ev_distance': 'Total EV Distance',
-        'fuel_level': 'Fuel Level',
-        'daily_distance': "Today's Distance",
-        'consumption': 'Overall Consumption',
-        'total_fuel': 'Total Fuel Used',
-        'duration': 'Total Time Driven',
-        'ev_level': 'EV Battery Level',
-        'ev_range': 'EV Range',
-        'charging_status': 'Charging Status',
-        'max_speed': 'Max Speed Ever',
-        'countries': 'Countries Visited',
-        'highway_distance': 'Highway Distance'
     };
 
     // --- Populate Sensor Checkboxes ---
@@ -153,11 +133,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('api-retries').value = config.api_retries || 3;
             document.getElementById('api-retry-delay').value = config.api_retry_delay_seconds || 20;
             document.querySelector(`input[name="unit_system"][value="${config.unit_system || 'metric'}"]`).checked = true;
-
-            const enabledDashboardSensors = config.dashboard_sensors || {};
-            document.querySelectorAll('#dashboard-sensor-selection input[type="checkbox"]').forEach(cb => {
-                cb.checked = enabledDashboardSensors[cb.dataset.sensorKey] !== false; // Default to true if not present
-            });
 
             document.getElementById('reverse-geocode-enabled').checked = config.reverse_geocode_enabled !== false;
             document.getElementById('fetch-full-route').checked = config.fetch_full_trip_route || false;
@@ -268,16 +243,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         saveConfig(newSettings, displayStatusMessage);
     });
-    
-    dashboardDisplayForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const enabledSensors = {};
-        document.querySelectorAll('#dashboard-sensor-selection input[type="checkbox"]').forEach(cb => {
-            enabledSensors[cb.dataset.sensorKey] = cb.checked;
-        });
-        const newSettings = { dashboard_sensors: enabledSensors };
-        saveConfig(newSettings, dashboardDisplayStatusMessage);
-    });
 
     geocodingSettingsForm.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -338,7 +303,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Initial Load ---
     populateCheckboxes(mqttSensorSelection, ALL_SENSORS, 'mqtt-sensor');
-    populateCheckboxes(dashboardSensorSelection, ALL_DASHBOARD_STATS, 'dashboard-sensor');
     loadUsername();
     loadSettings();
 });

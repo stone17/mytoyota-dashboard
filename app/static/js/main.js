@@ -663,7 +663,71 @@ document.addEventListener('DOMContentLoaded', () => {
             updateStatusPanel(vehicleCard, vehicleToRender.status);
 
             applyStatOrder(vehicleCard, vehicleToRender.vin);
-            initSortableStats(vehicleCard, vehicleToRender.vin);
+
+            const editBtn = vehicleCard.querySelector('.edit-stats-btn');
+            const saveBtn = vehicleCard.querySelector('.save-stats-btn');
+            const modalOverlay = vehicleCard.querySelector('.modal-overlay');
+            const closeModalBtns = vehicleCard.querySelectorAll('.close-modal-btn');
+
+            editBtn.addEventListener('click', () => {
+                modalOverlay.style.display = 'flex';
+                populateStatsEditor(vehicleCard, vehicleToRender.vin);
+            });
+
+            const closeModal = async () => {
+                const editorList = vehicleCard.querySelector('.stats-editor-list');
+                const newOrder = Array.from(editorList.querySelectorAll('li')).map(li => li.dataset.statKey);
+                localStorage.setItem(`statOrder-${vin}`, JSON.stringify(newOrder));
+
+                const newEnabledSensors = { ...appConfig.dashboard_sensors };
+                editorList.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+                    const key = checkbox.id.replace('stat-toggle-', '').replace(`-${vin}`, '');
+                    newEnabledSensors[key] = checkbox.checked;
+                });
+
+                const configToSave = { ...appConfig, dashboard_sensors: newEnabledSensors };
+
+                try {
+                    const response = await fetch('/api/config', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(configToSave)
+                    });
+
+                    if (!response.ok) throw new Error('Failed to save settings');
+
+                    appConfig.dashboard_sensors = newEnabledSensors;
+
+                    applyStatOrder(vehicleCard, vin);
+                    vehicleCard.querySelectorAll('.stat[data-stat-key]').forEach(el => {
+                        const key = el.dataset.statKey;
+                        el.style.display = newEnabledSensors[key] === false ? 'none' : '';
+                    });
+
+                    const visibleStats = Array.from(vehicleCard.querySelectorAll('.stat')).filter(
+                        el => el.style.display !== 'none'
+                    );
+                    visibleStats.forEach(stat => stat.style.gridColumn = '');
+                    if (visibleStats.length % 2 !== 0) {
+                        const lastVisibleStat = visibleStats[visibleStats.length - 1];
+                        if (lastVisibleStat) {
+                            lastVisibleStat.style.gridColumn = 'span 2';
+                        }
+                    }
+                } catch (error) {
+                    console.error("Failed to save dashboard sensor settings:", error);
+                    alert("Error: Could not save settings to the server.");
+                }
+
+                modalOverlay.style.display = 'none';
+            };
+
+            closeModalBtns.forEach(btn => btn.addEventListener('click', closeModal));
+            modalOverlay.addEventListener('click', (e) => {
+                if (e.target === modalOverlay) {
+                    closeModal();
+                }
+            });
 
             const refreshBtn = vehicleCard.querySelector('.force-poll');
             if (refreshBtn) {
@@ -797,18 +861,51 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function initSortableStats(vehicleCard, vin) {
-        const statsContainer = vehicleCard.querySelector('.vehicle-stats');
-        if (!statsContainer) return;
+    function initSortableStats(container) {
+        if (!container) return;
 
-        new Sortable(statsContainer, {
+        new Sortable(container, {
             animation: 150,
             ghostClass: 'sortable-ghost',
-            onUpdate: () => {
-                const statOrder = Array.from(statsContainer.children).map(s => s.dataset.statKey);
-                localStorage.setItem(`statOrder-${vin}`, JSON.stringify(statOrder));
-            },
+            handle: '.drag-handle',
         });
+    }
+
+    function populateStatsEditor(vehicleCard, vin) {
+        const editorList = vehicleCard.querySelector('.stats-editor-list');
+        const allStats = Array.from(vehicleCard.querySelectorAll('.stat'));
+        const enabledSensors = appConfig.dashboard_sensors || {};
+        const savedOrder = JSON.parse(localStorage.getItem(`statOrder-${vin}`)) || [];
+
+        const statsMap = new Map(allStats.map(stat => [stat.dataset.statKey, stat]));
+
+        const orderedStatKeys = [...savedOrder];
+        allStats.forEach(stat => {
+            if (!orderedStatKeys.includes(stat.dataset.statKey)) {
+                orderedStatKeys.push(stat.dataset.statKey);
+            }
+        });
+
+        editorList.innerHTML = '';
+
+        orderedStatKeys.forEach(key => {
+            const stat = statsMap.get(key);
+            if (!stat) return;
+
+            const title = stat.querySelector('h3').textContent;
+            const isEnabled = enabledSensors[key] !== false;
+
+            const li = document.createElement('li');
+            li.dataset.statKey = key;
+            li.innerHTML = `
+                <span class="drag-handle">&#9776;</span>
+                <input type="checkbox" id="stat-toggle-${key}-${vin}" ${isEnabled ? 'checked' : ''}>
+                <label for="stat-toggle-${key}-${vin}">${title}</label>
+            `;
+            editorList.appendChild(li);
+        });
+
+        initSortableStats(editorList);
     }
 
     function applyStatOrder(vehicleCard, vin) {
