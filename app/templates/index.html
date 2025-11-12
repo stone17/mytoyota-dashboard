@@ -75,6 +75,46 @@
             padding: 0;
             border: none;
         }
+        .edit-stats-btn {
+            font-size: 0.8em;
+            cursor: pointer;
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 8px;
+        }
+        .edit-stats-btn:hover {
+            background-color: #5a6268;
+        }
+
+        /* --- Edit Mode Styles for Stats --- */
+        .vehicle-stats.edit-mode .stat {
+            cursor: move;
+            position: relative;
+            padding-left: 35px; /* Make space for checkbox */
+            opacity: 1;
+            background-color: #fdfdfd;
+            border: 1px dashed #ccc;
+        }
+        .vehicle-stats.edit-mode .stat.disabled {
+            opacity: 0.5;
+            background-color: #f0f0f0;
+        }
+        .vehicle-stats.edit-mode .stat input[type="checkbox"] {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+        .sortable-ghost {
+            background: #e9f5ff;
+            opacity: 0.7;
+        }
+
         .small-btn {
             padding: 4px 8px;
             font-size: 0.8em;
@@ -274,83 +314,6 @@
             font-weight: bold;
             margin: 0;
         }
-
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.6);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 2000;
-        }
-        .modal {
-            background: white;
-            padding: 25px;
-            border-radius: 8px;
-            width: 90%;
-            max-width: 500px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-            display: flex;
-            flex-direction: column;
-            max-height: 80vh;
-        }
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid #ddd;
-            padding-bottom: 15px;
-            margin-bottom: 15px;
-        }
-        .modal-header h2 {
-            margin: 0;
-            font-size: 1.4em;
-        }
-        .close-modal-btn {
-            background: none;
-            border: none;
-            font-size: 1.8em;
-            cursor: pointer;
-            padding: 0 10px;
-        }
-        .modal-body {
-            overflow-y: auto;
-            flex-grow: 1;
-        }
-        .stats-editor-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-        .stats-editor-list li {
-            display: flex;
-            align-items: center;
-            padding: 12px 8px;
-            border-bottom: 1px solid #f0f0f0;
-            cursor: grab;
-        }
-        .stats-editor-list li:last-child {
-            border-bottom: none;
-        }
-        .stats-editor-list li label {
-            flex-grow: 1;
-            margin-left: 10px;
-        }
-        .stats-editor-list li .drag-handle {
-            font-size: 1.5em;
-            color: #aaa;
-            margin-right: 10px;
-        }
-        .modal-footer {
-            padding-top: 20px;
-            margin-top: 20px;
-            border-top: 1px solid #ddd;
-            text-align: right;
-        }
     </style>
 </head>
 <body>
@@ -400,75 +363,10 @@
                 <div class="panel stats-panel">
                     <div class="panel-header">
                         <h3>Current Statistics</h3>
-                        <div class="panel-controls">
-                            <button class="small-btn edit-stats-btn">Edit</button>
-                        </div>
+                        <button class="edit-stats-btn">Edit</button>
                     </div>
                     <div class="vehicle-stats">
-                        <div class="stat stat-odometer" data-stat-key="odometer">
-                            <h3>Odometer</h3>
-                            <p><span class="odometer">N/A</span></p>
-                        </div>
-                        <div class="stat stat-range" data-stat-key="range">
-                            <h3>Range Left</h3>
-                            <p><span class="total_range">N/A</span></p>
-                        </div>
-                        <div class="stat stat-ev-distance" data-stat-key="total_ev_distance">
-                            <h3>Total EV Distance</h3>
-                            <p><span class="total_ev_distance_km">N/A</span> (<span class="ev_ratio_percent">N/A</span>%)</p>
-                        </div>
-                        <div class="stat stat-fuel-level" data-stat-key="fuel_level">
-                            <h3>Fuel Level (%)</h3>
-                            <p><span class="fuel_level">N/A</span></p>
-                        </div>
-                        <div class="stat stat-daily-distance" data-stat-key="daily_distance">
-                            <h3>Today's Distance</h3>
-                            <p><span class="daily_distance">N/A</span></p>
-                        </div>
-                        <div class="stat stat-consumption" data-stat-key="consumption">
-                            <h3>Consumption</h3>
-                            <p><span class="overall_fuel_consumption">N/A</span></p>
-                        </div>
-                        <div class="stat stat-total-fuel" data-stat-key="total_fuel">
-                            <h3>Total Fuel</h3>
-                            <p><span class="total_fuel_l">N/A</span></p>
-                        </div>
-                        <div class="stat stat-duration" data-stat-key="duration">
-                            <h3>Time Driven (h)</h3>
-                            <p><span class="total_duration">N/A</span></p>
-                        </div>
-                        <div class="stat stat-ev-level" data-stat-key="ev_level">
-                            <h3>EV Level</h3>
-                            <p><span class="battery_level">N/A</span>%</p>
-                        </div>
-                        <div class="stat stat-ev-range" data-stat-key="ev_range">
-                            <h3>EV Range (<span class="distance_unit">km</span>)</h3>
-                            <p>
-                                <span class="battery_range">N/A</span> 
-                                <span class="battery_range_ac_span" style="font-size: 0.7em; color: #666;">
-                                    (AC: <span class="battery_range_with_ac">N/A</span>)
-                                </span>
-                            </p>
-                        </div>
-                        <div class="stat stat-charging-status" data-stat-key="charging_status">
-                            <h3>Charging</h3>
-                            <p><span class="charging_status">N/A</span></p>
-                        </div>
-                        <div class="stat stat-max-speed" data-stat-key="max_speed">
-                            <h3>Max Speed Ever</h3>
-                            <p><span class="overall_max_speed">N/A</span></p>
-                        </div>
-                        <div class="stat stat-countries" data-stat-key="countries">
-                            <h3>Countries Visited</h3>
-                            <p><span class="all_countries">N/A</span></p>
-                        </div>
-                        <div class="stat stat-highway-distance" data-stat-key="highway_distance">
-                            <h3>Highway Distance</h3>
-                            <p>
-                                <span class="total_highway_distance_km">N/A</span> 
-                                (<span class="highway_ratio_percent">N/A</span>%)
-                            </p>
-                        </div>
+                        <!-- All stat divs will now be generated by main.js -->
                     </div>
                     <h3 class="map-title">Current Location of Car</h3>
                     <div class="location-map-container">
@@ -570,23 +468,6 @@
             </div>
 
             <p class="vin">VIN: <span>N/A</span></p>
-        </div>
-
-        <div class="modal-overlay" style="display: none;">
-            <div class="modal">
-                <div class="modal-header">
-                    <h2>Edit Statistics</h2>
-                    <button class="close-modal-btn">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <p>Select the statistics you want to see and drag to reorder.</p>
-                    <ul class="stats-editor-list">
-                    </ul>
-                </div>
-                <div class="modal-footer">
-                    <button class="small-btn close-modal-btn">Done</button>
-                </div>
-            </div>
         </div>
     </template>
 
