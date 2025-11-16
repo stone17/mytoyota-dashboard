@@ -15,6 +15,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const KM_TO_MI = 0.621371;
     const L_TO_GAL_US = 0.264172;
     const L_TO_GAL_UK = 0.219969;
+
+    const ALL_DASHBOARD_STATS = {
+        'odometer': { 'title': 'Odometer', 'element': '<span><span class="odometer">N/A</span></span>' },
+        'range': { 'title': 'Range Left', 'element': '<span><span class="total_range">N/A</span></span>' },
+        'total_ev_distance': { 'title': 'Total EV Distance', 'element': '<span><span class="total_ev_distance_km">N/A</span> (<span class="ev_ratio_percent">N/A</span>%)</span>' },
+        'fuel_level': { 'title': 'Fuel Level (%)', 'element': '<span><span class="fuel_level">N/A</span></span>' },
+        'daily_distance': { 'title': "Today's Distance", 'element': '<span><span class="daily_distance">N/A</span></span>' },
+        'consumption': { 'title': 'Consumption', 'element': '<span><span class="overall_fuel_consumption">N/A</span></span>' },
+        'total_fuel': { 'title': 'Total Fuel', 'element': '<span><span class="total_fuel_l">N/A</span></span>' },
+        'duration': { 'title': 'Time Driven (h)', 'element': '<span><span class="total_duration">N/A</span></span>' },
+        'ev_level': { 'title': 'EV Level', 'element': '<span><span class="battery_level">N/A</span>%</span>' },
+        'ev_range': { 'title': 'EV Range', 'element': '<span><span class="battery_range">N/A</span> <span class="battery_range_ac_span" style="font-size: 0.7em; color: #666;">(AC: <span class="battery_range_with_ac">N/A</span>)</span></span>' },
+        'charging_status': { 'title': 'Charging', 'element': '<span><span class="charging_status">N/A</span></span>' },
+        'max_speed': { 'title': 'Max Speed Ever', 'element': '<span><span class="overall_max_speed">N/A</span></span>' },
+        'countries': { 'title': 'Countries Visited', 'element': '<span><span class="all_countries">N/A</span></span>' },
+        'highway_distance': { 'title': 'Highway Distance', 'element': '<span><span class="total_highway_distance_km">N/A</span> (<span class="highway_ratio_percent">N/A</span>%)</span>' },
+    };
+
     function l100kmToMpg(l100km, isUk = false) {
         if (l100km <= 0) return 0;
         const factor = isUk ? 282.481 : 235.214;
@@ -548,15 +566,41 @@ document.addEventListener('DOMContentLoaded', () => {
             const fuelUnit = isImperial ? (isUk ? 'UK gal' : 'US gal') : 'L';
             const speedUnit = isImperial ? 'mph' : 'km/h';
             
-            vehicleCard.querySelector('.stat-odometer h3').textContent = `Odometer (${distanceUnit})`;
-            vehicleCard.querySelector('.stat-range h3').textContent = `Range Left (${distanceUnit})`;
-            vehicleCard.querySelector('.stat-ev-distance h3').textContent = `Total EV Distance (${distanceUnit})`;
-            vehicleCard.querySelector('.stat-daily-distance h3').textContent = `Today's Distance (${distanceUnit})`;
-            vehicleCard.querySelector('.stat-consumption h3').textContent = `Consumption (${consumptionUnit})`;
-            vehicleCard.querySelector('.stat-total-fuel h3').textContent = `Total Fuel (${fuelUnit})`;
-            vehicleCard.querySelector('.stat-ev-range .distance_unit').textContent = distanceUnit;
-            vehicleCard.querySelector('.stat-max-speed h3').textContent = `Max Speed Ever (${speedUnit})`;
-            vehicleCard.querySelector('.stat-highway-distance h3').textContent = `Highway Distance (${distanceUnit})`;
+            // Generate stat elements
+            const statsContainer = vehicleCard.querySelector('.vehicle-stats');
+            for (const key in ALL_DASHBOARD_STATS) {
+                const statInfo = ALL_DASHBOARD_STATS[key];
+                const statEl = document.createElement('div');
+                statEl.className = `stat stat-${key}`;
+                statEl.dataset.statKey = key;
+
+                const h3 = document.createElement('h3');
+                h3.textContent = statInfo.title;
+
+                const p = document.createElement('p');
+                p.innerHTML = statInfo.element;
+
+                statEl.appendChild(h3);
+                statEl.appendChild(p);
+                statsContainer.appendChild(statEl);
+            }
+
+            // Update unit labels for dynamically generated stats
+            const updateUnit = (key, unit) => {
+                const h3 = statsContainer.querySelector(`.stat-${key} h3`);
+                if(h3) h3.textContent = `${ALL_DASHBOARD_STATS[key].title} (${unit})`;
+            }
+            updateUnit('odometer', distanceUnit);
+            updateUnit('range', distanceUnit);
+            updateUnit('total_ev_distance', distanceUnit);
+            updateUnit('daily_distance', distanceUnit);
+            updateUnit('consumption', consumptionUnit);
+            updateUnit('total_fuel', fuelUnit);
+            updateUnit('max_speed', speedUnit);
+            updateUnit('highway_distance', distanceUnit);
+            const evRangeEl = statsContainer.querySelector(`.stat-ev_range h3`);
+            if (evRangeEl) evRangeEl.innerHTML = `EV Range (<span class="distance_unit">${distanceUnit}</span>)`;
+
 
             const dashboard = vehicleToRender.dashboard || {};
             const statsOverall = vehicleToRender.statistics.overall || {};
@@ -663,7 +707,9 @@ document.addEventListener('DOMContentLoaded', () => {
             updateStatusPanel(vehicleCard, vehicleToRender.status);
 
             applyStatOrder(vehicleCard, vehicleToRender.vin);
-            initSortableStats(vehicleCard, vehicleToRender.vin);
+            // Pass VIN to the new setup function
+            setupStatEditing(vehicleCard, vehicleToRender.vin);
+
 
             const refreshBtn = vehicleCard.querySelector('.force-poll');
             if (refreshBtn) {
@@ -797,19 +843,105 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function initSortableStats(vehicleCard, vin) {
+    function setupStatEditing(vehicleCard, vin) {
         const statsContainer = vehicleCard.querySelector('.vehicle-stats');
-        if (!statsContainer) return;
+        const editBtn = vehicleCard.querySelector('.edit-stats-btn');
+        let sortableInstance = null;
+        let isEditMode = false;
 
-        new Sortable(statsContainer, {
-            animation: 150,
-            ghostClass: 'sortable-ghost',
-            onUpdate: () => {
+        function toggleEditMode() {
+            isEditMode = !isEditMode;
+            statsContainer.classList.toggle('edit-mode', isEditMode);
+            editBtn.textContent = isEditMode ? 'Done' : 'Edit';
+
+            if (isEditMode) {
+                // Show all stats and add controls
+                Object.keys(ALL_DASHBOARD_STATS).forEach(key => {
+                    const statEl = statsContainer.querySelector(`.stat[data-stat-key="${key}"]`);
+                    if (statEl) {
+                        statEl.style.display = ''; // Make sure it's visible
+                        const isEnabled = appConfig.dashboard_sensors[key] !== false;
+                        statEl.classList.toggle('disabled', !isEnabled);
+
+                        // Add a checkbox if it doesn't exist
+                        if (!statEl.querySelector('input[type="checkbox"]')) {
+                            const checkbox = document.createElement('input');
+                            checkbox.type = 'checkbox';
+                            checkbox.checked = isEnabled;
+                            checkbox.addEventListener('change', (e) => {
+                                statEl.classList.toggle('disabled', !e.target.checked);
+                                appConfig.dashboard_sensors[key] = e.target.checked;
+                            });
+                            statEl.insertBefore(checkbox, statEl.firstChild);
+                         }
+                    }
+                });
+
+                // Initialize Sortable
+                sortableInstance = new Sortable(statsContainer, {
+                    animation: 150,
+                    ghostClass: 'sortable-ghost',
+                    onUpdate: () => {
+                        // The order is saved when exiting edit mode
+                    },
+                });
+
+            } else {
+                // Destroy Sortable
+                if (sortableInstance) {
+                    sortableInstance.destroy();
+                    sortableInstance = null;
+                }
+
+                // Save settings and hide disabled stats
                 const statOrder = Array.from(statsContainer.children).map(s => s.dataset.statKey);
                 localStorage.setItem(`statOrder-${vin}`, JSON.stringify(statOrder));
-            },
-        });
+
+                // Remove checkboxes and hide disabled stats
+                Object.keys(ALL_DASHBOARD_STATS).forEach(key => {
+                    const statEl = statsContainer.querySelector(`.stat[data-stat-key="${key}"]`);
+                    if (statEl) {
+                        const checkbox = statEl.querySelector('input[type="checkbox"]');
+                        if (checkbox) {
+                            statEl.removeChild(checkbox);
+                        }
+                        if (appConfig.dashboard_sensors[key] === false) {
+                            statEl.style.display = 'none';
+                        }
+                    }
+                });
+
+                // Persist the enabled/disabled state to the server
+                saveDashboardSensorsConfig(appConfig.dashboard_sensors);
+
+                // Re-apply grid styling for odd numbers of items
+                const visibleStats = Array.from(statsContainer.querySelectorAll('.stat')).filter(el => el.style.display !== 'none');
+                visibleStats.forEach(stat => stat.style.gridColumn = '');
+                if (visibleStats.length % 2 !== 0) {
+                    visibleStats[visibleStats.length - 1].style.gridColumn = 'span 2';
+                }
+            }
+        }
+
+        editBtn.addEventListener('click', toggleEditMode);
     }
+
+    async function saveDashboardSensorsConfig(sensorsConfig) {
+        try {
+            const response = await fetch('/api/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ dashboard_sensors: sensorsConfig }),
+            });
+            if (!response.ok) {
+                const result = await response.json();
+                console.error("Failed to save dashboard sensor settings:", result.detail);
+            }
+        } catch (error) {
+            console.error("Error saving dashboard sensor settings:", error);
+        }
+    }
+
 
     function applyStatOrder(vehicleCard, vin) {
         const savedOrder = localStorage.getItem(`statOrder-${vin}`);
