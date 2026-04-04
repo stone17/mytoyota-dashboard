@@ -161,39 +161,39 @@ async def read_root(request: Request):
     """Serve the main HTML page."""
     # Add a cache-busting query parameter for development
     cache_buster = int(time.time())
-    return templates.TemplateResponse("index.html", {"request": request, "cache_buster": cache_buster})
+    return templates.TemplateResponse(request=request, name="index.html", context={"request": request, "cache_buster": cache_buster})
 
 @app.get("/settings", response_class=HTMLResponse)
 async def read_settings(request: Request):
     """Serve the settings page."""
     # Add a cache-busting query parameter for development
     cache_buster = int(time.time())
-    return templates.TemplateResponse("settings.html", {"request": request, "cache_buster": cache_buster})
+    return templates.TemplateResponse(request=request, name="settings.html", context={"request": request, "cache_buster": cache_buster})
 
 @app.get("/trips", response_class=HTMLResponse)
 async def read_trips(request: Request):
     """Serve the trip history page."""
     # Add a cache-busting query parameter for development
     cache_buster = int(time.time())
-    return templates.TemplateResponse("trips.html", {"request": request, "cache_buster": cache_buster})
+    return templates.TemplateResponse(request=request, name="trips.html", context={"request": request, "cache_buster": cache_buster})
 
 @app.get("/logs", response_class=HTMLResponse)
 async def read_logs_page(request: Request):
     """Serve the logs page."""
     cache_buster = int(time.time())
-    return templates.TemplateResponse("logs.html", {"request": request, "cache_buster": cache_buster})
+    return templates.TemplateResponse(request=request, name="logs.html", context={"request": request, "cache_buster": cache_buster})
 
 @app.get("/notifications", response_class=HTMLResponse)
 async def read_notifications_page(request: Request):
     """Serve the notifications page."""
     cache_buster = int(time.time())
-    return templates.TemplateResponse("notifications.html", {"request": request, "cache_buster": cache_buster})
+    return templates.TemplateResponse(request=request, name="notifications.html", context={"request": request, "cache_buster": cache_buster})
 
 @app.get("/heatmap", response_class=HTMLResponse)
 async def read_heatmap_page(request: Request):
     """Serve the heatmap page."""
     cache_buster = int(time.time())
-    return templates.TemplateResponse("heatmap.html", {"request": request, "cache_buster": cache_buster})
+    return templates.TemplateResponse(request=request, name="heatmap.html", context={"request": request, "cache_buster": cache_buster})
 
 async def get_cached_vehicle_data():
     """Helper to read and return vehicle data from the cache file."""
