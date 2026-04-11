@@ -10,3 +10,5 @@ data/secrets.key
 data/vehicle_data.json
 data/user_config.yaml
 uvicorn.log
+*codetree*
+

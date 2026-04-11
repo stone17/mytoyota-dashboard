@@ -10,6 +10,10 @@ web_server:
     fixed_time: 07:00
 log_history_size: 200
 unit_system: metric
+geocoding:
+  provider: nominatim
+  opencage_api_key: ""
+  google_maps_api_key: ""
 reverse_geocode_enabled: true
 fetch_full_trip_route: true
 mqtt:

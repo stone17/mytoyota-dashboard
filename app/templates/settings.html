@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Settings - MyToyota Dashboard</title>
     <link rel="stylesheet" href="/static/css/style.css?v={{ cache_buster }}">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
     <style>
         main { max-width: 800px; margin: 20px auto; }
         .settings-grid {
@@ -169,9 +171,24 @@
                 <p>Configure how trip addresses and GPS data are resolved.</p>
                 <form id="geocoding-settings-form">
                     <div class="form-group">
+                        <label for="geocoding-provider">Geocoding Provider</label>
+                        <select id="geocoding-provider" name="provider">
+                            <option value="nominatim">Nominatim (Free / Default)</option>
+                            <option value="opencage">OpenCage</option>
+                            <option value="google_maps">Google Maps</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="opencage-key-group" style="display: none;">
+                        <label for="opencage-api-key">OpenCage API Key</label>
+                        <input type="text" id="opencage-api-key" name="opencage_api_key">
+                    </div>
+                    <div class="form-group" id="google-maps-key-group" style="display: none;">
+                        <label for="google-maps-api-key">Google Maps API Key</label>
+                        <input type="text" id="google-maps-api-key" name="google_maps_api_key">
+                    </div>
+                    <div class="form-group">
                         <label><input type="checkbox" id="reverse-geocode-enabled" name="reverse_geocode_enabled"> Enable Reverse Geocoding</label>
-                        <p>When enabled, the application will use an external service (Nominatim) to convert trip coordinates into street addresses.</p>
-                        <button id="backfill-geocode-btn" type="button">Geocode Missing Addresses</button>
+                        <p>When enabled, the application will use the selected provider to convert trip coordinates into street addresses.</p>
                     </div>
                     <div class="form-group">
                         <label><input type="checkbox" id="fetch-full-route" name="fetch_full_trip_route"> Fetch Full GPS Route for Trips</label>
@@ -179,8 +196,47 @@
                             <strong>Warning:</strong> Enabling this will significantly increase the time it takes to fetch trips and will use more database storage.
                         </p>
                     </div>
-                    <button type="submit">Save Location Settings</button>
+                    <div class="form-buttons">
+                        <button type="submit">Save Location Settings</button>
+                        <button id="backfill-geocode-btn" type="button" class="secondary-btn">Geocode Missing Addresses</button>
+                        <button id="force-regeocode-btn" type="button" class="secondary-btn" style="background-color: #d9534f;">Force Re-Geocode All</button>
+                    </div>
                     <p id="geocoding-status-message" class="status-message"></p>
+                </form>
+
+                <hr style="margin: 20px 0; border: 0; border-top: 1px solid #444;">
+                <h3>Test Geocoder</h3>
+                <p>Test the current configuration with sample coordinates or an existing trip.</p>
+                <form id="geocoding-test-form">
+                    <div class="form-group">
+                        <label for="test-trip-select">Select a Recent Trip (Optional)</label>
+                        <select id="test-trip-select" style="margin-bottom: 10px;">
+                            <option value="">-- Manual Coordinate Entry --</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                            <label for="test-start-lat">Start Latitude</label>
+                            <input type="number" step="any" id="test-start-lat" placeholder="52.5200">
+                        </div>
+                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                            <label for="test-start-lon">Start Longitude</label>
+                            <input type="number" step="any" id="test-start-lon" placeholder="13.4050">
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                            <label for="test-end-lat">End Latitude</label>
+                            <input type="number" step="any" id="test-end-lat" placeholder="52.5200">
+                        </div>
+                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                            <label for="test-end-lon">End Longitude</label>
+                            <input type="number" step="any" id="test-end-lon" placeholder="13.4050">
+                        </div>
+                    </div>
+                    <button type="button" id="test-geocode-btn" class="secondary-btn">Test Provider</button>
+                    <div id="geocoding-test-result" class="status-message" style="margin-top: 10px;"></div>
+                    <div id="geocoding-map" style="height: 300px; margin-top: 15px; border-radius: 4px; border: 1px solid #444; z-index: 1;"></div>
                 </form>
             </section>
         </div>

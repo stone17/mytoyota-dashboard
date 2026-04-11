@@ -42,14 +42,13 @@ log_history: Deque[Dict] = deque(maxlen=log_history_size)
 # An asyncio queue for broadcasting new log messages to connected clients.
 log_queue = asyncio.Queue()
 
+
 class WebLogHandler(logging.Handler):
     """A custom logging handler that captures logs for the web UI."""
+
     def emit(self, record):
         """Formats the log record and puts it into our history and live queue."""
-        log_entry = {
-            "level": record.levelname,
-            "message": self.format(record)
-        }
+        log_entry = {"level": record.levelname, "message": self.format(record)}
         log_history.append(log_entry)
         try:
             # Use put_nowait to avoid blocking in the synchronous logging call.
@@ -58,9 +57,12 @@ class WebLogHandler(logging.Handler):
             # This is unlikely to happen with a default queue size but is a safe fallback.
             pass
 
+
 # Get the root logger and add our custom handler to capture all logs.
 web_log_handler = WebLogHandler()
-web_log_handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+web_log_handler.setFormatter(
+    logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+)
 logging.getLogger().addHandler(web_log_handler)
 
 app = FastAPI()
@@ -71,6 +73,7 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 # Setup templates
 templates = Jinja2Templates(directory="app/templates")
 
+
 async def schedule_fetch():
     """Runs the data fetcher on a schedule."""
     while True:
@@ -79,8 +82,14 @@ async def schedule_fetch():
             all_vehicles_data = await fetcher.run_fetch_cycle()
 
             # Main application is now responsible for publishing
-            if hasattr(app.state, "mqtt_handler") and app.state.mqtt_handler and all_vehicles_data:
-                _LOGGER.info(f"Publishing data for {len(all_vehicles_data)} vehicles to MQTT...")
+            if (
+                hasattr(app.state, "mqtt_handler")
+                and app.state.mqtt_handler
+                and all_vehicles_data
+            ):
+                _LOGGER.info(
+                    f"Publishing data for {len(all_vehicles_data)} vehicles to MQTT..."
+                )
                 for vehicle_data in all_vehicles_data:
                     # Publish with autodiscovery configs
                     app.state.mqtt_handler.publish(vehicle_data, autodiscovery=True)
@@ -94,9 +103,11 @@ async def schedule_fetch():
         if mode == "fixed_time":
             now = datetime.datetime.now()
             target_time_str = polling_settings.get("fixed_time", "07:00")
-            hour, minute = map(int, target_time_str.split(':'))
+            hour, minute = map(int, target_time_str.split(":"))
 
-            target_today = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            target_today = now.replace(
+                hour=hour, minute=minute, second=0, microsecond=0
+            )
 
             if now >= target_today:
                 target_next = target_today + datetime.timedelta(days=1)
@@ -104,13 +115,18 @@ async def schedule_fetch():
                 target_next = target_today
 
             sleep_duration = (target_next - now).total_seconds()
-            logging.info(f"Next poll scheduled for {target_next}. Sleeping for {int(sleep_duration)} seconds.")
+            logging.info(
+                f"Next poll scheduled for {target_next}. Sleeping for {int(sleep_duration)} seconds."
+            )
             await asyncio.sleep(sleep_duration)
-        else: # Default to interval mode
+        else:  # Default to interval mode
             # Fallback to the old key for backward compatibility
-            interval = polling_settings.get("interval_seconds") or web_server_settings.get("data_refresh_interval_seconds", 3600)
+            interval = polling_settings.get(
+                "interval_seconds"
+            ) or web_server_settings.get("data_refresh_interval_seconds", 3600)
             logging.info(f"Next poll in {interval} seconds.")
             await asyncio.sleep(interval)
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -130,8 +146,10 @@ async def startup_event():
     web_server_settings = config_manager.settings.get("web_server", {})
     polling_settings = web_server_settings.get("polling", {})
     # Fallback to the old key for backward compatibility
-    refresh_interval = polling_settings.get("interval_seconds") or web_server_settings.get("data_refresh_interval_seconds", 3600)
-    time_since_last_fetch = float('inf')
+    refresh_interval = polling_settings.get(
+        "interval_seconds"
+    ) or web_server_settings.get("data_refresh_interval_seconds", 3600)
+    time_since_last_fetch = float("inf")
 
     if fetcher.CACHE_FILE.exists():
         last_modified_time = fetcher.CACHE_FILE.stat().st_mtime
@@ -142,13 +160,16 @@ async def startup_event():
         asyncio.create_task(schedule_fetch())
     else:
         wait_time = refresh_interval - time_since_last_fetch
-        logging.info(f"Cache is fresh. Scheduling first fetch in {int(wait_time)} seconds.")
-        
+        logging.info(
+            f"Cache is fresh. Scheduling first fetch in {int(wait_time)} seconds."
+        )
+
         async def delayed_schedule_fetch():
             await asyncio.sleep(wait_time)
             await schedule_fetch()
 
         asyncio.create_task(delayed_schedule_fetch())
+
 
 @app.on_event("shutdown")
 def shutdown_event():
@@ -156,44 +177,75 @@ def shutdown_event():
     if hasattr(app.state, "mqtt_handler") and app.state.mqtt_handler:
         app.state.mqtt_handler.stop_listener()
 
+
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     """Serve the main HTML page."""
     # Add a cache-busting query parameter for development
     cache_buster = int(time.time())
-    return templates.TemplateResponse(request=request, name="index.html", context={"request": request, "cache_buster": cache_buster})
+    return templates.TemplateResponse(
+        request=request,
+        name="index.html",
+        context={"request": request, "cache_buster": cache_buster},
+    )
+
 
 @app.get("/settings", response_class=HTMLResponse)
 async def read_settings(request: Request):
     """Serve the settings page."""
     # Add a cache-busting query parameter for development
     cache_buster = int(time.time())
-    return templates.TemplateResponse(request=request, name="settings.html", context={"request": request, "cache_buster": cache_buster})
+    return templates.TemplateResponse(
+        request=request,
+        name="settings.html",
+        context={"request": request, "cache_buster": cache_buster},
+    )
+
 
 @app.get("/trips", response_class=HTMLResponse)
 async def read_trips(request: Request):
     """Serve the trip history page."""
     # Add a cache-busting query parameter for development
     cache_buster = int(time.time())
-    return templates.TemplateResponse(request=request, name="trips.html", context={"request": request, "cache_buster": cache_buster})
+    return templates.TemplateResponse(
+        request=request,
+        name="trips.html",
+        context={"request": request, "cache_buster": cache_buster},
+    )
+
 
 @app.get("/logs", response_class=HTMLResponse)
 async def read_logs_page(request: Request):
     """Serve the logs page."""
     cache_buster = int(time.time())
-    return templates.TemplateResponse(request=request, name="logs.html", context={"request": request, "cache_buster": cache_buster})
+    return templates.TemplateResponse(
+        request=request,
+        name="logs.html",
+        context={"request": request, "cache_buster": cache_buster},
+    )
+
 
 @app.get("/notifications", response_class=HTMLResponse)
 async def read_notifications_page(request: Request):
     """Serve the notifications page."""
     cache_buster = int(time.time())
-    return templates.TemplateResponse(request=request, name="notifications.html", context={"request": request, "cache_buster": cache_buster})
+    return templates.TemplateResponse(
+        request=request,
+        name="notifications.html",
+        context={"request": request, "cache_buster": cache_buster},
+    )
+
 
 @app.get("/heatmap", response_class=HTMLResponse)
 async def read_heatmap_page(request: Request):
     """Serve the heatmap page."""
     cache_buster = int(time.time())
-    return templates.TemplateResponse(request=request, name="heatmap.html", context={"request": request, "cache_buster": cache_buster})
+    return templates.TemplateResponse(
+        request=request,
+        name="heatmap.html",
+        context={"request": request, "cache_buster": cache_buster},
+    )
+
 
 async def get_cached_vehicle_data():
     """Helper to read and return vehicle data from the cache file."""
@@ -202,7 +254,7 @@ async def get_cached_vehicle_data():
         return []
 
     try:
-        async with aiofiles.open(fetcher.CACHE_FILE, 'r') as f:
+        async with aiofiles.open(fetcher.CACHE_FILE, "r") as f:
             content = await f.read()
         data = json.loads(content)
         return data.get("vehicles", [])
@@ -210,28 +262,31 @@ async def get_cached_vehicle_data():
         _LOGGER.error(f"Failed to read or parse cache file: {e}")
         return []
 
+
 @app.get("/api/vehicles")
 async def get_vehicle_data():
     """API endpoint to get the cached vehicle data."""
     async with fetcher.CACHE_LOCK:
         if not fetcher.CACHE_FILE.exists():
             return []
-        
+
         try:
-            async with aiofiles.open(fetcher.CACHE_FILE, 'r') as f:
+            async with aiofiles.open(fetcher.CACHE_FILE, "r") as f:
                 content = await f.read()
-                if not content.strip(): # Handle empty file case
+                if not content.strip():  # Handle empty file case
                     raise json.JSONDecodeError("Empty file content", "", 0)
                 data = json.loads(content)
         except (json.JSONDecodeError, IOError) as e:
-            _LOGGER.warning(f"Cache file is corrupted or unreadable ({e}). Creating a new one.")
+            _LOGGER.warning(
+                f"Cache file is corrupted or unreadable ({e}). Creating a new one."
+            )
             data = {"last_updated": None, "vehicles": []}
             try:
-                async with aiofiles.open(fetcher.CACHE_FILE, 'w') as f:
+                async with aiofiles.open(fetcher.CACHE_FILE, "w") as f:
                     await f.write(json.dumps(data, indent=2))
             except IOError as io_e:
                 _LOGGER.error(f"Could not create new cache file: {io_e}")
-        
+
         vehicles_data = data.get("vehicles", [])
         last_updated = data.get("last_updated") or "Never"
 
@@ -239,30 +294,51 @@ async def get_vehicle_data():
         db = database.SessionLocal()
         try:
             from sqlalchemy import func
+
             for vehicle in vehicles_data:
                 vehicle["last_updated"] = last_updated
                 vin = vehicle.get("vin")
                 if not vin:
                     continue
-                
-                stats = db.query(
-                    func.sum(database.Trip.distance_km).label("total_distance"),
-                    func.sum(database.Trip.ev_distance_km).label("total_ev_distance"),
-                    func.sum(database.Trip.fuel_consumption_l_100km * database.Trip.distance_km / 100).label("total_fuel"),
-                    func.sum(database.Trip.duration_seconds).label("total_duration_seconds"),
-                    func.max(database.Trip.max_speed_kmh).label("overall_max_speed"),
-                    func.sum(database.Trip.length_highway_km).label("total_highway_distance")
-                ).filter(database.Trip.vin == vin).first()
-                
+
+                stats = (
+                    db.query(
+                        func.sum(database.Trip.distance_km).label("total_distance"),
+                        func.sum(database.Trip.ev_distance_km).label(
+                            "total_ev_distance"
+                        ),
+                        func.sum(
+                            database.Trip.fuel_consumption_l_100km
+                            * database.Trip.distance_km
+                            / 100
+                        ).label("total_fuel"),
+                        func.sum(database.Trip.duration_seconds).label(
+                            "total_duration_seconds"
+                        ),
+                        func.max(database.Trip.max_speed_kmh).label(
+                            "overall_max_speed"
+                        ),
+                        func.sum(database.Trip.length_highway_km).label(
+                            "total_highway_distance"
+                        ),
+                    )
+                    .filter(database.Trip.vin == vin)
+                    .first()
+                )
+
                 _LOGGER.debug(f"--- Overall Stats for VIN: {vin} ---")
                 _LOGGER.debug(f"Raw DB stats: {stats}")
 
                 # Fetch and process countries separately, ensuring we only query valid JSON.
-                countries_results = db.query(database.Trip.countries).filter(
-                    database.Trip.vin == vin,
-                    database.Trip.countries.is_not(None),
-                    database.Trip.countries != ''
-                ).all()
+                countries_results = (
+                    db.query(database.Trip.countries)
+                    .filter(
+                        database.Trip.vin == vin,
+                        database.Trip.countries.is_not(None),
+                        database.Trip.countries != "",
+                    )
+                    .all()
+                )
                 all_countries = set()
                 for res in countries_results:
                     if res[0]:
@@ -276,31 +352,53 @@ async def get_vehicle_data():
                     total_fuel = stats.total_fuel or 0.0
                     total_duration_seconds = stats.total_duration_seconds or 0
                     total_highway_distance = stats.total_highway_distance or 0.0
-                    
-                    vehicle["statistics"]["overall"]["total_ev_distance_km"] = round(total_ev_distance)
-                    vehicle["statistics"]["overall"]["total_fuel_l"] = round(total_fuel, 2)
-                    vehicle["statistics"]["overall"]["total_duration_seconds"] = total_duration_seconds
-                    vehicle["statistics"]["overall"]["total_highway_distance_km"] = round(total_highway_distance)
+
+                    vehicle["statistics"]["overall"]["total_ev_distance_km"] = round(
+                        total_ev_distance
+                    )
+                    vehicle["statistics"]["overall"]["total_fuel_l"] = round(
+                        total_fuel, 2
+                    )
+                    vehicle["statistics"]["overall"]["total_duration_seconds"] = (
+                        total_duration_seconds
+                    )
+                    vehicle["statistics"]["overall"]["total_highway_distance_km"] = (
+                        round(total_highway_distance)
+                    )
                     if stats.overall_max_speed is not None:
-                         vehicle["statistics"]["overall"]["overall_max_speed_kmh"] = round(stats.overall_max_speed)
-                    vehicle["statistics"]["overall"]["countries"] = ", ".join(sorted_countries) if sorted_countries else "N/A"
+                        vehicle["statistics"]["overall"]["overall_max_speed_kmh"] = (
+                            round(stats.overall_max_speed)
+                        )
+                    vehicle["statistics"]["overall"]["countries"] = (
+                        ", ".join(sorted_countries) if sorted_countries else "N/A"
+                    )
 
                     if total_distance > 0:
-                        vehicle["statistics"]["overall"]["ev_ratio_percent"] = round((total_ev_distance / total_distance) * 100, 1)
-                        vehicle["statistics"]["overall"]["highway_ratio_percent"] = round((total_highway_distance / total_distance) * 100, 1)
+                        vehicle["statistics"]["overall"]["ev_ratio_percent"] = round(
+                            (total_ev_distance / total_distance) * 100, 1
+                        )
+                        vehicle["statistics"]["overall"]["highway_ratio_percent"] = (
+                            round((total_highway_distance / total_distance) * 100, 1)
+                        )
                     else:
-                         vehicle["statistics"]["overall"]["highway_ratio_percent"] = 0
-
+                        vehicle["statistics"]["overall"]["highway_ratio_percent"] = 0
 
                     if total_distance > 0 and total_fuel > 0:
-                        vehicle["statistics"]["overall"]["fuel_consumption_l_100km"] = round((total_fuel / total_distance) * 100, 2)
-                    _LOGGER.debug(f"Final overall stats object: {vehicle['statistics']['overall']}")
+                        vehicle["statistics"]["overall"]["fuel_consumption_l_100km"] = (
+                            round((total_fuel / total_distance) * 100, 2)
+                        )
+                    _LOGGER.debug(
+                        f"Final overall stats object: {vehicle['statistics']['overall']}"
+                    )
                 else:
-                    _LOGGER.debug("No trip data found for this VIN, skipping overall stats calculation.")
+                    _LOGGER.debug(
+                        "No trip data found for this VIN, skipping overall stats calculation."
+                    )
         finally:
             db.close()
 
         return vehicles_data
+
 
 async def log_stream_generator(request: Request):
     """
@@ -312,7 +410,7 @@ async def log_stream_generator(request: Request):
     initial_history = list(log_history)
     if initial_history:
         yield f"event: history\ndata: {json.dumps(initial_history)}\n\n"
-    
+
     # Now, stream new logs as they arrive in the queue.
     while True:
         if await request.is_disconnected():
@@ -329,10 +427,14 @@ async def log_stream_generator(request: Request):
             # This prevents the connection from being closed by proxies or the browser.
             yield ": keep-alive\n\n"
 
+
 @app.get("/api/logs")
 async def stream_logs(request: Request):
     """API endpoint to stream logs using Server-Sent Events (SSE)."""
-    return StreamingResponse(log_stream_generator(request), media_type="text/event-stream")
+    return StreamingResponse(
+        log_stream_generator(request), media_type="text/event-stream"
+    )
+
 
 @app.get("/api/vehicles/{vin}/history")
 def get_vehicle_history(vin: str, days: int = 30):
@@ -340,13 +442,19 @@ def get_vehicle_history(vin: str, days: int = 30):
     db = database.SessionLocal()
     try:
         start_date = datetime.datetime.utcnow() - datetime.timedelta(days=days)
-        readings = db.query(database.VehicleReading).filter(
-            database.VehicleReading.vin == vin,
-            database.VehicleReading.timestamp >= start_date
-        ).order_by(database.VehicleReading.timestamp.asc()).all()
+        readings = (
+            db.query(database.VehicleReading)
+            .filter(
+                database.VehicleReading.vin == vin,
+                database.VehicleReading.timestamp >= start_date,
+            )
+            .order_by(database.VehicleReading.timestamp.asc())
+            .all()
+        )
         return readings
     finally:
         db.close()
+
 
 @app.get("/api/vehicles/{vin}/daily_summary")
 def get_daily_summary(vin: str, period: str = "30"):
@@ -363,46 +471,68 @@ def get_daily_summary(vin: str, period: str = "30"):
             raise HTTPException(status_code=400, detail="Invalid period specified.")
 
         # First, find the absolute earliest trip for this VIN to use as a boundary.
-        earliest_trip_ts = db.query(func.min(database.Trip.start_timestamp)).filter(database.Trip.vin == vin).scalar()
+        earliest_trip_ts = (
+            db.query(func.min(database.Trip.start_timestamp))
+            .filter(database.Trip.vin == vin)
+            .scalar()
+        )
 
         if not earliest_trip_ts:
-            _LOGGER.info(f"No trip data found for VIN {vin}. Returning empty daily summary.")
+            _LOGGER.info(
+                f"No trip data found for VIN {vin}. Returning empty daily summary."
+            )
             return []
 
         # Determine the start date for the query filter.
         actual_start_date_filter = earliest_trip_ts
         if days is not None:
             # If a specific period is requested, find the later of the two dates.
-            requested_start_date = datetime.datetime.utcnow() - datetime.timedelta(days=days)
+            requested_start_date = datetime.datetime.utcnow() - datetime.timedelta(
+                days=days
+            )
             actual_start_date_filter = max(earliest_trip_ts, requested_start_date)
 
         # Build the main query for trips within the determined date range.
-        trips_query = db.query(
-            func.date(database.Trip.start_timestamp).label("day"),
-            func.sum(database.Trip.distance_km).label("distance"),
-            func.sum(database.Trip.fuel_consumption_l_100km * database.Trip.distance_km / 100).label("fuel"),
-            func.sum(database.Trip.ev_distance_km).label("ev_distance"),
-            func.sum(database.Trip.ev_duration_seconds).label("ev_duration"),
-            func.avg(database.Trip.score_global).label("avg_score"),
-            func.sum(database.Trip.duration_seconds).label("total_duration"),
-            func.max(database.Trip.max_speed_kmh).label("max_speed")
-        ).filter(
-            database.Trip.vin == vin,
-            database.Trip.start_timestamp >= actual_start_date_filter
-        ).group_by(func.date(database.Trip.start_timestamp)).all()
+        trips_query = (
+            db.query(
+                func.date(database.Trip.start_timestamp).label("day"),
+                func.sum(database.Trip.distance_km).label("distance"),
+                func.sum(
+                    database.Trip.fuel_consumption_l_100km
+                    * database.Trip.distance_km
+                    / 100
+                ).label("fuel"),
+                func.sum(database.Trip.ev_distance_km).label("ev_distance"),
+                func.sum(database.Trip.ev_duration_seconds).label("ev_duration"),
+                func.avg(database.Trip.score_global).label("avg_score"),
+                func.sum(database.Trip.duration_seconds).label("total_duration"),
+                func.max(database.Trip.max_speed_kmh).label("max_speed"),
+            )
+            .filter(
+                database.Trip.vin == vin,
+                database.Trip.start_timestamp >= actual_start_date_filter,
+            )
+            .group_by(func.date(database.Trip.start_timestamp))
+            .all()
+        )
 
         # Create a dictionary with default zero values for every day in the date range.
         daily_data = {}
         start_date_for_range = actual_start_date_filter.date()
         end_date_for_range = datetime.datetime.utcnow().date()
         num_days_in_range = (end_date_for_range - start_date_for_range).days + 1
-        
+
         if num_days_in_range > 0:
             for i in range(num_days_in_range):
                 current_date = start_date_for_range + datetime.timedelta(days=i)
                 daily_data[current_date.isoformat()] = {
-                    "distance": 0.0, "fuel": 0.0, "ev_distance": 0.0, 
-                    "ev_duration": 0, "score": None, "duration_seconds": 0, "max_speed": None
+                    "distance": 0.0,
+                    "fuel": 0.0,
+                    "ev_distance": 0.0,
+                    "ev_duration": 0,
+                    "score": None,
+                    "duration_seconds": 0,
+                    "max_speed": None,
                 }
 
         # Update the dictionary with actual data from the query.
@@ -423,18 +553,29 @@ def get_daily_summary(vin: str, period: str = "30"):
                 "date": day,
                 "distance_km": round(data["distance"], 2),
                 "fuel_total_l": round(data["fuel"], 2),
-                "fuel_consumption_l_100km": round((data["fuel"] / data["distance"]) * 100, 2) if data["fuel"] > 0 and data["distance"] > 0 else 0.0,
+                "fuel_consumption_l_100km": round(
+                    (data["fuel"] / data["distance"]) * 100, 2
+                )
+                if data["fuel"] > 0 and data["distance"] > 0
+                else 0.0,
                 "ev_distance_km": round(data.get("ev_distance", 0), 2),
                 "ev_duration_seconds": data.get("ev_duration", 0),
-                "score_global": round(data["score"], 0) if data.get("score") is not None else None,
+                "score_global": round(data["score"], 0)
+                if data.get("score") is not None
+                else None,
                 "duration_seconds": data.get("duration_seconds", 0),
-                "average_speed_kmh": round(data["distance"] / (data["duration_seconds"] / 3600), 2) if data.get("duration_seconds", 0) > 0 and data["distance"] > 0 else 0.0,
-                "max_speed_kmh": data.get("max_speed")
+                "average_speed_kmh": round(
+                    data["distance"] / (data["duration_seconds"] / 3600), 2
+                )
+                if data.get("duration_seconds", 0) > 0 and data["distance"] > 0
+                else 0.0,
+                "max_speed_kmh": data.get("max_speed"),
             }
             for day, data in sorted(daily_data.items())
         ]
     finally:
         db.close()
+
 
 @app.get("/api/vehicles/{vin}/trip_count")
 def get_trip_count(vin: str, period: str = "30"):
@@ -447,10 +588,14 @@ def get_trip_count(vin: str, period: str = "30"):
         if period.isdigit():
             days = int(period)
         elif period != "all":
-            return {"trip_count": 0} # Should not happen with current UI
+            return {"trip_count": 0}  # Should not happen with current UI
 
         # Find the absolute earliest trip for this VIN to use as a boundary.
-        earliest_trip_ts = db.query(func.min(database.Trip.start_timestamp)).filter(database.Trip.vin == vin).scalar()
+        earliest_trip_ts = (
+            db.query(func.min(database.Trip.start_timestamp))
+            .filter(database.Trip.vin == vin)
+            .scalar()
+        )
 
         if not earliest_trip_ts:
             return {"trip_count": 0}
@@ -458,49 +603,67 @@ def get_trip_count(vin: str, period: str = "30"):
         # Determine the start date for the query filter.
         start_date_filter = earliest_trip_ts
         if days is not None:
-            requested_start_date = datetime.datetime.utcnow() - datetime.timedelta(days=days)
+            requested_start_date = datetime.datetime.utcnow() - datetime.timedelta(
+                days=days
+            )
             start_date_filter = max(earliest_trip_ts, requested_start_date)
 
         # Perform the count query
-        count = db.query(database.Trip).filter(
-            database.Trip.vin == vin,
-            database.Trip.start_timestamp >= start_date_filter
-        ).count()
-        
+        count = (
+            db.query(database.Trip)
+            .filter(
+                database.Trip.vin == vin,
+                database.Trip.start_timestamp >= start_date_filter,
+            )
+            .count()
+        )
+
         return {"trip_count": count}
     finally:
         db.close()
+
 
 @app.get("/api/geocode_status")
 def get_geocode_status():
     """API endpoint to get the number of trips pending geocoding."""
     db = database.SessionLocal()
     try:
-        pending_count = db.query(database.Trip).filter(database.Trip.start_address == "Geocoding...").count()
+        pending_count = (
+            db.query(database.Trip)
+            .filter(database.Trip.start_address == "Geocoding...")
+            .count()
+        )
         total_count = db.query(database.Trip).count()
         return {"pending": pending_count, "total": total_count}
     finally:
         db.close()
+
 
 @app.get("/api/vehicles/{vin}/countries")
 def get_available_countries(vin: str):
     """Gets a unique, sorted list of country codes for all trips for a given VIN."""
     db = database.SessionLocal()
     try:
-        results = db.query(database.Trip.countries).filter(
-            database.Trip.vin == vin,
-            database.Trip.countries.is_not(None),
-            database.Trip.countries != ''
-        ).distinct().all()
-        
+        results = (
+            db.query(database.Trip.countries)
+            .filter(
+                database.Trip.vin == vin,
+                database.Trip.countries.is_not(None),
+                database.Trip.countries != "",
+            )
+            .distinct()
+            .all()
+        )
+
         unique_countries = set()
         for res in results:
             if res[0]:
                 unique_countries.update(res[0])
-        
+
         return sorted(list(unique_countries))
     finally:
         db.close()
+
 
 @app.get("/api/trips")
 def get_trips(
@@ -510,7 +673,7 @@ def get_trips(
     unit_system: str = "metric",
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-    countries: Optional[str] = Query(None)
+    countries: Optional[str] = Query(None),
 ):
     """API endpoint to get all imported trips for a vehicle, with date and country filtering."""
     db = database.SessionLocal()
@@ -522,24 +685,42 @@ def get_trips(
             raise HTTPException(status_code=400, detail=f"Invalid sort_by parameter.")
 
         sort_column_name = {
-            "distance_km": "distance_mi" if unit_system.startswith('imperial') else "distance_km",
-            "fuel_consumption_l_100km": "mpg_uk" if unit_system == 'imperial_uk' else ("mpg" if unit_system == 'imperial_us' else "fuel_consumption_l_100km"),
-            "average_speed_kmh": "average_speed_mph" if unit_system.startswith('imperial') else "average_speed_kmh",
-            "ev_distance_km": "ev_distance_mi" if unit_system.startswith('imperial') else "ev_distance_km",
+            "distance_km": "distance_mi"
+            if unit_system.startswith("imperial")
+            else "distance_km",
+            "fuel_consumption_l_100km": "mpg_uk"
+            if unit_system == "imperial_uk"
+            else (
+                "mpg" if unit_system == "imperial_us" else "fuel_consumption_l_100km"
+            ),
+            "average_speed_kmh": "average_speed_mph"
+            if unit_system.startswith("imperial")
+            else "average_speed_kmh",
+            "ev_distance_km": "ev_distance_mi"
+            if unit_system.startswith("imperial")
+            else "ev_distance_km",
         }.get(sort_by, sort_by)
 
         sort_expression = None
         if sort_by == "fuel_consumption_l_100km":
-            if unit_system.startswith('imperial'):
+            if unit_system.startswith("imperial"):
                 if sort_direction == "desc":
-                    sort_expression = text(f"CASE WHEN {sort_column_name} IS NULL OR {sort_column_name} = 0 THEN 1 ELSE 0 END, {sort_column_name} DESC")
+                    sort_expression = text(
+                        f"CASE WHEN {sort_column_name} IS NULL OR {sort_column_name} = 0 THEN 1 ELSE 0 END, {sort_column_name} DESC"
+                    )
                 else:
-                    sort_expression = text(f"CASE WHEN {sort_column_name} IS NULL OR {sort_column_name} = 0 THEN 0 ELSE 1 END, {sort_column_name} ASC")
+                    sort_expression = text(
+                        f"CASE WHEN {sort_column_name} IS NULL OR {sort_column_name} = 0 THEN 0 ELSE 1 END, {sort_column_name} ASC"
+                    )
             else:
                 if sort_direction == "desc":
-                    sort_expression = text(f"CASE WHEN {sort_column_name} IS NULL THEN 1 ELSE 0 END, {sort_column_name} ASC")
+                    sort_expression = text(
+                        f"CASE WHEN {sort_column_name} IS NULL THEN 1 ELSE 0 END, {sort_column_name} ASC"
+                    )
                 else:
-                    sort_expression = text(f"CASE WHEN {sort_column_name} IS NULL THEN 1 ELSE 0 END, {sort_column_name} DESC")
+                    sort_expression = text(
+                        f"CASE WHEN {sort_column_name} IS NULL THEN 1 ELSE 0 END, {sort_column_name} DESC"
+                    )
         else:
             direction_sql = "DESC" if sort_direction == "desc" else "ASC"
             sort_expression = text(f"{sort_column_name} {direction_sql} NULLS LAST")
@@ -551,29 +732,40 @@ def get_trips(
         # Apply date filters if provided
         if start_date:
             try:
-                start_dt = datetime.datetime.fromisoformat(start_date).replace(hour=0, minute=0, second=0)
+                start_dt = datetime.datetime.fromisoformat(start_date).replace(
+                    hour=0, minute=0, second=0
+                )
                 query = query.filter(database.Trip.start_timestamp >= start_dt)
             except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD.")
+                raise HTTPException(
+                    status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD."
+                )
         if end_date:
             try:
-                end_dt = datetime.datetime.fromisoformat(end_date).replace(hour=23, minute=59, second=59)
+                end_dt = datetime.datetime.fromisoformat(end_date).replace(
+                    hour=23, minute=59, second=59
+                )
                 query = query.filter(database.Trip.start_timestamp <= end_dt)
             except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD.")
+                raise HTTPException(
+                    status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD."
+                )
 
         # Apply country filter if provided
         if countries:
-            country_list = [c.strip() for c in countries.split(',') if c.strip()]
+            country_list = [c.strip() for c in countries.split(",") if c.strip()]
             if country_list:
-                country_filters = [func.instr(database.Trip.countries, f'"{country}"') > 0 for country in country_list]
+                country_filters = [
+                    func.instr(database.Trip.countries, f'"{country}"') > 0
+                    for country in country_list
+                ]
                 query = query.filter(or_(*country_filters))
 
         # Apply sorting and fetch all results
         trips = query.order_by(sort_expression).all()
 
         # This prevents "N/A" on the frontend if the backfill hasn't run for new trips.
-        if unit_system.startswith('imperial'):
+        if unit_system.startswith("imperial"):
             KM_TO_MI = 0.621371
             for trip in trips:
                 if trip.distance_km is not None:
@@ -582,7 +774,7 @@ def get_trips(
                     trip.ev_distance_mi = trip.ev_distance_km * KM_TO_MI
                 if trip.average_speed_kmh is not None:
                     trip.average_speed_mph = trip.average_speed_kmh * KM_TO_MI
-                
+
                 # Check for fuel consumption to avoid division by zero
                 if trip.fuel_consumption_l_100km and trip.fuel_consumption_l_100km > 0:
                     trip.mpg = 235.214 / trip.fuel_consumption_l_100km
@@ -596,15 +788,20 @@ def get_trips(
     finally:
         db.close()
 
+
 @app.get("/api/vehicles/{vin}/trip_data")
-def get_trip_data(vin: str, period: str = "30", metric: str = "fuel_consumption_l_100km"):
+def get_trip_data(
+    vin: str, period: str = "30", metric: str = "fuel_consumption_l_100km"
+):
     """
     API endpoint to get a raw list of a single metric's values from all individual trips in a period.
     """
     # Validate the requested metric against the Trip model to ensure it's a safe, valid column.
     valid_metrics = [c.name for c in database.Trip.__table__.columns]
     if metric not in valid_metrics:
-        raise HTTPException(status_code=400, detail=f"Invalid metric specified: {metric}")
+        raise HTTPException(
+            status_code=400, detail=f"Invalid metric specified: {metric}"
+        )
 
     db = database.SessionLocal()
     try:
@@ -614,27 +811,38 @@ def get_trip_data(vin: str, period: str = "30", metric: str = "fuel_consumption_
         elif period != "all":
             return {"values": []}
 
-        earliest_trip_ts = db.query(func.min(database.Trip.start_timestamp)).filter(database.Trip.vin == vin).scalar()
+        earliest_trip_ts = (
+            db.query(func.min(database.Trip.start_timestamp))
+            .filter(database.Trip.vin == vin)
+            .scalar()
+        )
         if not earliest_trip_ts:
             return {"values": []}
 
         start_date_filter = earliest_trip_ts
         if days is not None:
-            requested_start_date = datetime.datetime.utcnow() - datetime.timedelta(days=days)
+            requested_start_date = datetime.datetime.utcnow() - datetime.timedelta(
+                days=days
+            )
             start_date_filter = max(earliest_trip_ts, requested_start_date)
 
         # Query for the single column of data.
-        query_result = db.query(getattr(database.Trip, metric)).filter(
-            database.Trip.vin == vin,
-            database.Trip.start_timestamp >= start_date_filter
-        ).all()
-        
+        query_result = (
+            db.query(getattr(database.Trip, metric))
+            .filter(
+                database.Trip.vin == vin,
+                database.Trip.start_timestamp >= start_date_filter,
+            )
+            .all()
+        )
+
         # The result is a list of tuples, e.g., [(5.5,), (6.1,)]. This flattens it to [5.5, 6.1].
         values = [item[0] for item in query_result if item[0] is not None]
-        
+
         return {"values": values}
     finally:
         db.close()
+
 
 # Fetch the route for a single trip on demand
 @app.get("/api/trips/{trip_id}/route")
@@ -650,6 +858,7 @@ def get_trip_route(trip_id: int):
     finally:
         db.close()
 
+
 @app.get("/api/vehicles/{vin}/heatmap")
 def get_heatmap_data(vin: str):
     """
@@ -658,10 +867,11 @@ def get_heatmap_data(vin: str):
     db = database.SessionLocal()
     try:
         # Query for all trips for the given VIN that have route data
-        trips_with_routes = db.query(database.Trip.route).filter(
-            database.Trip.vin == vin,
-            database.Trip.route != None
-        ).all()
+        trips_with_routes = (
+            db.query(database.Trip.route)
+            .filter(database.Trip.vin == vin, database.Trip.route != None)
+            .all()
+        )
 
         all_points = []
         for trip_route in trips_with_routes:
@@ -670,13 +880,14 @@ def get_heatmap_data(vin: str):
             if isinstance(route_points, list):
                 for point in route_points:
                     # Add each point as a [lat, lon] list
-                    if isinstance(point, dict) and 'lat' in point and 'lon' in point:
-                        all_points.append([point['lat'], point['lon']])
-        
+                    if isinstance(point, dict) and "lat" in point and "lon" in point:
+                        all_points.append([point["lat"], point["lon"]])
+
         _LOGGER.info(f"Returning {len(all_points)} points for VIN {vin} heatmap.")
         return all_points
     finally:
         db.close()
+
 
 @app.post("/api/update")
 async def update_application():
@@ -689,46 +900,69 @@ async def update_application():
 
         # Sanity Check 1: Check for unmerged changes
         logging.info("Checking for unmerged changes...")
-        status_process = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
+        status_process = subprocess.run(
+            ["git", "status", "--porcelain"], capture_output=True, text=True
+        )
         if status_process.stdout:
             logging.error(f"Unmerged changes detected:\n{status_process.stdout}")
-            raise HTTPException(status_code=400, detail="There are unmerged changes in the repository. Please resolve them before updating.")
+            raise HTTPException(
+                status_code=400,
+                detail="There are unmerged changes in the repository. Please resolve them before updating.",
+            )
 
         # Step 1: Git Pull
         logging.info("Pulling latest changes from git...")
         pull_process = subprocess.run(["git", "pull"], capture_output=True, text=True)
         if pull_process.returncode != 0:
             logging.error(f"Git pull failed: {pull_process.stderr}")
-            raise HTTPException(status_code=500, detail=f"Git pull failed: {pull_process.stderr}")
-        
+            raise HTTPException(
+                status_code=500, detail=f"Git pull failed: {pull_process.stderr}"
+            )
+
         update_message = "No new updates."
         if "Already up to date." not in pull_process.stdout:
             update_message = f"Git pull successful:\n{pull_process.stdout}"
-        
+
         logging.info(update_message)
 
         # Step 2: Docker-compose up --build
         logging.info("Restarting docker-compose service...")
         # Try with "docker compose" first for newer docker versions
-        restart_process = subprocess.run(["docker", "compose", "up", "-d", "--build"], capture_output=True, text=True)
-        
+        restart_process = subprocess.run(
+            ["docker", "compose", "up", "-d", "--build"], capture_output=True, text=True
+        )
+
         # If it fails, try with "docker-compose" for older versions
         if restart_process.returncode != 0:
-            logging.warning("`docker compose` command failed. Trying with `docker-compose`.")
-            restart_process = subprocess.run(["docker-compose", "up", "-d", "--build"], capture_output=True, text=True)
+            logging.warning(
+                "`docker compose` command failed. Trying with `docker-compose`."
+            )
+            restart_process = subprocess.run(
+                ["docker-compose", "up", "-d", "--build"],
+                capture_output=True,
+                text=True,
+            )
 
         if restart_process.returncode != 0:
             logging.error(f"Docker compose restart failed: {restart_process.stderr}")
-            raise HTTPException(status_code=500, detail=f"Docker compose restart failed: {restart_process.stderr}")
-        
+            raise HTTPException(
+                status_code=500,
+                detail=f"Docker compose restart failed: {restart_process.stderr}",
+            )
+
         logging.info("Docker compose restart successful.")
 
-        return {"message": f"{update_message}\nApplication update initiated successfully. The service is restarting."}
+        return {
+            "message": f"{update_message}\nApplication update initiated successfully. The service is restarting."
+        }
     except HTTPException as e:
         raise e
     except Exception as e:
         logging.error(f"Error during update process: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="An internal error occurred during the update process.")
+        raise HTTPException(
+            status_code=500,
+            detail="An internal error occurred during the update process.",
+        )
 
 
 @app.post("/api/force_poll")
@@ -737,14 +971,23 @@ async def force_poll():
     try:
         _LOGGER.info("Manual poll triggered via API.")
         all_vehicles_data = await fetcher.run_fetch_cycle()
-        if hasattr(app.state, "mqtt_handler") and app.state.mqtt_handler and all_vehicles_data:
-            _LOGGER.info(f"Publishing data for {len(all_vehicles_data)} vehicles to MQTT...")
+        if (
+            hasattr(app.state, "mqtt_handler")
+            and app.state.mqtt_handler
+            and all_vehicles_data
+        ):
+            _LOGGER.info(
+                f"Publishing data for {len(all_vehicles_data)} vehicles to MQTT..."
+            )
             for vehicle_data in all_vehicles_data:
                 app.state.mqtt_handler.publish(vehicle_data, autodiscovery=True)
         return {"message": "Data poll completed successfully."}
     except Exception as e:
         _LOGGER.error(f"Error during manual poll: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="An internal error occurred during the data poll.")
+        raise HTTPException(
+            status_code=500, detail="An internal error occurred during the data poll."
+        )
+
 
 @app.post("/api/mqtt/test")
 async def mqtt_test():
@@ -752,13 +995,19 @@ async def mqtt_test():
     Sends the latest cached data to the MQTT broker for testing purposes.
     """
     _LOGGER.info("MQTT test message triggered via API.")
-    
+
     if not hasattr(app.state, "mqtt_handler") or not app.state.mqtt_handler:
-        raise HTTPException(status_code=400, detail="MQTT is not enabled or configured correctly. Please check settings.")
+        raise HTTPException(
+            status_code=400,
+            detail="MQTT is not enabled or configured correctly. Please check settings.",
+        )
 
     vehicles = await get_cached_vehicle_data()
     if not vehicles:
-        raise HTTPException(status_code=404, detail="No cached vehicle data found. Please run a poll first.")
+        raise HTTPException(
+            status_code=404,
+            detail="No cached vehicle data found. Please run a poll first.",
+        )
 
     try:
         for vehicle in vehicles:
@@ -766,7 +1015,10 @@ async def mqtt_test():
         return {"message": "Test message sent successfully to MQTT broker."}
     except Exception as e:
         _LOGGER.error(f"Error during MQTT test publish: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="An error occurred while sending the MQTT message.")
+        raise HTTPException(
+            status_code=500, detail="An error occurred while sending the MQTT message."
+        )
+
 
 @app.get("/api/credentials")
 def get_stored_username():
@@ -774,23 +1026,29 @@ def get_stored_username():
     username = get_username()
     return {"username": username or ""}
 
+
 @app.post("/api/credentials")
 def update_credentials(creds: dict = Body(...)):
     """API endpoint to update and save credentials."""
     username = creds.get("username")
     password = creds.get("password")
     if not username or not password:
-        raise HTTPException(status_code=400, detail="Username and password are required.")
+        raise HTTPException(
+            status_code=400, detail="Username and password are required."
+        )
     try:
         save_credentials(username, password)
         return {"message": "Credentials saved successfully."}
     except Exception as e:
         logging.error(f"Error saving credentials: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to save credentials.")
+
+
 @app.get("/api/config")
 def get_config():
     """API endpoint to get the current configuration."""
     return config_manager.settings
+
 
 @app.post("/api/config")
 def update_config(new_settings: dict = Body(...)):
@@ -798,16 +1056,18 @@ def update_config(new_settings: dict = Body(...)):
     try:
         # 1. Read the existing user config to preserve unchanged settings
         try:
-            with open(config_manager.user_config_path, 'r') as f:
+            with open(config_manager.user_config_path, "r") as f:
                 current_user_config = yaml.safe_load(f) or {}
         except FileNotFoundError:
             current_user_config = {}
 
         # 2. Deep merge the new settings from the UI into the existing user settings
-        updated_user_config = config_manager._deep_merge(new_settings, current_user_config)
+        updated_user_config = config_manager._deep_merge(
+            new_settings, current_user_config
+        )
 
         # 3. Write the result back to user_config.yaml
-        with open(config_manager.user_config_path, 'w') as f:
+        with open(config_manager.user_config_path, "w") as f:
             yaml.dump(updated_user_config, f, default_flow_style=False, sort_keys=False)
 
         # 4. Reload the configuration into memory for the running app
@@ -819,7 +1079,9 @@ def update_config(new_settings: dict = Body(...)):
         return {"message": "Settings saved successfully."}
     except Exception as e:
         _LOGGER.error(f"Error updating user config file: {e}")
-        raise HTTPException(status_code=500, detail="Failed to write to user configuration file.")
+        raise HTTPException(
+            status_code=500, detail="Failed to write to user configuration file."
+        )
 
 
 @app.post("/api/vehicles/{vin}/fetch_trips")
@@ -828,15 +1090,20 @@ async def trigger_trip_fetch(vin: str, period_data: dict = Body(...)):
     period = period_data.get("period")
     if not period:
         raise HTTPException(status_code=400, detail="Missing 'period' in request body.")
-    
+
     try:
         result = await fetcher.backfill_trips(vin=vin, period=period)
         if "error" in result:
             raise HTTPException(status_code=500, detail=result["error"])
         return result
     except Exception as e:
-        logging.error(f"Error during manual trip backfill for VIN {vin}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="An internal error occurred during the trip fetch.")
+        logging.error(
+            f"Error during manual trip backfill for VIN {vin}: {e}", exc_info=True
+        )
+        raise HTTPException(
+            status_code=500, detail="An internal error occurred during the trip fetch."
+        )
+
 
 @app.post("/api/import/trips")
 async def import_trips_from_csv(file: UploadFile = File(...)):
@@ -846,25 +1113,27 @@ async def import_trips_from_csv(file: UploadFile = File(...)):
     """
     filename = file.filename
     try:
-        vin = filename.split('_')[0]
-        if not (vin.startswith("SB") or vin.startswith("JT")) or len(vin) < 17: # Basic VIN check
-             raise ValueError("Filename does not appear to contain a valid VIN.")
+        vin = filename.split("_")[0]
+        if (
+            not (vin.startswith("SB") or vin.startswith("JT")) or len(vin) < 17
+        ):  # Basic VIN check
+            raise ValueError("Filename does not appear to contain a valid VIN.")
     except (IndexError, ValueError) as e:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid filename format. Expected 'VIN_start-date_end-date.csv'. Error: {e}"
+            detail=f"Invalid filename format. Expected 'VIN_start-date_end-date.csv'. Error: {e}",
         )
 
     content = await file.read()
-    content_text = content.decode('utf-8')
+    content_text = content.decode("utf-8")
     file_like_object = io.StringIO(content_text)
-    reader = csv.reader(file_like_object, delimiter=';')
-    
+    reader = csv.reader(file_like_object, delimiter=";")
+
     db = database.SessionLocal()
     imported_count = 0
     updated_count = 0
     skipped_count = 0
-    
+
     try:
         next(reader)  # Skip header
         for row in reader:
@@ -876,21 +1145,32 @@ async def import_trips_from_csv(file: UploadFile = File(...)):
                 # Parse all data from the CSV row first
                 start_address_csv = row[0]
                 end_address_csv = row[2]
-                distance_csv = float(row[4].replace(',', '.'))
-                start_ts_utc = datetime.datetime.fromisoformat(row[1]).astimezone(datetime.timezone.utc)
-                end_ts_utc = datetime.datetime.fromisoformat(row[3]).astimezone(datetime.timezone.utc)
-                fuel_consumption_csv = float(row[5].replace(',', '.'))
+                distance_csv = float(row[4].replace(",", "."))
+                start_ts_utc = datetime.datetime.fromisoformat(row[1]).astimezone(
+                    datetime.timezone.utc
+                )
+                end_ts_utc = datetime.datetime.fromisoformat(row[3]).astimezone(
+                    datetime.timezone.utc
+                )
+                fuel_consumption_csv = float(row[5].replace(",", "."))
 
                 # --- Content-Based Deduplication Logic ---
                 # Find a trip with the same addresses and a very similar distance.
                 distance_tolerance = 0.1  # 100 meters tolerance for small variations
 
-                existing_trip = db.query(database.Trip).filter(
-                    database.Trip.vin == vin,
-                    database.Trip.start_address == start_address_csv,
-                    database.Trip.end_address == end_address_csv,
-                    database.Trip.distance_km.between(distance_csv - distance_tolerance, distance_csv + distance_tolerance)
-                ).first()
+                existing_trip = (
+                    db.query(database.Trip)
+                    .filter(
+                        database.Trip.vin == vin,
+                        database.Trip.start_address == start_address_csv,
+                        database.Trip.end_address == end_address_csv,
+                        database.Trip.distance_km.between(
+                            distance_csv - distance_tolerance,
+                            distance_csv + distance_tolerance,
+                        ),
+                    )
+                    .first()
+                )
 
                 if existing_trip:
                     # This is a duplicate trip, so we skip it.
@@ -904,33 +1184,46 @@ async def import_trips_from_csv(file: UploadFile = File(...)):
                         start_address=start_address_csv,
                         end_address=end_address_csv,
                         distance_km=distance_csv,
-                        fuel_consumption_l_100km=fuel_consumption_csv
+                        fuel_consumption_l_100km=fuel_consumption_csv,
                     )
                     db.add(new_trip)
                     imported_count += 1
             except (ValueError, IndexError):
                 skipped_count += 1
-        
-        db.commit() # Commit the entire transaction once at the end.
-        return {"message": "Import complete.", "imported": imported_count, "updated": updated_count, "skipped_duplicates_or_errors": skipped_count}
+
+        db.commit()  # Commit the entire transaction once at the end.
+        return {
+            "message": "Import complete.",
+            "imported": imported_count,
+            "updated": updated_count,
+            "skipped_duplicates_or_errors": skipped_count,
+        }
     except Exception as e:
         db.rollback()
         logging.error(f"Error during CSV import transaction: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="A critical error occurred during import. The entire operation was rolled back.")
+        raise HTTPException(
+            status_code=500,
+            detail="A critical error occurred during import. The entire operation was rolled back.",
+        )
     finally:
         db.close()
 
+
 @app.post("/api/backfill_geocoding")
-async def trigger_geocoding_backfill():
+async def trigger_geocoding_backfill(force_all: bool = False):
     """Triggers a manual, on-demand backfill of missing geocoding data."""
     try:
-        result = await fetcher.backfill_geocoding()
+        result = await fetcher.backfill_geocoding(force_all=force_all)
         if "error" in result:
             raise HTTPException(status_code=500, detail=result["error"])
         return result
     except Exception as e:
         logging.error(f"Error during manual geocoding backfill: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="An internal error occurred during the geocoding backfill.")
+        raise HTTPException(
+            status_code=500,
+            detail="An internal error occurred during the geocoding backfill.",
+        )
+
 
 @app.post("/api/vehicles/{vin}/service_history")
 async def trigger_service_history_fetch(vin: str):
@@ -941,11 +1234,13 @@ async def trigger_service_history_fetch(vin: str):
 
     async with fetcher.CACHE_LOCK:
         try:
-            async with aiofiles.open(fetcher.CACHE_FILE, 'r') as f:
+            async with aiofiles.open(fetcher.CACHE_FILE, "r") as f:
                 content = await f.read()
                 data = json.loads(content)
         except (IOError, json.JSONDecodeError):
-            _LOGGER.warning("Could not open cache file to save service history, returning live data only.")
+            _LOGGER.warning(
+                "Could not open cache file to save service history, returning live data only."
+            )
             return history_data
 
         vehicle_found = False
@@ -954,21 +1249,28 @@ async def trigger_service_history_fetch(vin: str):
                 vehicle["service_history"] = history_data.get("service_histories", [])
                 vehicle_found = True
                 break
-        
+
         if not vehicle_found:
-             _LOGGER.warning(f"VIN {vin} not found in cache file. Unable to save service history.")
-             return history_data
+            _LOGGER.warning(
+                f"VIN {vin} not found in cache file. Unable to save service history."
+            )
+            return history_data
 
         try:
             CACHE_FILE_TMP = fetcher.CACHE_FILE.with_suffix(".tmp")
             async with aiofiles.open(CACHE_FILE_TMP, "w") as f:
                 await f.write(json.dumps(data, indent=2))
             await aiofiles.os.replace(CACHE_FILE_TMP, fetcher.CACHE_FILE)
-            _LOGGER.info(f"Successfully fetched and saved service history for VIN {vin}.")
+            _LOGGER.info(
+                f"Successfully fetched and saved service history for VIN {vin}."
+            )
         except IOError as e:
-            _LOGGER.error(f"Failed to write updated cache file with service history: {e}")
+            _LOGGER.error(
+                f"Failed to write updated cache file with service history: {e}"
+            )
 
     return history_data
+
 
 @app.get("/api/export/trips.csv")
 def export_trips_to_csv(
@@ -976,7 +1278,7 @@ def export_trips_to_csv(
     unit_system: str = "metric",
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-    countries: Optional[str] = Query(None)
+    countries: Optional[str] = Query(None),
 ):
     """
     Exports the currently filtered list of trips to a CSV file.
@@ -990,40 +1292,68 @@ def export_trips_to_csv(
         query = query.filter(database.Trip.vin == vin)
 
         if start_date:
-            start_dt = datetime.datetime.fromisoformat(start_date).replace(hour=0, minute=0, second=0)
+            start_dt = datetime.datetime.fromisoformat(start_date).replace(
+                hour=0, minute=0, second=0
+            )
             query = query.filter(database.Trip.start_timestamp >= start_dt)
         if end_date:
-            end_dt = datetime.datetime.fromisoformat(end_date).replace(hour=23, minute=59, second=59)
+            end_dt = datetime.datetime.fromisoformat(end_date).replace(
+                hour=23, minute=59, second=59
+            )
             query = query.filter(database.Trip.start_timestamp <= end_dt)
-        
+
         if countries:
-            country_list = [c.strip() for c in countries.split(',') if c.strip()]
+            country_list = [c.strip() for c in countries.split(",") if c.strip()]
             if country_list:
-                country_filters = [func.instr(database.Trip.countries, f'"{country}"') > 0 for country in country_list]
+                country_filters = [
+                    func.instr(database.Trip.countries, f'"{country}"') > 0
+                    for country in country_list
+                ]
                 query = query.filter(or_(*country_filters))
 
         trips = query.order_by(database.Trip.start_timestamp.desc()).all()
 
         # --- 2. Prepare CSV data in memory ---
         output = io.StringIO()
-        writer = csv.writer(output, delimiter=';')
-        
-        is_imperial = unit_system.startswith('imperial')
-        is_uk = unit_system == 'imperial_uk'
+        writer = csv.writer(output, delimiter=";")
+
+        is_imperial = unit_system.startswith("imperial")
+        is_uk = unit_system == "imperial_uk"
         dist_unit = "mi" if is_imperial else "km"
         speed_unit = "mph" if is_imperial else "kmh"
-        consumption_unit = f"mpg_{'uk' if is_uk else 'us'}" if is_imperial else "l_100km"
+        consumption_unit = (
+            f"mpg_{'uk' if is_uk else 'us'}" if is_imperial else "l_100km"
+        )
 
         # --- 3. Write CSV Header ---
         headers = [
-            "start_timestamp_utc", "end_timestamp_utc", "start_address", "end_address",
-            f"distance_{dist_unit}", f"consumption_{consumption_unit}", "duration_seconds", 
-            f"average_speed_{speed_unit}", f"max_speed_{speed_unit}",
-            f"ev_distance_{dist_unit}", "ev_duration_seconds", "score_global", "score_acceleration",
-            "score_braking", "score_constant_speed", "night_trip", "countries",
-            f"overspeed_distance_{dist_unit}", "overspeed_duration_seconds", f"highway_distance_{dist_unit}", "highway_duration_seconds",
-            f"hdc_eco_distance_{dist_unit}", "hdc_eco_duration_seconds", f"hdc_power_distance_{dist_unit}", "hdc_power_duration_seconds",
-            f"hdc_charge_distance_{dist_unit}", "hdc_charge_duration_seconds"
+            "start_timestamp_utc",
+            "end_timestamp_utc",
+            "start_address",
+            "end_address",
+            f"distance_{dist_unit}",
+            f"consumption_{consumption_unit}",
+            "duration_seconds",
+            f"average_speed_{speed_unit}",
+            f"max_speed_{speed_unit}",
+            f"ev_distance_{dist_unit}",
+            "ev_duration_seconds",
+            "score_global",
+            "score_acceleration",
+            "score_braking",
+            "score_constant_speed",
+            "night_trip",
+            "countries",
+            f"overspeed_distance_{dist_unit}",
+            "overspeed_duration_seconds",
+            f"highway_distance_{dist_unit}",
+            "highway_duration_seconds",
+            f"hdc_eco_distance_{dist_unit}",
+            "hdc_eco_duration_seconds",
+            f"hdc_power_distance_{dist_unit}",
+            "hdc_power_duration_seconds",
+            f"hdc_charge_distance_{dist_unit}",
+            "hdc_charge_duration_seconds",
         ]
         writer.writerow(headers)
 
@@ -1031,16 +1361,52 @@ def export_trips_to_csv(
         for trip in trips:
             # Perform unit conversions on the fly for the export
             if is_imperial:
-                trip.distance_mi = trip.distance_km * 0.621371 if trip.distance_km is not None else None
-                trip.average_speed_mph = trip.average_speed_kmh * 0.621371 if trip.average_speed_kmh is not None else None
-                trip.max_speed_mph = trip.max_speed_kmh * 0.621371 if trip.max_speed_kmh is not None else None
-                trip.ev_distance_mi = trip.ev_distance_km * 0.621371 if trip.ev_distance_km is not None else None
-                trip.length_overspeed_mi = trip.length_overspeed_km * 0.621371 if trip.length_overspeed_km is not None else None
-                trip.length_highway_mi = trip.length_highway_km * 0.621371 if trip.length_highway_km is not None else None
-                trip.hdc_eco_distance_mi = trip.hdc_eco_distance_km * 0.621371 if trip.hdc_eco_distance_km is not None else None
-                trip.hdc_power_distance_mi = trip.hdc_power_distance_km * 0.621371 if trip.hdc_power_distance_km is not None else None
-                trip.hdc_charge_distance_mi = trip.hdc_charge_distance_km * 0.621371 if trip.hdc_charge_distance_km is not None else None
-                
+                trip.distance_mi = (
+                    trip.distance_km * 0.621371
+                    if trip.distance_km is not None
+                    else None
+                )
+                trip.average_speed_mph = (
+                    trip.average_speed_kmh * 0.621371
+                    if trip.average_speed_kmh is not None
+                    else None
+                )
+                trip.max_speed_mph = (
+                    trip.max_speed_kmh * 0.621371
+                    if trip.max_speed_kmh is not None
+                    else None
+                )
+                trip.ev_distance_mi = (
+                    trip.ev_distance_km * 0.621371
+                    if trip.ev_distance_km is not None
+                    else None
+                )
+                trip.length_overspeed_mi = (
+                    trip.length_overspeed_km * 0.621371
+                    if trip.length_overspeed_km is not None
+                    else None
+                )
+                trip.length_highway_mi = (
+                    trip.length_highway_km * 0.621371
+                    if trip.length_highway_km is not None
+                    else None
+                )
+                trip.hdc_eco_distance_mi = (
+                    trip.hdc_eco_distance_km * 0.621371
+                    if trip.hdc_eco_distance_km is not None
+                    else None
+                )
+                trip.hdc_power_distance_mi = (
+                    trip.hdc_power_distance_km * 0.621371
+                    if trip.hdc_power_distance_km is not None
+                    else None
+                )
+                trip.hdc_charge_distance_mi = (
+                    trip.hdc_charge_distance_km * 0.621371
+                    if trip.hdc_charge_distance_km is not None
+                    else None
+                )
+
                 if trip.fuel_consumption_l_100km and trip.fuel_consumption_l_100km > 0:
                     trip.mpg_us = 235.214 / trip.fuel_consumption_l_100km
                     trip.mpg_uk = 282.481 / trip.fuel_consumption_l_100km
@@ -1049,15 +1415,24 @@ def export_trips_to_csv(
                     trip.mpg_uk = 0.0
 
             row = [
-                trip.start_timestamp, trip.end_timestamp, trip.start_address, trip.end_address,
+                trip.start_timestamp,
+                trip.end_timestamp,
+                trip.start_address,
+                trip.end_address,
                 trip.distance_mi if is_imperial else trip.distance_km,
-                trip.mpg_uk if is_uk else (trip.mpg_us if is_imperial else trip.fuel_consumption_l_100km),
+                trip.mpg_uk
+                if is_uk
+                else (trip.mpg_us if is_imperial else trip.fuel_consumption_l_100km),
                 trip.duration_seconds,
                 trip.average_speed_mph if is_imperial else trip.average_speed_kmh,
                 trip.max_speed_mph if is_imperial else trip.max_speed_kmh,
                 trip.ev_distance_mi if is_imperial else trip.ev_distance_km,
-                trip.ev_duration_seconds, trip.score_global, trip.score_acceleration,
-                trip.score_braking, trip.score_constant_speed, trip.night_trip, 
+                trip.ev_duration_seconds,
+                trip.score_global,
+                trip.score_acceleration,
+                trip.score_braking,
+                trip.score_constant_speed,
+                trip.night_trip,
                 ",".join(trip.countries) if trip.countries else "",
                 trip.length_overspeed_mi if is_imperial else trip.length_overspeed_km,
                 trip.duration_overspeed_seconds,
@@ -1065,10 +1440,14 @@ def export_trips_to_csv(
                 trip.duration_highway_seconds,
                 trip.hdc_eco_distance_mi if is_imperial else trip.hdc_eco_distance_km,
                 trip.hdc_eco_duration_seconds,
-                trip.hdc_power_distance_mi if is_imperial else trip.hdc_power_distance_km,
+                trip.hdc_power_distance_mi
+                if is_imperial
+                else trip.hdc_power_distance_km,
                 trip.hdc_power_duration_seconds,
-                trip.hdc_charge_distance_mi if is_imperial else trip.hdc_charge_distance_km,
-                trip.hdc_charge_duration_seconds
+                trip.hdc_charge_distance_mi
+                if is_imperial
+                else trip.hdc_charge_distance_km,
+                trip.hdc_charge_duration_seconds,
             ]
             writer.writerow(row)
 
@@ -1077,7 +1456,46 @@ def export_trips_to_csv(
         return StreamingResponse(
             output,
             media_type="text/csv",
-            headers={"Content-Disposition": f"attachment; filename=trips_export_{vin}_{datetime.date.today()}.csv"}
+            headers={
+                "Content-Disposition": f"attachment; filename=trips_export_{vin}_{datetime.date.today()}.csv"
+            },
         )
     finally:
         db.close()
+
+
+from pydantic import BaseModel
+
+
+class GeocodeTestRequest(BaseModel):
+    lat: float
+    lon: float
+    provider: str
+    opencage_api_key: Optional[str] = None
+    google_maps_api_key: Optional[str] = None
+
+
+@app.post("/api/geocoding/test")
+async def test_geocoding_endpoint(request: GeocodeTestRequest):
+    """Tests the geocoding provider with the given credentials."""
+    from app.geocoder import NominatimGeocoder, OpenCageGeocoder, GoogleMapsGeocoder
+
+    provider = request.provider.lower()
+    if provider == "opencage":
+        geocoder = OpenCageGeocoder(request.opencage_api_key or "")
+    elif provider == "google_maps":
+        geocoder = GoogleMapsGeocoder(request.google_maps_api_key or "")
+    else:
+        geocoder = NominatimGeocoder()
+
+    try:
+        address = await geocoder.reverse_geocode(request.lat, request.lon)
+        if address and address != "Unavailable":
+            return {"address": address}
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Could not resolve address or provider unavailable.",
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Geocoding test failed: {str(e)}")
