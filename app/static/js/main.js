@@ -54,6 +54,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let vehicleCharts = {};
 
+    function updateChartColors() {
+        const style = getComputedStyle(document.documentElement);
+        const gridColor = style.getPropertyValue('--border-color').trim() || '#e0e0e0';
+        const textColor = style.getPropertyValue('--text-subtle').trim() || '#888';
+        
+        Chart.defaults.color = textColor;
+        Chart.defaults.borderColor = gridColor;
+        
+        // Update existing charts
+        Object.values(vehicleCharts).forEach(chart => {
+            chart.update();
+        });
+    }
+
+    // Call initially
+    updateChartColors();
+
+    window.addEventListener('themeChanged', () => {
+        setTimeout(updateChartColors, 50);
+    });
+
+
+    // Listen for theme changes (we can intercept the toggle click)
+    const toggleBtn = document.getElementById('theme-toggle');
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+            // Give the browser a tiny moment to apply the new CSS variables before reading them
+            setTimeout(updateChartColors, 50);
+        });
+    }
+
+
     function calculateSummary(values, metric, isImperial, isUk, metricConfig, aggregationType) {
         if (!metric || metric === 'none') return null;
         const config = metricConfig[metric];

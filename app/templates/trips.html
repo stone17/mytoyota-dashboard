@@ -15,57 +15,57 @@
     <style>
         .page-layout { margin: 20px auto; max-width: 1600px; }
         .controls-container { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 20px; align-items: flex-start; }
-        .collapsible-panel { flex: 1 1 300px; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.05); transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; }
-        .collapsible-panel:hover { transform: translateY(-5px); box-shadow: 0 8px 16px rgba(0,0,0,0.1); }
-        .collapsible-header { background-color: #f4f7f9; padding: 10px 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .collapsible-panel { flex: 1 1 300px; background: var(--card-bg);  border-radius: 8px; overflow: hidden; box-shadow: var(--card-shadow); transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; }
+        .collapsible-panel:hover { transform: translateY(-5px); box-shadow: var(--card-shadow); }
+        .collapsible-header { background-color: var(--card-bg); padding: 10px 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
         .collapsible-header h3 { margin: 0; font-size: 1.1em; }
-        .collapsible-content { padding: 15px; border-top: 1px solid #e0e0e0; display: none; }
+        .collapsible-content { padding: 15px; border-top: 1px solid var(--border-color); display: none; }
         .collapsible-content .form-group { margin-bottom: 15px; }
         .collapsible-content .form-group label { font-weight: bold; margin-bottom: 5px; display: block; }
         .collapsible-content .form-group select { width: 100%; padding: 8px; font-size: 1em; }
         .form-row { display: flex; flex-wrap: wrap; gap: 20px; }
         .form-row .form-group { flex: 1 1 200px; margin-bottom: 0; }
-        #column-selector { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; padding: 10px; background-color: #f9f9f9; border-radius: 4px; }
+        #column-selector { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; padding: 10px; background-color: var(--panel-bg); border-radius: 4px; }
         #column-selector label { margin-bottom: 0; font-weight: normal; display: flex; align-items: center; }
         .backfill-buttons { display: flex; flex-wrap: wrap; gap: 10px; }
         .backfill-buttons button { flex: 1 1 auto; }
         .collapsible-content h4 { margin-top: 20px; margin-bottom: 10px; }
-        .collapsible-content h5 { margin-top: 0; margin-bottom: 8px; color: #666; font-weight: 600; }
+        .collapsible-content h5 { margin-top: 0; margin-bottom: 8px; color: var(--text-very-subtle); font-weight: 600; }
         .tool-group { margin-top: 15px; }
         .area-filter-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
-        .small-btn { padding: 6px 10px; font-size: 0.9em; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .small-btn { padding: 6px 10px; font-size: 0.9em; color: var(--header-text); border: none; border-radius: 4px; cursor: pointer; }
         .main-content { min-width: 0; }
-        .scroll-hint { text-align: center; color: #888; font-style: italic; margin-bottom: 15px; }
+        .scroll-hint { text-align: center; color: var(--text-subtle); font-style: italic; margin-bottom: 15px; }
         .trips-layout { display: flex; gap: 20px; align-items: flex-start; }
-        .trips-list-container { flex: 1 1 60%; max-height: 70vh; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); }
+        .trips-list-container { flex: 1 1 60%; max-height: 70vh; overflow-y: auto;  border-radius: 8px; box-shadow: var(--card-shadow); }
         .trips-list-container table { width: 100%; border-collapse: collapse; }
-        .trips-list-container th { background-color: #f4f7f9; position: sticky; top: 0; z-index: 10; padding: 12px 15px; text-align: left; font-weight: 600; font-size: 0.85em; color: #333; text-transform: uppercase; border-bottom: 2px solid #00529b; vertical-align: middle; }
-        .trips-list-container td { padding: 12px 15px; border-bottom: 1px solid #ddd; text-align: left; color: #555; vertical-align: middle; }
-        .trips-list-container td[data-column="start-address"], .trips-list-container td[data-column="end-address"] { font-size: 0.9em; color: #777; line-height: 1.3; }
+        .trips-list-container th { background-color: var(--bg-color); position: sticky; top: 0; z-index: 10; padding: 12px 15px; text-align: left; font-weight: 600; font-size: 0.85em; color: var(--text-color); text-transform: uppercase; border-bottom: 2px solid var(--accent-color); vertical-align: middle; }
+        .trips-list-container td { padding: 12px 15px; border-bottom: 1px solid var(--border-color); text-align: left; color: var(--text-color); vertical-align: middle; }
+        .trips-list-container td[data-column="start-address"], .trips-list-container td[data-column="end-address"] { font-size: 0.9em; color: var(--text-subtle); line-height: 1.3; }
         .trips-list-container th.sortable { cursor: pointer; }
-        .trips-list-container th.sortable:hover { background-color: #e9e9e9; }
-        .trips-list-container .unit { font-size: 0.8em; color: #666; font-weight: normal; text-transform: none; }
-        .trips-list-container tr:nth-child(even) { background-color: #f9f9f9; }
-        .trips-list-container tbody tr:hover { background-color: #eef4f8; cursor: pointer; }
-        .filter-indicator { color: #5cb85c; font-size: 0.8em; margin-left: 8px; font-weight: normal; display: none; }
+        .trips-list-container th.sortable:hover { background-color: var(--nav-hover); }
+        .trips-list-container .unit { font-size: 0.8em; color: var(--text-very-subtle); font-weight: normal; text-transform: none; }
+        .trips-list-container tr:nth-child(even) { background-color: var(--table-stripe-bg); }
+        .trips-list-container tbody tr:hover { background-color: var(--nav-hover); cursor: pointer; }
+        .filter-indicator { color: var(--success-text); font-size: 0.8em; margin-left: 8px; font-weight: normal; display: none; }
         
         #map-panel { flex: 1 1 40%; position: sticky; top: 20px; display: none; }
-        #map-panel-wrapper { background: #fff; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); overflow: hidden; }
-        #map-panel-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; padding: 10px 15px; background-color: #f4f7f9; border-bottom: 1px solid #ddd; }
-        #map-panel-title { margin: 0; color: #00529b; font-size: 1.1em; }
+        #map-panel-wrapper { background: var(--card-bg);  border-radius: 8px; box-shadow: var(--card-shadow); overflow: hidden; }
+        #map-panel-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; padding: 10px 15px; background-color: var(--card-bg); border-bottom: 1px solid var(--border-color); }
+        #map-panel-title { margin: 0; color: var(--accent-color); font-size: 1.1em; }
         .map-nav-btn { display: none; }
-        #close-map-panel-btn { background: none; border: none; font-size: 1.5em; cursor: pointer; color: #666; }
+        #close-map-panel-btn { background: none; border: none; font-size: 1.5em; cursor: pointer; color: var(--text-very-subtle); }
         #map { width: 100%; height: 500px; border: none; }
         #map-trip-stats { display: none; }
         .leaflet-draw-toolbar a { background-image: none !important; background-repeat: no-repeat !important; }
 
         #heatmap-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 20px; }
-        #heatmap-overlay-content { width: 95%; height: 95%; background: #fff; border-radius: 8px; display: flex; flex-direction: column; }
-        #heatmap-overlay-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; background-color: #f4f7f9; border-bottom: 1px solid #ddd; }
-        #heatmap-title { margin: 0; color: #00529b; font-size: 1.2em; }
-        #close-heatmap-btn { background: none; border: none; font-size: 1.8em; cursor: pointer; color: #666; }
+        #heatmap-overlay-content { width: 95%; height: 95%; background: var(--card-bg); border-radius: 8px; display: flex; flex-direction: column; }
+        #heatmap-overlay-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; background-color: var(--card-bg); border-bottom: 1px solid var(--border-color); }
+        #heatmap-title { margin: 0; color: var(--accent-color); font-size: 1.2em; }
+        #close-heatmap-btn { background: none; border: none; font-size: 1.8em; cursor: pointer; color: var(--text-very-subtle); }
         #heatmap-map { flex-grow: 1; }
-        #heatmap-loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 1.5em; display: none; }
+        #heatmap-loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--header-text); font-size: 1.5em; display: none; }
 
         .filter-columns {
             display: flex;
@@ -98,26 +98,30 @@
             .is-overlay #map { height: 100%; }
             .is-overlay .map-nav-btn {
                 display: inline-block; padding: 5px 12px;
-                background-color: #00529b; color: white;
+                background-color: var(--accent-color); color: var(--header-text);
                 border: none; border-radius: 4px; cursor: pointer;
             }
-            .is-overlay .map-nav-btn:disabled { background-color: #aaa; cursor: not-allowed; }
+            .is-overlay .map-nav-btn:disabled { background-color: var(--text-subtle); cursor: not-allowed; }
             .is-overlay #map-panel-title { flex-grow: 1; text-align: center; }
             .is-overlay #map-trip-stats {
                 display: flex;
                 justify-content: space-around;
                 width: 100%;
-                background: #e9ecef;
+                background: var(--table-stripe-bg);
                 padding: 8px 0;
                 font-size: 0.8em;
                 text-align: center;
-                border-top: 1px solid #ddd;
+                border-top: 1px solid var(--border-color);
                 order: 3;
             }
-            .is-overlay #map-trip-stats span { color: #555; }
-            .is-overlay #map-trip-stats strong { color: #000; }
+            .is-overlay #map-trip-stats span { color: var(--text-color); }
+            .is-overlay #map-trip-stats strong { color: var(--text-color); }
         }
     </style>
+    <script>
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    </script>
 </head>
 <body>
     <header class="main-header">
@@ -144,7 +148,12 @@
                 <span>Settings</span>
             </a>
         </nav>
-        <div class="header-extra"></div>
+        <div class="header-extra">
+            <button id="theme-toggle" class="theme-toggle-btn" aria-label="Toggle Dark Mode">
+                <svg class="nav-icon" id="theme-icon-light" viewBox="0 0 24 24" style="display: none;"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0a.996.996 0 000-1.41l-1.06-1.06zm1.06-10.96a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"></path></svg>
+                <svg class="nav-icon" id="theme-icon-dark" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"></path></svg>
+            </button>
+        </div>
     </header>
 
     <div class="page-layout">
@@ -179,11 +188,11 @@
                                 <h5>Filter by Area (Map)</h5>
                                 <div class="area-filter-buttons vertical-buttons">
                                     <button id="filter-area-btn" class="small-btn" style="background-color: #5bc0de;">Area (Start/End)</button>
-                                    <button id="filter-start-area-btn" class="small-btn" style="background-color: #5cb85c;">Start Area</button>
+                                    <button id="filter-start-area-btn" class="small-btn" style="background-color: var(--success-text);">Start Area</button>
                                     <button id="filter-end-area-btn" class="small-btn" style="background-color: #337ab7;">End Area</button>
                                     <button id="clear-map-filter-btn" class="small-btn" style="background-color: #d9534f; display: none;">Clear Map Filter</button>
                                 </div>
-                                <div id="active-filters-display" style="font-size: 0.8em; color: #666; margin-top: 10px; min-height: 1.2em;"></div>
+                                <div id="active-filters-display" style="font-size: 0.8em; color: var(--text-very-subtle); margin-top: 10px; min-height: 1.2em;"></div>
                             </div>
                             <div class="tool-group">
                                 <h5>Visualization</h5>
@@ -214,16 +223,16 @@
                             <label><input type="checkbox" data-column="score-global"> Score (Global)</label>
                             <label><input type="checkbox" data-column="night-trip"> Night Trip</label>
                             <label><input type="checkbox" data-column="countries"> Countries</label>
-                            <hr style="grid-column: 1 / -1; border-top: 1px solid #ccc; margin: 5px 0;">
+                            <hr style="grid-column: 1 / -1; border-top: 1px solid var(--border-color); margin: 5px 0;">
                             <label><input type="checkbox" data-column="overspeed-dist"> Overspeed Dist.</label>
                             <label><input type="checkbox" data-column="overspeed-dur"> Overspeed Dur.</label>
                             <label><input type="checkbox" data-column="highway-dist"> Highway Dist.</label>
                             <label><input type="checkbox" data-column="highway-dur"> Highway Dur.</label>
-                            <hr style="grid-column: 1 / -1; border-top: 1px solid #ccc; margin: 5px 0;">
+                            <hr style="grid-column: 1 / -1; border-top: 1px solid var(--border-color); margin: 5px 0;">
                             <label><input type="checkbox" data-column="score-accel"> Score (Accel)</label>
                             <label><input type="checkbox" data-column="score-brake"> Score (Brake)</label>
                             <label><input type="checkbox" data-column="score-const"> Score (Const. Spd)</label>
-                            <hr style="grid-column: 1 / -1; border-top: 1px solid #ccc; margin: 5px 0;">
+                            <hr style="grid-column: 1 / -1; border-top: 1px solid var(--border-color); margin: 5px 0;">
                             <label><input type="checkbox" data-column="ev-dist"> EV Dist.</label>
                             <label><input type="checkbox" data-column="ev-dur"> EV Dur.</label>
                             <label><input type="checkbox" data-column="hdc-eco-dist"> Eco Dist.</label>
@@ -242,7 +251,7 @@
                     <span class="toggle-indicator">&#9660;</span>
                 </div>
                 <div class="collapsible-content">
-                    <p style="font-size: 0.9em; color: #666;">Fetch trip summaries from the Toyota API for the selected vehicle.</p>
+                    <p style="font-size: 0.9em; color: var(--text-very-subtle);">Fetch trip summaries from the Toyota API for the selected vehicle.</p>
                     <div class="backfill-buttons">
                         <button data-period="week">Fetch Last Week</button>
                         <button data-period="month">Fetch Last Month</button>
@@ -343,6 +352,41 @@
                         indicator.innerHTML = '&#9650;';
                     }
                 });
+            });
+        });
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const toggleBtn = document.getElementById('theme-toggle');
+            const iconLight = document.getElementById('theme-icon-light');
+            const iconDark = document.getElementById('theme-icon-dark');
+            
+            if (!toggleBtn) return;
+
+                        function updateIcon(theme) {
+                if (theme === 'dark' || theme === 'dim') {
+                    iconLight.style.display = 'block';
+                    iconDark.style.display = 'none';
+                } else {
+                    iconLight.style.display = 'none';
+                    iconDark.style.display = 'block';
+                }
+            }
+
+            const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+            updateIcon(currentTheme);
+
+                        toggleBtn.addEventListener('click', () => {
+                const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+                const themes = ['light', 'dark', 'dim'];
+                const nextIndex = (themes.indexOf(currentTheme) + 1) % themes.length;
+                const newTheme = themes[nextIndex];
+                
+                document.documentElement.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+                updateIcon(newTheme);
+                
+                window.dispatchEvent(new Event('themeChanged'));
             });
         });
     </script>
