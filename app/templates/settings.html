@@ -19,30 +19,31 @@
         const savedTheme = localStorage.getItem('theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
     </script>
+    <script src="/static/js/i18n.js?v={{ cache_buster }}"></script>
 </head>
 <body>
     <header class="main-header">
-        <div class="header-title">MyToyota Dashboard</div>
+        <div class="header-title" data-i18n="dashboard.title">MyToyota Dashboard</div>
         <nav class="main-nav">
             <a href="/" class="nav-link">
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"></path></svg>
-                <span>Dashboard</span>
+                <span data-i18n="nav.dashboard">Dashboard</span>
             </a>
             <a href="/trips" class="nav-link">
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11C5.84 5 5.28 5.42 5.08 6.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"></path></svg>
-                <span>Trip History</span>
+                <span data-i18n="nav.trips">Trip History</span>
             </a>
             <a href="/notifications" class="nav-link">
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"></path></svg>
-                <span>Notifications</span>
+                <span data-i18n="nav.notifications">Notifications</span>
             </a>
             <a href="/logs" class="nav-link">
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"></path></svg>
-                <span>Logs</span>
+                <span data-i18n="nav.logs">Logs</span>
             </a>
             <a href="/settings" class="nav-link active">
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61-.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24-.42.12-.64l2 3.46c.12.22.39.3.61-.22l2.49-1c.52.4 1.08.73 1.69-.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49-1c.23-.09.49 0 .61-.22l2-3.46c-.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
-                <span>Settings</span>
+                <span data-i18n="nav.settings">Settings</span>
             </a>
         </nav>
         <div class="header-extra">
@@ -55,195 +56,211 @@
 
     <main>
         <div class="settings-grid">
+
             <section class="settings-section">
-                <h2>Credentials Management</h2>
-                <p>Securely store your MyToyota username and password. These are encrypted and stored locally.</p>
+                <h2 data-i18n="settings.language">Language</h2>
+                <p data-i18n="settings.language_desc">Select the display language for the dashboard.</p>
+                <form id="language-settings-form">
+                    <div class="form-group">
+                        <label for="language-select" data-i18n="settings.select_language">Select Language</label>
+                        <select id="language-select" name="language">
+                            <option value="en">English</option>
+                            <option value="de">Deutsch</option>
+                            <option value="es">Español</option>
+                        </select>
+                    </div>
+                </form>
+            </section>
+
+            <section class="settings-section">
+                <h2 data-i18n="settings.credentials">Credentials Management</h2>
+                <p data-i18n="settings.credentials_desc">Securely store your MyToyota username and password. These are encrypted and stored locally.</p>
                 <form id="credentials-form">
                     <div class="form-group">
-                        <label for="username">MyToyota Username (Email)</label>
+                        <label for="username" data-i18n="settings.username">MyToyota Username (Email)</label>
                         <input type="text" id="username" name="username" required>
                     </div>
                     <div class="form-group">
-                        <label for="password">MyToyota Password</label>
-                        <input type="password" id="password" name="password" placeholder="Enter new password to update">
+                        <label for="password" data-i18n="settings.password">MyToyota Password</label>
+                        <input type="password" id="password" name="password" data-i18n-placeholder="settings.password_ph" placeholder="Enter new password to update">
                     </div>
-                    <button type="submit">Save Credentials</button>
+                    <button type="submit" data-i18n="settings.save_credentials">Save Credentials</button>
                     <p id="credentials-message" class="status-message"></p>
                 </form>
             </section>
 
             <section class="settings-section">
-                <h2>MQTT Settings</h2>
-                <p>Send vehicle data to an MQTT broker for home automation systems like Domoticz or Home Assistant.</p>
+                <h2 data-i18n="settings.mqtt">MQTT Settings</h2>
+                <p data-i18n="settings.mqtt_desc">Send vehicle data to an MQTT broker for home automation systems like Domoticz or Home Assistant.</p>
                 <form id="mqtt-settings-form">
                     <div class="form-group">
-                        <label><input type="checkbox" id="mqtt-enabled" name="enabled"> Enable MQTT</label>
+                        <label><input type="checkbox" id="mqtt-enabled" name="enabled"> <span data-i18n="settings.enable_mqtt">Enable MQTT</span></label>
                     </div>
                     <div class="form-group">
-                        <label for="mqtt-host">Broker Host</label>
+                        <label for="mqtt-host" data-i18n="settings.broker_host">Broker Host</label>
                         <input type="text" id="mqtt-host" name="host" placeholder="e.g., 192.168.1.100">
                     </div>
                     <div class="form-group">
-                        <label for="mqtt-port">Broker Port</label>
+                        <label for="mqtt-port" data-i18n="settings.broker_port">Broker Port</label>
                         <input type="number" id="mqtt-port" name="port" placeholder="1883">
                     </div>
                     <div class="form-group">
-                        <label for="mqtt-username">Username (optional)</label>
+                        <label for="mqtt-username" data-i18n="settings.mqtt_username">Username (optional)</label>
                         <input type="text" id="mqtt-username" name="username">
                     </div>
                     <div class="form-group">
-                        <label for="mqtt-password">Password (optional)</label>
+                        <label for="mqtt-password" data-i18n="settings.mqtt_password">Password (optional)</label>
                         <input type="password" id="mqtt-password" name="password">
                     </div>
                     <div class="form-group">
-                        <label for="mqtt-base-topic">Base Topic (optional)</label>
+                        <label for="mqtt-base-topic" data-i18n="settings.base_topic">Base Topic (optional)</label>
                         <input type="text" id="mqtt-base-topic" name="base_topic" placeholder="mytoyota/{vin}">
                         <p>Default is <code>mytoyota/{vin}</code>. Sensor data will be published to sub-topics like <code>.../odometer</code>.</p>
                     </div>
                     <div class="form-group">
-                        <label for="mqtt-discovery-prefix">Auto Discovery Prefix</label>
+                        <label for="mqtt-discovery-prefix" data-i18n="settings.discovery_prefix">Auto Discovery Prefix</label>
                         <input type="text" id="mqtt-discovery-prefix" name="discovery_prefix" placeholder="homeassistant">
                         <p>Prefix for Home Assistant or Domoticz MQTT Auto Discovery. Leave as `homeassistant` unless you have a specific reason to change it.</p>
                     </div>
 
                     <fieldset>
-                        <legend>Sensors to Publish</legend>
+                        <legend data-i18n="settings.sensors_to_publish">Sensors to Publish</legend>
                         <div class="form-group sensor-selection-grid" id="mqtt-sensor-selection">
                             </div>
                     </fieldset>
 
                     <div class="form-buttons">
-                        <button type="submit">Save MQTT Settings</button>
-                        <button type="button" id="mqtt-test-btn" class="secondary-btn">Send Test Message</button>
+                        <button type="submit" data-i18n="settings.save_mqtt">Save MQTT Settings</button>
+                        <button type="button" id="mqtt-test-btn" class="secondary-btn"><span data-i18n="settings.test_mqtt">Send Test Message</span></button>
                     </div>
                     <p id="mqtt-status-message" class="status-message"></p>
                 </form>
             </section>
 
             <section class="settings-section">
-                <h2>Polling Settings</h2>
-                <p>Configure how often the application fetches data from the Toyota API.</p>
+                <h2 data-i18n="settings.polling">Polling Settings</h2>
+                <p data-i18n="settings.polling_desc">Configure how often the application fetches data from the Toyota API.</p>
                 <form id="polling-settings-form">
                     <div class="form-group">
-                        <label><input type="radio" name="poll_mode" value="interval" checked> Poll at an interval</label>
+                        <label><input type="radio" name="poll_mode" value="interval" checked> <span data-i18n="settings.poll_interval">Poll at an interval</span></label>
                         <div id="interval-settings">
-                            <label for="refresh-interval">Interval (seconds)</label>
+                            <label for="refresh-interval" data-i18n="settings.interval_sec">Interval (seconds)</label>
                             <input type="number" id="refresh-interval" name="interval_seconds">
                         </div>
                     </div>
                     <div class="form-group">
-                        <label><input type="radio" name="poll_mode" value="fixed_time"> Poll at a fixed time each day</label>
+                        <label><input type="radio" name="poll_mode" value="fixed_time"> <span data-i18n="settings.poll_fixed">Poll at a fixed time each day</span></label>
                         <div id="fixed-time-settings" style="display: none;">
-                            <label for="fixed-time">Time (24h format)</label>
+                            <label for="fixed-time" data-i18n="settings.fixed_time">Time (24h format)</label>
                             <input type="time" id="fixed-time" name="fixed_time">
                         </div>
                     </div>
-                    <button type="submit">Save Polling Settings</button>
+                    <button type="submit" data-i18n="settings.save_polling">Save Polling Settings</button>
                     <p id="polling-status-message" class="status-message"></p>
                 </form>
             </section>
 
             <section class="settings-section">
-                <h2>API Retries</h2>
-                <p>Configure retry behavior for API requests.</p>
+                <h2 data-i18n="settings.api_retries">API Retries</h2>
+                <p data-i18n="settings.api_retries_desc">Configure retry behavior for API requests.</p>
                 <form id="api-retries-form">
                     <div class="form-group">
-                        <label for="api-retries">Retry Attempts</label>
+                        <label for="api-retries" data-i18n="settings.retry_attempts">Retry Attempts</label>
                         <input type="number" id="api-retries" name="api_retries">
                     </div>
                     <div class="form-group">
-                        <label for="api-retry-delay">Retry Delay (seconds)</label>
+                        <label for="api-retry-delay" data-i18n="settings.retry_delay">Retry Delay (seconds)</label>
                         <input type="number" id="api-retry-delay" name="api_retry_delay_seconds">
                     </div>
-                    <button type="submit">Save API Retries</button>
+                    <button type="submit" data-i18n="settings.save_retries">Save API Retries</button>
                     <p id="api-retries-status-message" class="status-message"></p>
                 </form>
             </section>
 
             <section class="settings-section">
-                <h2>Unit Settings</h2>
-                <p>Configure how data is displayed in the dashboard.</p>
+                <h2 data-i18n="settings.unit_settings">Unit Settings</h2>
+                <p data-i18n="settings.unit_desc">Configure how data is displayed in the dashboard.</p>
                 <form id="display-settings-form">
                     <div class="form-group">
-                        <label>Unit System</label>
-                        <label><input type="radio" name="unit_system" value="metric" checked> Metric (km, L/100km)</label>
-                        <label><input type="radio" name="unit_system" value="imperial_us"> Imperial (miles, US MPG)</label>
-                        <label><input type="radio" name="unit_system" value="imperial_uk"> Imperial (miles, UK MPG)</label>
+                        <label data-i18n="settings.unit_system">Unit System</label>
+                        <label><input type="radio" name="unit_system" value="metric" checked> <span data-i18n="settings.metric">Metric (km, L/100km)</span></label>
+                        <label><input type="radio" name="unit_system" value="imperial_us"> <span data-i18n="settings.imperial_us">Imperial (miles, US MPG)</span></label>
+                        <label><input type="radio" name="unit_system" value="imperial_uk"> <span data-i18n="settings.imperial_uk">Imperial (miles, UK MPG)</span></label>
                     </div>
-                    <button type="submit">Save Unit Settings</button>
+                    <button type="submit" data-i18n="settings.save_units">Save Unit Settings</button>
                     <p id="display-status-message" class="status-message"></p>
                 </form>
             </section>
 
             <section class="settings-section">
-                <h2>Location & GPS Settings</h2>
-                <p>Configure how trip addresses and GPS data are resolved.</p>
+                <h2 data-i18n="settings.location_settings">Location & GPS Settings</h2>
+                <p data-i18n="settings.location_desc">Configure how trip addresses and GPS data are resolved.</p>
                 <form id="geocoding-settings-form">
                     <div class="form-group">
-                        <label for="geocoding-provider">Geocoding Provider</label>
+                        <label for="geocoding-provider" data-i18n="settings.geocoding_provider">Geocoding Provider</label>
                         <select id="geocoding-provider" name="provider">
-                            <option value="nominatim">Nominatim (Free / Default)</option>
-                            <option value="opencage">OpenCage</option>
-                            <option value="google_maps">Google Maps</option>
+                            <option value="nominatim" data-i18n="settings.nominatim">Nominatim (Free / Default)</option>
+                            <option value="opencage" data-i18n="settings.opencage">OpenCage</option>
+                            <option value="google_maps" data-i18n="settings.google_maps">Google Maps</option>
                         </select>
                     </div>
                     <div class="form-group" id="opencage-key-group" style="display: none;">
-                        <label for="opencage-api-key">OpenCage API Key</label>
+                        <label for="opencage-api-key" data-i18n="settings.opencage_key">OpenCage API Key</label>
                         <input type="text" id="opencage-api-key" name="opencage_api_key">
                     </div>
                     <div class="form-group" id="google-maps-key-group" style="display: none;">
-                        <label for="google-maps-api-key">Google Maps API Key</label>
+                        <label for="google-maps-api-key" data-i18n="settings.google_maps_key">Google Maps API Key</label>
                         <input type="text" id="google-maps-api-key" name="google_maps_api_key">
                     </div>
                     <div class="form-group">
-                        <label><input type="checkbox" id="reverse-geocode-enabled" name="reverse_geocode_enabled"> Enable Reverse Geocoding</label>
-                        <p>When enabled, the application will use the selected provider to convert trip coordinates into street addresses.</p>
+                        <label><input type="checkbox" id="reverse-geocode-enabled" name="reverse_geocode_enabled"> <span data-i18n="settings.enable_reverse_geocode">Enable Reverse Geocoding</span></label>
+                        <p data-i18n="settings.reverse_geocode_desc">When enabled, the application will use the selected provider to convert trip coordinates into street addresses.</p>
                     </div>
                     <div class="form-group">
-                        <label><input type="checkbox" id="fetch-full-route" name="fetch_full_trip_route"> Fetch Full GPS Route for Trips</label>
+                        <label><input type="checkbox" id="fetch-full-route" name="fetch_full_trip_route"> <span data-i18n="settings.fetch_full_route">Fetch Full GPS Route for Trips</span></label>
                         <p class="warning-text">
-                            <strong>Warning:</strong> Enabling this will significantly increase the time it takes to fetch trips and will use more database storage.
+                            <strong><span data-i18n="settings.warning">Warning:</span></strong> <span data-i18n="settings.warning_text">Enabling this will significantly increase the time it takes to fetch trips and will use more database storage.</span>
                         </p>
                     </div>
                     <div class="form-buttons">
-                        <button type="submit">Save Location Settings</button>
-                        <button id="backfill-geocode-btn" type="button" class="secondary-btn">Geocode Missing Addresses</button>
-                        <button id="force-regeocode-btn" type="button" class="secondary-btn" style="background-color: #d9534f;">Force Re-Geocode All</button>
+                        <button type="submit" data-i18n="settings.save_location">Save Location Settings</button>
+                        <button id="backfill-geocode-btn" type="button" class="secondary-btn"><span data-i18n="settings.geocode_missing">Geocode Missing Addresses</span></button>
+                        <button id="force-regeocode-btn" type="button" class="secondary-btn" style="background-color: #d9534f;"><span data-i18n="settings.force_regeocode">Force Re-Geocode All</span></button>
                     </div>
                     <p id="geocoding-status-message" class="status-message"></p>
                 </form>
 
                 <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border-color);">
-                <h3>Test Geocoder</h3>
-                <p>Test the current configuration with sample coordinates or an existing trip.</p>
+                <h3 data-i18n="settings.test_geocoder">Test Geocoder</h3>
+                <p data-i18n="settings.test_desc">Test the current configuration with sample coordinates or an existing trip.</p>
                 <form id="geocoding-test-form">
                     <div class="form-group">
-                        <label for="test-trip-select">Select a Recent Trip (Optional)</label>
+                        <label for="test-trip-select" data-i18n="settings.select_trip">Select a Recent Trip (Optional)</label>
                         <select id="test-trip-select" style="margin-bottom: 10px;">
-                            <option value="">-- Manual Coordinate Entry --</option>
+                            <option value="" data-i18n="settings.manual_entry">-- Manual Coordinate Entry --</option>
                         </select>
                     </div>
                     <div style="display: flex; gap: 10px; margin-bottom: 10px;">
                         <div class="form-group" style="flex: 1; margin-bottom: 0;">
-                            <label for="test-start-lat">Start Latitude</label>
+                            <label for="test-start-lat" data-i18n="settings.start_lat">Start Latitude</label>
                             <input type="number" step="any" id="test-start-lat" placeholder="52.5200">
                         </div>
                         <div class="form-group" style="flex: 1; margin-bottom: 0;">
-                            <label for="test-start-lon">Start Longitude</label>
+                            <label for="test-start-lon" data-i18n="settings.start_lon">Start Longitude</label>
                             <input type="number" step="any" id="test-start-lon" placeholder="13.4050">
                         </div>
                     </div>
                     <div style="display: flex; gap: 10px; margin-bottom: 10px;">
                         <div class="form-group" style="flex: 1; margin-bottom: 0;">
-                            <label for="test-end-lat">End Latitude</label>
+                            <label for="test-end-lat" data-i18n="settings.end_lat">End Latitude</label>
                             <input type="number" step="any" id="test-end-lat" placeholder="52.5200">
                         </div>
                         <div class="form-group" style="flex: 1; margin-bottom: 0;">
-                            <label for="test-end-lon">End Longitude</label>
+                            <label for="test-end-lon" data-i18n="settings.end_lon">End Longitude</label>
                             <input type="number" step="any" id="test-end-lon" placeholder="13.4050">
                         </div>
                     </div>
-                    <button type="button" id="test-geocode-btn" class="secondary-btn">Test Provider</button>
+                    <button type="button" id="test-geocode-btn" class="secondary-btn"><span data-i18n="settings.test_provider">Test Provider</span></button>
                     <div id="geocoding-test-result" class="status-message" style="margin-top: 10px;"></div>
                     <div id="geocoding-map" style="height: 300px; margin-top: 15px; border-radius: 4px; border: 1px solid var(--border-color); z-index: 1;"></div>
                 </form>

@@ -40,7 +40,7 @@ async function loadPageData() {
         notificationsContainer.innerHTML = ''; // Clear spinner
 
         if (vehicles.length === 0) {
-            notificationsContainer.innerHTML = '<p class="message-box warning">No vehicle data found.</p>';
+            notificationsContainer.innerHTML = window.i18n ? `<p class="message-box warning">${window.i18n.t('notifications.no_vehicles')}</p>` : '<p class="message-box warning">No vehicle data found.</p>';
             return;
         }
 
@@ -84,7 +84,7 @@ async function loadPageData() {
             notificationsContainer.appendChild(notificationsList);
         }
         if (!foundNotifications) {
-             notificationsContainer.innerHTML = '<p class="message-box info">No notifications found.</p>';
+             notificationsContainer.innerHTML = window.i18n ? `<p class="message-box info">${window.i18n.t('notifications.no_notifications')}</p>` : '<p class="message-box info">No notifications found.</p>';
         }
 
         // --- 2. Check for and Render Existing Service History ---
@@ -125,6 +125,6 @@ async function loadPageData() {
 
     } catch (error) {
         console.error('Error loading page data:', error);
-        notificationsContainer.innerHTML = '<p class="message-box error">Failed to load page data.</p>';
+        notificationsContainer.innerHTML = window.i18n ? `<p class="message-box error">${window.i18n.t('notifications.error_loading')}</p>` : '<p class="message-box error">Failed to load page data.</p>';
     }
 }

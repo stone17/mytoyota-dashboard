@@ -179,6 +179,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    
+    // --- Language Selection ---
+    const langSelect = document.getElementById('language-select');
+    if (langSelect) {
+        langSelect.value = localStorage.getItem('language') || 'en';
+        langSelect.addEventListener('change', async (e) => {
+            const newLang = e.target.value;
+            localStorage.setItem('language', newLang);
+            window.i18n.locale = newLang;
+            await window.i18n.init();
+            
+            // Dispatch event so charts and other components can redraw
+            window.dispatchEvent(new Event('languageChanged'));
+            window.dispatchEvent(new Event('themeChanged')); // Redraw charts
+        });
+    }
+
     // --- Credentials Management ---
     async function loadUsername() {
         try {

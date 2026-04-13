@@ -122,30 +122,31 @@
         const savedTheme = localStorage.getItem('theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
     </script>
+    <script src="/static/js/i18n.js?v={{ cache_buster }}"></script>
 </head>
 <body>
     <header class="main-header">
-        <div class="header-title">MyToyota Dashboard</div>
+        <div class="header-title" data-i18n="dashboard.title">MyToyota Dashboard</div>
         <nav class="main-nav">
             <a href="/" class="nav-link">
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"></path></svg>
-                <span>Dashboard</span>
+                <span data-i18n="nav.dashboard">Dashboard</span>
             </a>
             <a href="/trips" class="nav-link active">
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11C5.84 5 5.28 5.42 5.08 6.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"></path></svg>
-                <span>Trip History</span>
+                <span data-i18n="nav.trips">Trip History</span>
             </a>
             <a href="/notifications" class="nav-link">
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"></path></svg>
-                <span>Notifications</span>
+                <span data-i18n="nav.notifications">Notifications</span>
             </a>
             <a href="/logs" class="nav-link">
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"></path></svg>
-                <span>Logs</span>
+                <span data-i18n="nav.logs">Logs</span>
             </a>
             <a href="/settings" class="nav-link">
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61-.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19-.15-.24-.42.12-.64l2 3.46c.12.22.39.3.61-.22l2.49-1c.52.4 1.08.73 1.69-.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49-1c.23-.09.49 0 .61-.22l2-3.46c-.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
-                <span>Settings</span>
+                <span data-i18n="nav.settings">Settings</span>
             </a>
         </nav>
         <div class="header-extra">
@@ -160,7 +161,7 @@
         <div class="controls-container">
             <div class="collapsible-panel">
                 <div class="collapsible-header">
-                    <h3>Options & Filters <span id="trip-count-display" style="font-weight: normal; font-size: 0.9em; margin-left: 8px;"></span><span id="filter-status-indicator" class="filter-indicator"></span></h3>
+                    <h3 data-i18n="trips.options_filters">Options & Filters <span id="trip-count-display" style="font-weight: normal; font-size: 0.9em; margin-left: 8px;"></span><span id="filter-status-indicator" class="filter-indicator"></span></h3>
                     <span class="toggle-indicator">&#9660;</span>
                 </div>
                 <div class="collapsible-content">
@@ -175,86 +176,86 @@
                                 <option value="7">Last 7 Days</option>
                                 <option value="30" selected>Last 30 Days</option>
                                 <option value="90">Last 90 Days</option>
-                                <option value="365">Last Year</option>
-                                <option value="all">All Time</option>
+                                <option value="365" data-i18n="trips.last_year">Last Year</option>
+                                <option value="all" data-i18n="trips.all_time">All Time</option>
                             </select>
                         </div>
                     </div>
 
                     <div class="filter-columns">
                         <div class="form-group">
-                            <h4>Analysis Tools</h4>
+                            <h4 data-i18n="trips.analysis_tools">Analysis Tools</h4>
                             <div class="tool-group">
-                                <h5>Filter by Area (Map)</h5>
+                                <h5 data-i18n="trips.filter_area">Filter by Area (Map)</h5>
                                 <div class="area-filter-buttons vertical-buttons">
-                                    <button id="filter-area-btn" class="small-btn" style="background-color: #5bc0de;">Area (Start/End)</button>
-                                    <button id="filter-start-area-btn" class="small-btn" style="background-color: var(--success-text);">Start Area</button>
-                                    <button id="filter-end-area-btn" class="small-btn" style="background-color: #337ab7;">End Area</button>
-                                    <button id="clear-map-filter-btn" class="small-btn" style="background-color: #d9534f; display: none;">Clear Map Filter</button>
+                                    <button id="filter-area-btn" class="small-btn" style="background-color: #5bc0de;"><span data-i18n="trips.area_start_end">Area (Start/End)</span></button>
+                                    <button id="filter-start-area-btn" class="small-btn" style="background-color: var(--success-text);"><span data-i18n="trips.start_area">Start Area</span></button>
+                                    <button id="filter-end-area-btn" class="small-btn" style="background-color: #337ab7;"><span data-i18n="trips.end_area">End Area</span></button>
+                                    <button id="clear-map-filter-btn" class="small-btn" style="background-color: #d9534f; display: none;"><span data-i18n="trips.clear_map_filter">Clear Map Filter</span></button>
                                 </div>
                                 <div id="active-filters-display" style="font-size: 0.8em; color: var(--text-very-subtle); margin-top: 10px; min-height: 1.2em;"></div>
                             </div>
                             <div class="tool-group">
-                                <h5>Visualization</h5>
+                                <h5 data-i18n="trips.visualization">Visualization</h5>
                                 <div class="area-filter-buttons">
-                                    <button id="show-heatmap-btn" class="small-btn" style="background-color: #f0ad4e;">Show Heatmap</button>
-                                    <button id="export-csv-btn" class="small-btn" style="background-color: #0275d8;">Export to CSV</button>
+                                    <button id="show-heatmap-btn" class="small-btn" style="background-color: #f0ad4e;"><span data-i18n="trips.show_heatmap">Show Heatmap</span></button>
+                                    <button id="export-csv-btn" class="small-btn" style="background-color: #0275d8;"><span data-i18n="trips.export_csv">Export to CSV</span></button>
                                 </div>
                             </div>
                         </div>
                         <div class="form-group">
-                            <h4>Filter by Country</h4>
+                            <h4 data-i18n="trips.filter_by_country">Filter by Country</h4>
                             <select id="country-select" multiple style="min-height: 150px;"></select>
                         </div>
                     </div>
 
                     <div class="form-group view-options">
-                        <h4>Visible Columns</h4>
+                        <h4 data-i18n="trips.visible_columns">Visible Columns</h4>
                         <div id="column-selector">
-                            <label><input type="checkbox" data-column="start-time" checked> Start Time</label>
-                            <label><input type="checkbox" data-column="end-time" checked> End Time</label>
-                            <label><input type="checkbox" data-column="distance" checked> Distance</label>
-                            <label><input type="checkbox" data-column="consumption" checked> Consumption</label>
-                            <label><input type="checkbox" data-column="start-address" checked> Start Address</label>
-                            <label><input type="checkbox" data-column="end-address" checked> End Address</label>
-                            <label><input type="checkbox" data-column="duration"> Duration</label>
-                            <label><input type="checkbox" data-column="avg-speed"> Avg. Speed</label>
-                            <label><input type="checkbox" data-column="max-speed"> Max Speed</label>
-                            <label><input type="checkbox" data-column="score-global"> Score (Global)</label>
-                            <label><input type="checkbox" data-column="night-trip"> Night Trip</label>
-                            <label><input type="checkbox" data-column="countries"> Countries</label>
+                            <label><input type="checkbox" data-column="start-time" checked > <span data-i18n="trips.cols.start_time">Start Time</span></label>
+                            <label><input type="checkbox" data-column="end-time" checked > <span data-i18n="trips.cols.end_time">End Time</span></label>
+                            <label><input type="checkbox" data-column="distance" checked > <span data-i18n="trips.cols.distance">Distance</span></label>
+                            <label><input type="checkbox" data-column="consumption" checked > <span data-i18n="trips.cols.consumption">Consumption</span></label>
+                            <label><input type="checkbox" data-column="start-address" checked > <span data-i18n="trips.cols.start_address">Start Address</span></label>
+                            <label><input type="checkbox" data-column="end-address" checked > <span data-i18n="trips.cols.end_address">End Address</span></label>
+                            <label><input type="checkbox" data-column="duration" > <span data-i18n="trips.cols.duration">Duration</span></label>
+                            <label><input type="checkbox" data-column="avg-speed" > <span data-i18n="trips.cols.avg_speed">Avg. Speed</span></label>
+                            <label><input type="checkbox" data-column="max-speed" > <span data-i18n="trips.cols.max_speed">Max Speed</span></label>
+                            <label><input type="checkbox" data-column="score-global" > <span data-i18n="trips.cols.score_global">Score (Global)</span></label>
+                            <label><input type="checkbox" data-column="night-trip" > <span data-i18n="trips.cols.night_trip">Night Trip</span></label>
+                            <label><input type="checkbox" data-column="countries" > <span data-i18n="trips.cols.countries">Countries</span></label>
                             <hr style="grid-column: 1 / -1; border-top: 1px solid var(--border-color); margin: 5px 0;">
-                            <label><input type="checkbox" data-column="overspeed-dist"> Overspeed Dist.</label>
-                            <label><input type="checkbox" data-column="overspeed-dur"> Overspeed Dur.</label>
-                            <label><input type="checkbox" data-column="highway-dist"> Highway Dist.</label>
-                            <label><input type="checkbox" data-column="highway-dur"> Highway Dur.</label>
+                            <label><input type="checkbox" data-column="overspeed-dist" > <span data-i18n="trips.cols.overspeed_dist">Overspeed Dist.</span></label>
+                            <label><input type="checkbox" data-column="overspeed-dur" > <span data-i18n="trips.cols.overspeed_dur">Overspeed Dur.</span></label>
+                            <label><input type="checkbox" data-column="highway-dist" > <span data-i18n="trips.cols.highway_dist">Highway Dist.</span></label>
+                            <label><input type="checkbox" data-column="highway-dur" > <span data-i18n="trips.cols.highway_dur">Highway Dur.</span></label>
                             <hr style="grid-column: 1 / -1; border-top: 1px solid var(--border-color); margin: 5px 0;">
-                            <label><input type="checkbox" data-column="score-accel"> Score (Accel)</label>
-                            <label><input type="checkbox" data-column="score-brake"> Score (Brake)</label>
-                            <label><input type="checkbox" data-column="score-const"> Score (Const. Spd)</label>
+                            <label><input type="checkbox" data-column="score-accel" > <span data-i18n="trips.cols.score_accel">Score (Accel)</span></label>
+                            <label><input type="checkbox" data-column="score-brake" > <span data-i18n="trips.cols.score_brake">Score (Brake)</span></label>
+                            <label><input type="checkbox" data-column="score-const" > <span data-i18n="trips.cols.score_const">Score (Const. Spd)</span></label>
                             <hr style="grid-column: 1 / -1; border-top: 1px solid var(--border-color); margin: 5px 0;">
-                            <label><input type="checkbox" data-column="ev-dist"> EV Dist.</label>
-                            <label><input type="checkbox" data-column="ev-dur"> EV Dur.</label>
-                            <label><input type="checkbox" data-column="hdc-eco-dist"> Eco Dist.</label>
-                            <label><input type="checkbox" data-column="hdc-eco-dur"> Eco Dur.</label>
-                            <label><input type="checkbox" data-column="hdc-pwr-dist"> Power Dist.</label>
-                            <label><input type="checkbox" data-column="hdc-pwr-dur"> Power Dur.</label>
-                            <label><input type="checkbox" data-column="hdc-chg-dist"> Charge Dist.</label>
-                            <label><input type="checkbox" data-column="hdc-chg-dur"> Charge Dur.</label>
+                            <label><input type="checkbox" data-column="ev-dist" > <span data-i18n="trips.cols.ev_dist">EV Dist.</span></label>
+                            <label><input type="checkbox" data-column="ev-dur" > <span data-i18n="trips.cols.ev_dur">EV Dur.</span></label>
+                            <label><input type="checkbox" data-column="hdc-eco-dist" > <span data-i18n="trips.cols.hdc_eco_dist">Eco Dist.</span></label>
+                            <label><input type="checkbox" data-column="hdc-eco-dur" > <span data-i18n="trips.cols.hdc_eco_dur">Eco Dur.</span></label>
+                            <label><input type="checkbox" data-column="hdc-pwr-dist" > <span data-i18n="trips.cols.hdc_pwr_dist">Power Dist.</span></label>
+                            <label><input type="checkbox" data-column="hdc-pwr-dur" > <span data-i18n="trips.cols.hdc_pwr_dur">Power Dur.</span></label>
+                            <label><input type="checkbox" data-column="hdc-chg-dist" > <span data-i18n="trips.cols.hdc_chg_dist">Charge Dist.</span></label>
+                            <label><input type="checkbox" data-column="hdc-chg-dur" > <span data-i18n="trips.cols.hdc_chg_dur">Charge Dur.</span></label>
                         </div>
                     </div>
                 </div>
             </div>
             <div class="collapsible-panel">
                 <div class="collapsible-header">
-                    <h3>Backfill Trip History</h3>
+                    <h3 data-i18n="trips.backfill">Backfill Trip History</h3>
                     <span class="toggle-indicator">&#9660;</span>
                 </div>
                 <div class="collapsible-content">
                     <p style="font-size: 0.9em; color: var(--text-very-subtle);">Fetch trip summaries from the Toyota API for the selected vehicle.</p>
                     <div class="backfill-buttons">
-                        <button data-period="week">Fetch Last Week</button>
-                        <button data-period="month">Fetch Last Month</button>
+                        <button data-period="week" data-i18n="trips.fetch_week">Fetch Last Week</button>
+                        <button data-period="month" data-i18n="trips.fetch_month">Fetch Last Month</button>
                         <button data-period="year">Fetch Last Year</button>
                         <button data-period="all">Fetch All (can be slow)</button>
                     </div>
@@ -275,33 +276,33 @@
                     <table>
                         <thead id="trip-table-headers">
                             <tr id="trip-table-header-row">
-                            <th class="sortable" data-column="start-time" data-sort="start_timestamp">Start Time<span class="sort-indicator"></span></th>
-                            <th data-column="end-time">End Time</th>
-                            <th class="sortable" data-column="distance" data-sort="distance_km">Distance<span class="sort-indicator"></span><br><span class="unit" data-unit-type="distance">km</span></th>
-                            <th class="sortable" data-column="consumption" data-sort="fuel_consumption_l_100km">Consumption<span class="sort-indicator"></span><br><span class="unit" data-unit-type="consumption">L/100km</span></th>
-                            <th data-column="start-address">Start Address</th>
-                            <th data-column="end-address">End Address</th>
-                            <th class="sortable" data-column="duration" data-sort="duration_seconds">Duration<span class="sort-indicator"></span></th>
-                            <th class="sortable" data-column="avg-speed" data-sort="average_speed_kmh">Avg. Speed<span class="sort-indicator"></span><br><span class="unit" data-unit-type="speed"></span></th>
-                            <th class="sortable" data-column="max-speed" data-sort="max_speed_kmh">Max Speed<span class="sort-indicator"></span><br><span class="unit" data-unit-type="speed">km/h</span></th>
-                            <th class="sortable" data-column="score-global" data-sort="score_global">Score<span class="sort-indicator"></span></th>
-                            <th class="sortable" data-column="night-trip" data-sort="night_trip">Night Trip<span class="sort-indicator"></span></th>
-                            <th data-column="countries">Countries</th>
-                            <th class="sortable" data-column="overspeed-dist" data-sort="length_overspeed_km">Overspeed Dist.<span class="sort-indicator"></span><br><span class="unit" data-unit-type="distance">km</span></th>
-                            <th class="sortable" data-column="overspeed-dur" data-sort="duration_overspeed_seconds">Overspeed Dur.<span class="sort-indicator"></span></th>
-                            <th class="sortable" data-column="highway-dist" data-sort="length_highway_km">Highway Dist.<span class="sort-indicator"></span><br><span class="unit" data-unit-type="distance">km</span></th>
-                            <th class="sortable" data-column="highway-dur" data-sort="duration_highway_seconds">Highway Dur.<span class="sort-indicator"></span></th>
-                            <th class="sortable" data-column="score-accel" data-sort="score_acceleration">Score (Accel)<span class="sort-indicator"></span></th>
-                            <th class="sortable" data-column="score-brake" data-sort="score_braking">Score (Brake)<span class="sort-indicator"></span></th>
-                            <th class="sortable" data-column="score-const" data-sort="score_constant_speed">Score (Const.)<span class="sort-indicator"></span></th>
-                            <th class="sortable" data-column="ev-dist" data-sort="ev_distance_km">EV Dist.<span class="sort-indicator"></span><br><span class="unit" data-unit-type="distance">km</span></th>
-                            <th class="sortable" data-column="ev-dur" data-sort="ev_duration_seconds">EV Dur.<span class="sort-indicator"></span></th>
-                            <th class="sortable" data-column="hdc-eco-dist" data-sort="hdc_eco_distance_km">Eco Dist.<span class="sort-indicator"></span><br><span class="unit" data-unit-type="distance">km</span></th>
-                            <th class="sortable" data-column="hdc-eco-dur" data-sort="hdc_eco_duration_seconds">Eco Dur.<span class="sort-indicator"></span></th>
-                            <th class="sortable" data-column="hdc-pwr-dist" data-sort="hdc_power_distance_km">Power Dist.<span class="sort-indicator"></span><br><span class="unit" data-unit-type="distance">km</span></th>
-                            <th class="sortable" data-column="hdc-pwr-dur" data-sort="hdc_power_duration_seconds">Power Dur.<span class="sort-indicator"></span></th>
-                            <th class="sortable" data-column="hdc-chg-dist" data-sort="hdc_charge_distance_km">Charge Dist.<span class="sort-indicator"></span><br><span class="unit" data-unit-type="distance">km</span></th>
-                            <th class="sortable" data-column="hdc-chg-dur" data-sort="hdc_charge_duration_seconds">Charge Dur.<span class="sort-indicator"></span></th>
+                            <th class="sortable" data-column="start-time" data-sort="start_timestamp" ><span data-i18n="trips.headers.start_time">Start Time</span><span class="sort-indicator"></span></th>
+                            <th data-column="end-time" ><span data-i18n="trips.headers.end_time">End Time</span></th>
+                            <th class="sortable" data-column="distance" data-sort="distance_km" ><span data-i18n="trips.headers.distance">Distance</span><span class="sort-indicator"></span><br><span class="unit" data-unit-type="distance">km</span></th>
+                            <th class="sortable" data-column="consumption" data-sort="fuel_consumption_l_100km" ><span data-i18n="trips.headers.consumption">Consumption</span><span class="sort-indicator"></span><br><span class="unit" data-unit-type="consumption">L/100km</span></th>
+                            <th data-column="start-address" ><span data-i18n="trips.headers.start_address">Start Address</span></th>
+                            <th data-column="end-address" ><span data-i18n="trips.headers.end_address">End Address</span></th>
+                            <th class="sortable" data-column="duration" data-sort="duration_seconds" ><span data-i18n="trips.headers.duration">Duration</span><span class="sort-indicator"></span></th>
+                            <th class="sortable" data-column="avg-speed" data-sort="average_speed_kmh" ><span data-i18n="trips.headers.avg_speed">Avg. Speed</span><span class="sort-indicator"></span><br><span class="unit" data-unit-type="speed"></span></th>
+                            <th class="sortable" data-column="max-speed" data-sort="max_speed_kmh" ><span data-i18n="trips.headers.max_speed">Max Speed</span><span class="sort-indicator"></span><br><span class="unit" data-unit-type="speed">km/h</span></th>
+                            <th class="sortable" data-column="score-global" data-sort="score_global" ><span data-i18n="trips.headers.score_global">Score</span><span class="sort-indicator"></span></th>
+                            <th class="sortable" data-column="night-trip" data-sort="night_trip" ><span data-i18n="trips.headers.night_trip">Night Trip</span><span class="sort-indicator"></span></th>
+                            <th data-column="countries" ><span data-i18n="trips.headers.countries">Countries</span></th>
+                            <th class="sortable" data-column="overspeed-dist" data-sort="length_overspeed_km" ><span data-i18n="trips.headers.overspeed_dist">Overspeed Dist.</span><span class="sort-indicator"></span><br><span class="unit" data-unit-type="distance">km</span></th>
+                            <th class="sortable" data-column="overspeed-dur" data-sort="duration_overspeed_seconds" ><span data-i18n="trips.headers.overspeed_dur">Overspeed Dur.</span><span class="sort-indicator"></span></th>
+                            <th class="sortable" data-column="highway-dist" data-sort="length_highway_km" ><span data-i18n="trips.headers.highway_dist">Highway Dist.</span><span class="sort-indicator"></span><br><span class="unit" data-unit-type="distance">km</span></th>
+                            <th class="sortable" data-column="highway-dur" data-sort="duration_highway_seconds" ><span data-i18n="trips.headers.highway_dur">Highway Dur.</span><span class="sort-indicator"></span></th>
+                            <th class="sortable" data-column="score-accel" data-sort="score_acceleration" ><span data-i18n="trips.headers.score_accel">Score (Accel)</span><span class="sort-indicator"></span></th>
+                            <th class="sortable" data-column="score-brake" data-sort="score_braking" ><span data-i18n="trips.headers.score_brake">Score (Brake)</span><span class="sort-indicator"></span></th>
+                            <th class="sortable" data-column="score-const" data-sort="score_constant_speed" ><span data-i18n="trips.headers.score_const">Score (Const.)</span><span class="sort-indicator"></span></th>
+                            <th class="sortable" data-column="ev-dist" data-sort="ev_distance_km" ><span data-i18n="trips.headers.ev_dist">EV Dist.</span><span class="sort-indicator"></span><br><span class="unit" data-unit-type="distance">km</span></th>
+                            <th class="sortable" data-column="ev-dur" data-sort="ev_duration_seconds" ><span data-i18n="trips.headers.ev_dur">EV Dur.</span><span class="sort-indicator"></span></th>
+                            <th class="sortable" data-column="hdc-eco-dist" data-sort="hdc_eco_distance_km" ><span data-i18n="trips.headers.hdc_eco_dist">Eco Dist.</span><span class="sort-indicator"></span><br><span class="unit" data-unit-type="distance">km</span></th>
+                            <th class="sortable" data-column="hdc-eco-dur" data-sort="hdc_eco_duration_seconds" ><span data-i18n="trips.headers.hdc_eco_dur">Eco Dur.</span><span class="sort-indicator"></span></th>
+                            <th class="sortable" data-column="hdc-pwr-dist" data-sort="hdc_power_distance_km" ><span data-i18n="trips.headers.hdc_pwr_dist">Power Dist.</span><span class="sort-indicator"></span><br><span class="unit" data-unit-type="distance">km</span></th>
+                            <th class="sortable" data-column="hdc-pwr-dur" data-sort="hdc_power_duration_seconds" ><span data-i18n="trips.headers.hdc_pwr_dur">Power Dur.</span><span class="sort-indicator"></span></th>
+                            <th class="sortable" data-column="hdc-chg-dist" data-sort="hdc_charge_distance_km" ><span data-i18n="trips.headers.hdc_chg_dist">Charge Dist.</span><span class="sort-indicator"></span><br><span class="unit" data-unit-type="distance">km</span></th>
+                            <th class="sortable" data-column="hdc-chg-dur" data-sort="hdc_charge_duration_seconds" ><span data-i18n="trips.headers.hdc_chg_dur">Charge Dur.</span><span class="sort-indicator"></span></th>
                         </tr>
                     </thead>
                         <tbody id="trips-table-body"></tbody>

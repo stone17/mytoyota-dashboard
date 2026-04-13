@@ -101,7 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const filteredValues = processedValues.filter(v => v !== null && v > 0);
         if (filteredValues.length === 0) {
-            return `Avg ${config.label}: <strong>N/A</strong>`;
+            const avgText = window.i18n ? window.i18n.t('dashboard.avg') : 'Avg'; return `${avgText} ${config.label}: <strong>N/A</strong>`;
         }
 
         const sum = filteredValues.reduce((a, b) => a + b, 0);
@@ -171,35 +171,35 @@ document.addEventListener('DOMContentLoaded', () => {
             const isUk = appConfig.unit_system === 'imperial_uk';
             const metricConfig = {
                 distance_km: {
-                    label: 'Distance', unit: { metric: 'km', imperial: 'mi' }, color: '#00529b',
+                    label: window.i18n ? window.i18n.t('dashboard.metrics.distance_km') : 'Distance', unit: { metric: 'km', imperial: 'mi' }, color: '#00529b',
                     convert: (val) => val * KM_TO_MI
                 },
                 fuel_consumption_l_100km: {
-                    label: 'Consumption', unit: { metric: 'L/100km', imperial: isUk ? 'UK MPG' : 'US MPG' }, color: '#d9534f',
+                    label: window.i18n ? window.i18n.t('dashboard.metrics.fuel_consumption_l_100km') : 'Consumption', unit: { metric: 'L/100km', imperial: isUk ? 'UK MPG' : 'US MPG' }, color: '#d9534f',
                     convert: (val) => l100kmToMpg(val, isUk)
                 },
                 ev_distance_km: {
-                    label: 'EV Distance', unit: { metric: 'km', imperial: 'mi' }, color: '#5cb85c',
+                    label: window.i18n ? window.i18n.t('dashboard.metrics.ev_distance_km') : 'EV Distance', unit: { metric: 'km', imperial: 'mi' }, color: '#5cb85c',
                     convert: (val) => val * KM_TO_MI
                 },
                 ev_duration_seconds: {
-                    label: 'EV Duration', unit: { metric: 'minutes', imperial: 'minutes' }, color: '#f0ad4e'
+                    label: window.i18n ? window.i18n.t('dashboard.metrics.ev_duration_seconds') : 'EV Duration', unit: { metric: 'minutes', imperial: 'minutes' }, color: '#f0ad4e'
                 },
                 score_global: {
-                    label: 'Driving Score', unit: { metric: 'Score', imperial: 'Score' }, color: '#5bc0de'
+                    label: window.i18n ? window.i18n.t('dashboard.metrics.score_global') : 'Driving Score', unit: { metric: 'Score', imperial: 'Score' }, color: '#5bc0de'
                 },
                 average_speed_kmh: {
-                    label: 'Average Speed', unit: { metric: 'km/h', imperial: 'mph' }, color: '#337ab7',
+                    label: window.i18n ? window.i18n.t('dashboard.metrics.average_speed_kmh') : 'Average Speed', unit: { metric: 'km/h', imperial: 'mph' }, color: '#337ab7',
                     convert: (val) => val * KM_TO_MI
                 },
                 max_speed_kmh: {
-                    label: 'Max Speed', unit: { metric: 'km/h', imperial: 'mph' }, color: '#BF55EC',
+                    label: window.i18n ? window.i18n.t('dashboard.metrics.max_speed_kmh') : 'Max Speed', unit: { metric: 'km/h', imperial: 'mph' }, color: '#BF55EC',
                     convert: (val) => val * KM_TO_MI
                 },
                 duration_seconds: {
-                    label: 'Trip Duration', unit: { metric: 'minutes', imperial: 'minutes' }, color: '#777'
+                    label: window.i18n ? window.i18n.t('dashboard.metrics.duration_seconds') : 'Trip Duration', unit: { metric: 'minutes', imperial: 'minutes' }, color: '#777'
                 },
-                 none: { label: 'None', unit: { metric: '', imperial: '' }, color: '#fff' }
+                 none: { label: window.i18n ? window.i18n.t('dashboard.metrics.none') : 'None', unit: { metric: '', imperial: '' }, color: '#fff' }
             };
 
             try {
@@ -244,7 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
         catch (error) {
             console.error(`[renderHistoryChart] CRITICAL ERROR for VIN ${vin}:`, error);
             const summaryContainer = canvas.closest('.charts-panel').querySelector('.chart-summary');
-            if (summaryContainer) summaryContainer.innerHTML = `<span class="error">Error rendering chart. See console for details.</span>`;
+            if (summaryContainer) summaryContainer.innerHTML = `<span class="error">${window.i18n ? window.i18n.t('dashboard.error_chart') : 'Error rendering chart. See console for details.'}</span>`;
         }
     }
 
@@ -256,7 +256,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.font = "16px sans-serif";
             ctx.fillStyle = "#888";
             ctx.textAlign = "center";
-            ctx.fillText("No historical data available for this period.", canvas.width / 2, canvas.height / 2);
+            const noData = window.i18n ? window.i18n.t('dashboard.no_data') : "No historical data available for this period."; ctx.fillText(noData, canvas.width / 2, canvas.height / 2);
             return;
         }
 
@@ -456,7 +456,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const datasets = [{
             type: 'bar',
-            label: `Trips`,
+            label: window.i18n ? window.i18n.t('dashboard.trips') : `Trips`,
             data: bins,
             yAxisID: 'y',
             backgroundColor: `${config.color}B3`,
@@ -550,10 +550,10 @@ document.addEventListener('DOMContentLoaded', () => {
         updateItem('hood', vehicleStatus.hood_closed, null);
         if (lockStatusText) {
             if (isCompletelyLocked) {
-                lockStatusText.textContent = '(Locked)';
+                lockStatusText.textContent = window.i18n ? '(' + window.i18n.t('dashboard.status.locked') + ')' : '(Locked)';
                 lockStatusText.className = 'lock-status-text locked';
             } else {
-                lockStatusText.textContent = '(Unlocked)';
+                lockStatusText.textContent = window.i18n ? '(' + window.i18n.t('dashboard.status.unlocked') + ')' : '(Unlocked)';
                 lockStatusText.className = 'lock-status-text unlocked';
             }
         }
@@ -561,7 +561,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const uniqueOpenItems = [...new Set(openItems)];
             if (uniqueOpenItems.length > 0) {
                 const message = uniqueOpenItems.map(item => item.charAt(0).toUpperCase() + item.slice(1) + '(s)').join(' & ') + ' open';
-                openStatusText.textContent = `Warning: ${message}`;
+                openStatusText.textContent = window.i18n ? `${window.i18n.t('dashboard.status.warning')}: ${message}` : `Warning: ${message}`;
             } else {
                 openStatusText.textContent = '';
             }
@@ -607,7 +607,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 statEl.dataset.statKey = key;
 
                 const h3 = document.createElement('h3');
-                h3.textContent = statInfo.title;
+                h3.textContent = window.i18n ? window.i18n.t(`dashboard.stats.${key}`) : statInfo.title;
 
                 const p = document.createElement('p');
                 p.innerHTML = statInfo.element;
@@ -620,7 +620,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update unit labels for dynamically generated stats
             const updateUnit = (key, unit) => {
                 const h3 = statsContainer.querySelector(`.stat-${key} h3`);
-                if(h3) h3.textContent = `${ALL_DASHBOARD_STATS[key].title} (${unit})`;
+                if(h3) {
+                    const translatedTitle = window.i18n ? window.i18n.t(`dashboard.stats.${key}`) : ALL_DASHBOARD_STATS[key].title;
+                    h3.textContent = `${translatedTitle} (${unit})`;
+                }
             }
             updateUnit('odometer', distanceUnit);
             updateUnit('range', distanceUnit);
@@ -631,7 +634,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateUnit('max_speed', speedUnit);
             updateUnit('highway_distance', distanceUnit);
             const evRangeEl = statsContainer.querySelector(`.stat-ev_range h3`);
-            if (evRangeEl) evRangeEl.innerHTML = `EV Range (<span class="distance_unit">${distanceUnit}</span>)`;
+            if (evRangeEl) { const tTitle = window.i18n ? window.i18n.t('dashboard.stats.ev_range') : 'EV Range'; evRangeEl.innerHTML = `${tTitle} (<span class="distance_unit">${distanceUnit}</span>)`; }
 
 
             const dashboard = vehicleToRender.dashboard || {};
@@ -844,6 +847,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setUIState(); // Set initial state
             updateChart(); // Initial chart render
 
+            window.i18n.translateDOM(vehicleFragment);
             vehicleContainer.appendChild(vehicleFragment);
         }
         catch (error) {

@@ -275,8 +275,8 @@ document.addEventListener('DOMContentLoaded', () => {
             vinSelect.innerHTML = '';
             if (vehicles.length > 0) {
                 vehicles.forEach(vehicle => { vinSelect.appendChild(new Option(`${vehicle.alias} (${vehicle.vin})`, vehicle.vin)); });
-            } else { vinSelect.innerHTML = '<option>No vehicles found</option>'; }
-        } catch (e) { tripsTableBody.innerHTML = `<tr><td colspan="27">Could not load vehicle list: ${e.message}</td></tr>`; }
+            } else { vinSelect.innerHTML = window.i18n ? `<option>${window.i18n.t('dashboard.no_vehicles')}</option>` : '<option>No vehicles found</option>'; }
+        } catch (e) { tripsTableBody.innerHTML = window.i18n ? `<tr><td colspan="27">${window.i18n.t('dashboard.error_loading_vehicles')} ${e.message}</td></tr>` : `<tr><td colspan="27">Could not load vehicle list: ${e.message}</td></tr>`; }
     }
 
     async function loadCountryFilter(savedCountries = []) {
@@ -318,7 +318,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!keepFilters) {
             mapPanel.style.display = 'none';
         }
-        tripsTableBody.innerHTML = `<tr><td colspan="27" style="text-align:center;">Loading trips...</td></tr>`;
+        tripsTableBody.innerHTML = window.i18n ? `<tr><td colspan="27" style="text-align:center;">${window.i18n.t('trips.loading_trips')}</td></tr>` : `<tr><td colspan="27" style="text-align:center;">Loading trips...</td></tr>`;
         updateSortIndicators();
         
         try {
@@ -351,7 +351,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // This is a full reload (e.g. VIN change), so clear map filters
                 clearMapFilterBtn.click();
             }
-        } catch (e) { tripsTableBody.innerHTML = `<tr><td colspan="27">Error loading trips: ${e.message}</td></tr>`; }
+        } catch (e) { tripsTableBody.innerHTML = window.i18n ? `<tr><td colspan="27">${window.i18n.t('trips.error_loading')} ${e.message}</td></tr>` : `<tr><td colspan="27">Error loading trips: ${e.message}</td></tr>`; }
     }
 
     const isMobile = () => window.matchMedia('(max-width: 1024px)').matches;
@@ -485,7 +485,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const isUk = appConfig.unit_system === 'imperial_uk';
         tripsTableBody.innerHTML = '';
         if (trips.length === 0) {
-            tripsTableBody.innerHTML = `<tr><td colspan="27" style="text-align: center; padding: 20px;">No trips found for the current filter.</td></tr>`;
+            tripsTableBody.innerHTML = window.i18n ? `<tr><td colspan="27" style="text-align: center; padding: 20px;">${window.i18n.t('trips.no_trips_filter')}</td></tr>` : `<tr><td colspan="27" style="text-align: center; padding: 20px;">No trips found for the current filter.</td></tr>`;
             return;
         }
         const formatTimestamp = (ts) => !ts ? 'N/A' : `${new Date(ts).toLocaleDateString()}<br><span class="unit">${new Date(ts).toLocaleTimeString()}</span>`;
