@@ -490,6 +490,16 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateStatusPanel(panel, vehicleStatus) {
         if (!vehicleStatus) return;
 
+        const errorTextEl = panel.querySelector('.lock-status-error');
+        if (vehicleStatus.error) {
+            if (errorTextEl) {
+                errorTextEl.style.display = 'block';
+                errorTextEl.textContent = window.i18n ? (window.i18n.t('dashboard.status.error_retrieving') || 'Failed to retrieve lock status') : 'Failed to retrieve lock status';
+            }
+        } else {
+            if (errorTextEl) errorTextEl.style.display = 'none';
+        }
+
         const statusTimestamp = panel.querySelector('.status-timestamp span');
         if (statusTimestamp && vehicleStatus.last_update_timestamp) {
             statusTimestamp.textContent = new Date(vehicleStatus.last_update_timestamp).toLocaleString();

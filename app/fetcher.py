@@ -399,91 +399,108 @@ async def _build_vehicle_info_dict(vehicle):
             "address": address,
         }
 
-    doors_status = {}
-    windows_status = {}
+    # Set default "closed" states to fallback on
+    doors_status = {
+        "front_left": {"closed": True, "locked": False},
+        "front_right": {"closed": True, "locked": False},
+        "rear_left": {"closed": True, "locked": False},
+        "rear_right": {"closed": True, "locked": False},
+    }
+    windows_status = {
+        "front_left": {"closed": True},
+        "front_right": {"closed": True},
+        "rear_left": {"closed": True},
+        "rear_right": {"closed": True},
+    }
     hood_closed = True
     trunk_closed = True
     trunk_locked = False
     last_update_timestamp = None
+    lock_status_error = False
 
     if hasattr(vehicle, "lock_status") and vehicle.lock_status:
-        lock_status = vehicle.lock_status
+        try:
+            lock_status = vehicle.lock_status
 
-        _LOGGER.debug(f"--- Raw lock_status object for VIN {vehicle.vin} ---")
-        _LOGGER.debug(lock_status)
+            _LOGGER.debug(f"--- Raw lock_status object for VIN {vehicle.vin} ---")
+            _LOGGER.debug(lock_status)
 
-        if hasattr(lock_status, "doors") and lock_status.doors:
-            doors = lock_status.doors
-            door_map = {
-                "driver_seat": "front_left",
-                "passenger_seat": "front_right",
-                "driver_rear_seat": "rear_left",
-                "passenger_rear_seat": "rear_right",
-            }
-            for attr_name, key in door_map.items():
-                if hasattr(doors, attr_name):
-                    door_obj = getattr(doors, attr_name)
-                    _LOGGER.debug(
-                        f"Processing door '{key}': raw closed={door_obj.closed}, raw locked={door_obj.locked}"
-                    )
-
-                    raw_closed = door_obj.closed
-                    raw_locked = door_obj.locked
-                    locked_status = False if raw_locked is None else raw_locked
-
-                    if raw_closed is not None:
-                        closed_status = raw_closed
-                    elif locked_status is True:
+            if hasattr(lock_status, "doors") and lock_status.doors:
+                doors = lock_status.doors
+                door_map = {
+                    "driver_seat": "front_left",
+                    "passenger_seat": "front_right",
+                    "driver_rear_seat": "rear_left",
+                    "passenger_rear_seat": "rear_right",
+                }
+                for attr_name, key in door_map.items():
+                    if hasattr(doors, attr_name) and getattr(doors, attr_name) is not None:
+                        door_obj = getattr(doors, attr_name)
                         _LOGGER.debug(
-                            f"Door '{key}' has closed=None but locked=True. Interpreting as closed."
+                            f"Processing door '{key}': raw closed={door_obj.closed}, raw locked={door_obj.locked}"
                         )
-                        closed_status = True
+
+                        raw_closed = door_obj.closed
+                        raw_locked = door_obj.locked
+                        locked_status = False if raw_locked is None else raw_locked
+
+                        if raw_closed is not None:
+                            closed_status = raw_closed
+                        elif locked_status is True:
+                            _LOGGER.debug(
+                                f"Door '{key}' has closed=None but locked=True. Interpreting as closed."
+                            )
+                            closed_status = True
+                        else:
+                            closed_status = False
+
+                        doors_status[key] = {
+                            "closed": closed_status,
+                            "locked": locked_status,
+                        }
                     else:
-                        closed_status = False
+                        doors_status[key] = {"closed": True, "locked": False}
 
-                    doors_status[key] = {
-                        "closed": closed_status,
-                        "locked": locked_status,
-                    }
-                else:
-                    doors_status[key] = {"closed": True, "locked": False}
+                if hasattr(doors, "trunk") and doors.trunk is not None:
+                    if doors.trunk.closed is not None:
+                        trunk_closed = doors.trunk.closed
+                    if doors.trunk.locked is not None:
+                        trunk_locked = doors.trunk.locked
 
-            if hasattr(doors, "trunk"):
-                if doors.trunk.closed is not None:
-                    trunk_closed = doors.trunk.closed
-                if doors.trunk.locked is not None:
-                    trunk_locked = doors.trunk.locked
+            if hasattr(lock_status, "windows") and lock_status.windows:
+                windows = lock_status.windows
+                window_map = {
+                    "driver_seat": "front_left",
+                    "passenger_seat": "front_right",
+                    "driver_rear_seat": "rear_left",
+                    "passenger_rear_seat": "rear_right",
+                }
+                for attr_name, key in window_map.items():
+                    if hasattr(windows, attr_name) and getattr(windows, attr_name) is not None:
+                        window_obj = getattr(windows, attr_name)
+                        windows_status[key] = {
+                            "closed": True
+                            if window_obj.closed is None
+                            else window_obj.closed
+                        }
+                    else:
+                        windows_status[key] = {"closed": True}
 
-        if hasattr(lock_status, "windows") and lock_status.windows:
-            windows = lock_status.windows
-            window_map = {
-                "driver_seat": "front_left",
-                "passenger_seat": "front_right",
-                "driver_rear_seat": "rear_left",
-                "passenger_rear_seat": "rear_right",
-            }
-            for attr_name, key in window_map.items():
-                if hasattr(windows, attr_name):
-                    window_obj = getattr(windows, attr_name)
-                    windows_status[key] = {
-                        "closed": True
-                        if window_obj.closed is None
-                        else window_obj.closed
-                    }
-                else:
-                    windows_status[key] = {"closed": True}
+            if hasattr(lock_status, "hood") and lock_status.hood is not None and lock_status.hood.closed is not None:
+                hood_closed = lock_status.hood.closed
+            if (
+                hasattr(lock_status, "last_update_timestamp")
+                and lock_status.last_update_timestamp
+            ):
+                # Ensure the datetime object is timezone-aware before formatting
+                ts = lock_status.last_update_timestamp
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=datetime.timezone.utc)
+                last_update_timestamp = ts.isoformat()
 
-        if hasattr(lock_status, "hood") and lock_status.hood.closed is not None:
-            hood_closed = lock_status.hood.closed
-        if (
-            hasattr(lock_status, "last_update_timestamp")
-            and lock_status.last_update_timestamp
-        ):
-            # Ensure the datetime object is timezone-aware before formatting
-            ts = lock_status.last_update_timestamp
-            if ts.tzinfo is None:
-                ts = ts.replace(tzinfo=datetime.timezone.utc)
-            last_update_timestamp = ts.isoformat()
+        except Exception as e:
+            _LOGGER.error(f"Error parsing lock status for VIN {vehicle.vin}: {e}", exc_info=True)
+            lock_status_error = True
 
     vehicle_info["status"] = {
         "doors": doors_status,
@@ -492,6 +509,7 @@ async def _build_vehicle_info_dict(vehicle):
         "trunk_closed": trunk_closed,
         "trunk_locked": trunk_locked,
         "last_update_timestamp": last_update_timestamp,
+        "error": lock_status_error,
     }
 
     notifications_data = []

@@ -7,7 +7,7 @@
         "settings": "Ajustes"
     },
     "dashboard": {
-        "title": "Panel de Control MyToyota",
+        "title": "MyToyota Dashboard",
         "last_updated": "\u00daltima actualizaci\u00f3n:",
         "update_now": "Actualizar ahora",
         "fetch_status": "Estado de conexi\u00f3n",
