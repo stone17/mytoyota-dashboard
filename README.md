@@ -286,3 +286,5 @@ Here’s how to get your vehicle’s sensors to appear automatically in Domoticz
 2.  In Domoticz, navigate to Setup -> Devices.
 3.  Your new vehicle sensors (Odometer, Fuel Level, etc.) will appear in the list.
 4.  Click the green circular arrow next to each new device to add it. Once added, the device can be used in your floorplans, notifications, and scripts.
+
+<a href="https://www.buymeacoffee.com/mxpwr" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>

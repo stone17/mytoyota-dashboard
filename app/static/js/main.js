@@ -500,7 +500,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (errorTextEl) errorTextEl.style.display = 'none';
         }
 
-        const statusTimestamp = panel.querySelector('.status-timestamp span');
+        const spans = panel.querySelectorAll('.status-timestamp span');
+        const statusTimestamp = spans.length > 1 ? spans[1] : null;
+        
         if (statusTimestamp && vehicleStatus.last_update_timestamp) {
             statusTimestamp.textContent = new Date(vehicleStatus.last_update_timestamp).toLocaleString();
         } else if (statusTimestamp) {

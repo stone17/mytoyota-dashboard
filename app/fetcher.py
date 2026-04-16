@@ -328,9 +328,17 @@ async def _update_vehicle_statistics(vehicle, vehicle_info_dict):
         if not stats_obj:
             return None
 
-        dist = stats_obj.distance or 0.0
-        fuel = stats_obj.fuel_consumed or 0.0
-        ev_dist = stats_obj.ev_distance or 0.0
+        # Helper to safely get properties that might throw errors in pytoyoda
+        def safe_get(obj, attr, default=0.0):
+            try:
+                val = getattr(obj, attr)
+                return val if val is not None else default
+            except (AttributeError, TypeError):
+                return default
+
+        dist = safe_get(stats_obj, "distance")
+        fuel = safe_get(stats_obj, "fuel_consumed")
+        ev_dist = safe_get(stats_obj, "ev_distance")
 
         non_ev_dist = dist - ev_dist
         distance_for_fuel_calc = (
@@ -354,6 +362,8 @@ async def _update_vehicle_statistics(vehicle, vehicle_info_dict):
 
 async def _build_vehicle_info_dict(vehicle):
     """Builds the main vehicle information dictionary from the vehicle object."""
+    aware_utcnow = datetime.datetime.now(datetime.timezone.utc)
+
     vehicle_info = {
         "vin": vehicle.vin,
         "alias": vehicle.alias or "N/A",
@@ -362,6 +372,7 @@ async def _build_vehicle_info_dict(vehicle):
         "dashboard": {},
         "statistics": {"overall": {}, "daily": {}},
         "status": {},
+        "last_updated": aware_utcnow,
     }
 
     if vehicle.dashboard:
@@ -415,7 +426,7 @@ async def _build_vehicle_info_dict(vehicle):
     hood_closed = True
     trunk_closed = True
     trunk_locked = False
-    last_update_timestamp = None
+    last_update_timestamp = aware_utcnow.isoformat()
     lock_status_error = False
 
     if hasattr(vehicle, "lock_status") and vehicle.lock_status:
@@ -424,6 +435,15 @@ async def _build_vehicle_info_dict(vehicle):
 
             _LOGGER.debug(f"--- Raw lock_status object for VIN {vehicle.vin} ---")
             _LOGGER.debug(lock_status)
+
+            ts = getattr(lock_status, "last_update_timestamp", getattr(lock_status, "timestamp", None))
+            if ts:
+                if isinstance(ts, datetime.datetime):
+                    if ts.tzinfo is None:
+                        ts = ts.replace(tzinfo=datetime.timezone.utc)
+                    last_update_timestamp = ts.isoformat()
+                else:
+                    last_update_timestamp = str(ts)
 
             if hasattr(lock_status, "doors") and lock_status.doors:
                 doors = lock_status.doors
@@ -488,15 +508,6 @@ async def _build_vehicle_info_dict(vehicle):
 
             if hasattr(lock_status, "hood") and lock_status.hood is not None and lock_status.hood.closed is not None:
                 hood_closed = lock_status.hood.closed
-            if (
-                hasattr(lock_status, "last_update_timestamp")
-                and lock_status.last_update_timestamp
-            ):
-                # Ensure the datetime object is timezone-aware before formatting
-                ts = lock_status.last_update_timestamp
-                if ts.tzinfo is None:
-                    ts = ts.replace(tzinfo=datetime.timezone.utc)
-                last_update_timestamp = ts.isoformat()
 
         except Exception as e:
             _LOGGER.error(f"Error parsing lock status for VIN {vehicle.vin}: {e}", exc_info=True)
@@ -549,7 +560,10 @@ async def _process_vehicle(vehicle, db_session):
                 raise
 
     vehicle_info = await _build_vehicle_info_dict(vehicle)
-    await _update_vehicle_statistics(vehicle, vehicle_info)
+    try:
+        await _update_vehicle_statistics(vehicle, vehicle_info)
+    except Exception as e:
+        _LOGGER.error(f"Failed to fetch daily statistics for VIN {vin}: {e}", exc_info=True)
 
     new_odometer = vehicle_info.get("dashboard", {}).get("odometer")
     if new_odometer is None:
@@ -578,7 +592,10 @@ async def _process_vehicle(vehicle, db_session):
         )
 
         _LOGGER.info(f"Auto-fetching recent trips from {from_date} to {to_date}.")
-        await _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_date)
+        try:
+            await _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_date)
+        except Exception as e:
+            _LOGGER.error(f"Failed to auto-fetch trips for VIN {vin}: {e}", exc_info=True)
     else:
         _LOGGER.info(f"Odometer for {vin} has not changed. Skipping trip fetch.")
 
@@ -694,7 +711,7 @@ async def run_fetch_cycle():
                 elif isinstance(res, Exception):
                     _LOGGER.error(
                         f"An error occurred while processing a vehicle: {res}",
-                        exc_info=True,
+                        exc_info=res,
                     )
         finally:
             db.close()
@@ -710,6 +727,7 @@ async def run_fetch_cycle():
                                 "vehicles": all_vehicle_data,
                             },
                             indent=2,
+                            default=str,
                         )
                     )
                 await aiofiles.os.replace(tmp_file, CACHE_FILE)
