@@ -19,10 +19,43 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func
 from .config import config_manager, DATA_DIR
 from .geocoder import GeocoderFactory
+from .toyota_interceptor import PatchedController
 
 CACHE_FILE = DATA_DIR / "vehicle_data.json"
 CACHE_LOCK = asyncio.Lock()
 GEOCODE_SEMAPHORE = asyncio.Semaphore(1)
+
+
+class TripCoordinates:
+    """Robustly extracts trip coordinates from varying Pytoyoda model structures."""
+    def __init__(self, trip_obj):
+        self.start_lat = getattr(trip_obj, "start_lat", None)
+        self.start_lon = getattr(trip_obj, "start_lon", None)
+        self.end_lat = getattr(trip_obj, "end_lat", None)
+        self.end_lon = getattr(trip_obj, "end_lon", None)
+
+        if self.start_lat is None and hasattr(trip_obj, "locations") and trip_obj.locations:
+            if hasattr(trip_obj.locations, "start") and trip_obj.locations.start:
+                self.start_lat = getattr(trip_obj.locations.start, "lat", None)
+                self.start_lon = getattr(trip_obj.locations.start, "lon", None)
+            if hasattr(trip_obj.locations, "end") and trip_obj.locations.end:
+                self.end_lat = getattr(trip_obj.locations.end, "lat", None)
+                self.end_lon = getattr(trip_obj.locations.end, "lon", None)
+        
+        # New Fallback: Extract from route array if standard location fields are null
+        if self.start_lat is None and hasattr(trip_obj, "route") and trip_obj.route:
+            start_node = trip_obj.route[0]
+            end_node = trip_obj.route[-1]
+            
+            # Handle both dicts and Pydantic models dynamically
+            self.start_lat = start_node.get("lat") if isinstance(start_node, dict) else getattr(start_node, "lat", None)
+            self.start_lon = start_node.get("lon") if isinstance(start_node, dict) else getattr(start_node, "lon", None)
+            self.end_lat = end_node.get("lat") if isinstance(end_node, dict) else getattr(end_node, "lat", None)
+            self.end_lon = end_node.get("lon") if isinstance(end_node, dict) else getattr(end_node, "lon", None)
+    
+    @property
+    def is_valid(self):
+        return self.start_lat is not None and self.start_lon is not None
 
 
 async def get_address_from_coords(lat: float, lon: float) -> Optional[str]:
@@ -76,26 +109,45 @@ async def _reverse_geocode_trip(trip_id: int, force: bool = False):
             trip = db.query(database.Trip).filter(database.Trip.id == trip_id).first()
             if not trip:
                 return
-            if not force and trip.start_address != "Geocoding...":
-                _LOGGER.debug(
-                    f"Trip {trip_id} already geocoded or not found. Skipping."
-                )
+                
+            needs_address = force or trip.start_address == "Geocoding..."
+            needs_countries = force or not trip.countries
+
+            if not needs_address and not needs_countries:
+                _LOGGER.debug(f"Trip {trip_id} already fully geocoded. Skipping.")
                 return
 
             if not config_manager.settings.get("reverse_geocode_enabled", True):
-                trip.start_address = f"{trip.start_lat}, {trip.start_lon}"
-                trip.end_address = f"{trip.end_lat}, {trip.end_lon}"
+                if needs_address:
+                    trip.start_address = f"{trip.start_lat}, {trip.start_lon}"
+                    trip.end_address = f"{trip.end_lat}, {trip.end_lon}"
                 db.commit()
                 return
 
             geocoder = GeocoderFactory.get_geocoder(config_manager)
-            trip.start_address = (
-                await geocoder.reverse_geocode(trip.start_lat, trip.start_lon)
-                or "Unknown"
-            )
-            trip.end_address = (
-                await geocoder.reverse_geocode(trip.end_lat, trip.end_lon) or "Unknown"
-            )
+            countries = set()
+            
+            # --- Start Coordinate (1 Request) ---
+            if trip.start_lat and trip.start_lon:
+                start_addr, start_country = await geocoder.reverse_geocode(trip.start_lat, trip.start_lon)
+                
+                if needs_address:
+                    trip.start_address = start_addr or "Unknown"
+                if needs_countries and start_country:
+                    countries.add(start_country)
+
+            # --- End Coordinate (1 Request) ---
+            if trip.end_lat and trip.end_lon:
+                end_addr, end_country = await geocoder.reverse_geocode(trip.end_lat, trip.end_lon)
+                
+                if needs_address:
+                    trip.end_address = end_addr or "Unknown"
+                if needs_countries and end_country:
+                    countries.add(end_country)
+
+            # Assign combined countries
+            if needs_countries and countries:
+                trip.countries = list(countries)
 
             db.commit()
             _LOGGER.info(f"Successfully geocoded trip {trip_id}.")
@@ -137,15 +189,14 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
     updated_trips_count = 0
 
     # Define fields that should NOT be overwritten by a data backfill.
-    PROTECTED_FIELDS = {"start_address", "end_address"}
+    PROTECTED_FIELDS = {"start_address", "end_address", "countries"}
 
     for trip in all_trips:
         try:
-            if not (
-                hasattr(trip, "locations")
-                and hasattr(trip.locations, "start")
-                and hasattr(trip.locations.start, "lat")
-            ):
+            print(trip)
+            coords = TripCoordinates(trip)
+            
+            if not coords.is_valid:
                 _LOGGER.warning(
                     "Skipping a trip object because it's missing coordinate data."
                 )
@@ -218,10 +269,10 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
 
             new_data = {
                 "end_timestamp": trip.end_time.astimezone(datetime.timezone.utc),
-                "start_lat": trip.locations.start.lat,
-                "start_lon": trip.locations.start.lon,
-                "end_lat": trip.locations.end.lat,
-                "end_lon": trip.locations.end.lon,
+                "start_lat": coords.start_lat,
+                "start_lon": coords.start_lon,
+                "end_lat": coords.end_lat,
+                "end_lon": coords.end_lon,
                 "distance_km": distance_km,
                 "fuel_consumption_l_100km": fuel_consumption_l_100km,
                 "duration_seconds": int(duration_seconds),
@@ -285,6 +336,10 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
                         setattr(existing_trip, key, value)
                 db_session.commit()
                 updated_trips_count += 1
+
+                if not existing_trip.countries:
+                    asyncio.create_task(_reverse_geocode_trip(existing_trip.id))
+                    
                 continue
 
             # --- Step 3: If no existing trip, create a new one ---
@@ -668,7 +723,7 @@ async def run_fetch_cycle():
         _LOGGER.error("Credentials not found. Please set them on the Settings page.")
         return
 
-    client = MyT(username=username, password=password, use_metric=True)
+    client = MyT(username=username, password=password, use_metric=True, controller_class=PatchedController)
     all_vehicle_data = []
 
     try:
@@ -762,7 +817,7 @@ async def backfill_trips(vin: str, period: str):
     if not username or not password:
         return {"error": "Credentials not found."}
 
-    client = MyT(username=username, password=password, use_metric=True)
+    client = MyT(username=username, password=password, use_metric=True, controller_class=PatchedController)
     try:
         await client.login()
         target_vehicle = next(
@@ -834,7 +889,7 @@ async def fetch_service_history(vin: str):
     if not username or not password:
         return {"error": "Credentials not found."}
 
-    client = MyT(username=username, password=password, use_metric=True)
+    client = MyT(username=username, password=password, use_metric=True, controller_class=PatchedController)
     try:
         await client.login()
         history_response = await client._api.get_service_history(vin=vin)
