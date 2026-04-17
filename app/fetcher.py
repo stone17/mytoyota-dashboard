@@ -168,7 +168,7 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
         f"Fetching trip summaries for VIN {vehicle.vin} from {from_date} to {to_date}..."
     )
 
-    if 0:
+    if 1:
         fetch_full_route = config_manager.settings.get("fetch_full_trip_route", False)
 
         all_trips = await vehicle.get_trips(
