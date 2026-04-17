@@ -13,6 +13,7 @@ import aiofiles
 import aiofiles.os
 from pytoyoda.client import MyT
 from pytoyoda.exceptions import ToyotaLoginError, ToyotaApiError
+from pytoyoda.models.trips import Trip
 from . import database
 from .credentials_manager import load_credentials
 from sqlalchemy.exc import IntegrityError
@@ -167,10 +168,38 @@ async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_d
         f"Fetching trip summaries for VIN {vehicle.vin} from {from_date} to {to_date}..."
     )
 
-    fetch_full_route = config_manager.settings.get("fetch_full_trip_route", False)
-    all_trips = await vehicle.get_trips(
-        from_date=from_date, to_date=to_date, full_route=fetch_full_route
-    )
+    if 0:
+        fetch_full_route = config_manager.settings.get("fetch_full_trip_route", False)
+
+        all_trips = await vehicle.get_trips(
+            from_date=from_date, to_date=to_date, full_route=fetch_full_route
+        )
+    else:
+        # Bypass the wrapper to force summary=True and get the missing data back
+        fetch_full_route = config_manager.settings.get("fetch_full_route", False)
+
+        all_trips = []
+        offset = 0
+        while True:
+            resp = await vehicle._api.get_trips(
+                vin=vehicle.vin,
+                from_date=from_date,
+                to_date=to_date,
+                route=fetch_full_route,
+                summary=True,
+                limit=5,
+                offset=offset,
+            )
+            
+            if not resp.payload:
+                break
+                
+            if resp.payload.trips:
+                all_trips.extend(Trip(t, vehicle._metric) for t in resp.payload.trips)
+                
+            offset = resp.payload.metadata.pagination.next_offset
+            if offset is None:
+                break
 
     if not isinstance(all_trips, list):
         _LOGGER.error(
