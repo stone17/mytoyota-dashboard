@@ -34,7 +34,12 @@ class VehicleParser:
             longitude = getattr(self.vehicle.location, "longitude", None) if hasattr(self.vehicle, "location") else None
 
             address = None
-            if latitude and longitude and self.reverse_geocode_enabled and self.geocode_callback:
+            if (
+                latitude is not None
+                and longitude is not None
+                and self.reverse_geocode_enabled
+                and self.geocode_callback
+            ):
                 address = await self.geocode_callback(latitude, longitude)
 
             vehicle_info["dashboard"] = {
