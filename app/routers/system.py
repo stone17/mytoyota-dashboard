@@ -1,6 +1,5 @@
 # app/routers/system.py
 import logging
-import subprocess
 import yaml
 from typing import Optional
 
@@ -32,81 +31,6 @@ def get_geocode_status():
         return {"pending": pending_count, "total": total_count}
     finally:
         db.close()
-
-@router.post("/update")
-async def update_application():
-    """
-    Updates the application by pulling the latest changes from the git repository
-    and restarting the docker-compose service.
-    """
-    try:
-        logging.info("Update process started via API.")
-
-        # Sanity Check 1: Check for unmerged changes
-        logging.info("Checking for unmerged changes...")
-        status_process = subprocess.run(
-            ["git", "status", "--porcelain"], capture_output=True, text=True
-        )
-        if status_process.stdout:
-            logging.error(f"Unmerged changes detected:\n{status_process.stdout}")
-            raise HTTPException(
-                status_code=400,
-                detail="There are unmerged changes in the repository. Please resolve them before updating.",
-            )
-
-        # Step 1: Git Pull
-        logging.info("Pulling latest changes from git...")
-        pull_process = subprocess.run(["git", "pull"], capture_output=True, text=True)
-        if pull_process.returncode != 0:
-            logging.error(f"Git pull failed: {pull_process.stderr}")
-            raise HTTPException(
-                status_code=500, detail=f"Git pull failed: {pull_process.stderr}"
-            )
-
-        update_message = "No new updates."
-        if "Already up to date." not in pull_process.stdout:
-            update_message = f"Git pull successful:\n{pull_process.stdout}"
-
-        logging.info(update_message)
-
-        # Step 2: Docker-compose up --build
-        logging.info("Restarting docker-compose service...")
-        # Try with "docker compose" first for newer docker versions
-        restart_process = subprocess.run(
-            ["docker", "compose", "up", "-d", "--build"], capture_output=True, text=True
-        )
-
-        # If it fails, try with "docker-compose" for older versions
-        if restart_process.returncode != 0:
-            logging.warning(
-                "`docker compose` command failed. Trying with `docker-compose`."
-            )
-            restart_process = subprocess.run(
-                ["docker-compose", "up", "-d", "--build"],
-                capture_output=True,
-                text=True,
-            )
-
-        if restart_process.returncode != 0:
-            logging.error(f"Docker compose restart failed: {restart_process.stderr}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"Docker compose restart failed: {restart_process.stderr}",
-            )
-
-        logging.info("Docker compose restart successful.")
-
-        return {
-            "message": f"{update_message}\nApplication update initiated successfully. The service is restarting."
-        }
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        logging.error(f"Error during update process: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail="An internal error occurred during the update process.",
-        )
 
 @router.post("/force_poll")
 async def force_poll(request: Request):

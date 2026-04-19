@@ -439,7 +439,7 @@ def get_heatmap_data(vin: str):
         # Query for all trips for the given VIN that have route data
         trips_with_routes = (
             db.query(database.Trip.route)
-            .filter(database.Trip.vin == vin, database.Trip.route != None)
+            .filter(database.Trip.vin == vin, database.Trip.route.is_not(None))
             .all()
         )
 

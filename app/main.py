@@ -18,7 +18,7 @@ from .config import config_manager
 from .logging_config import setup_logging
 
 # Import the new routers
-from app.routers import pages, trips, vehicles, system
+from .routers import pages, trips, vehicles, system
 
 # Configure logging at the very beginning of the application startup
 setup_logging()

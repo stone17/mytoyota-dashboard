@@ -69,6 +69,7 @@ class TripAnalyzer:
                 coords = TripCoordinates(trip)
                 if not coords.is_valid:
                     _LOGGER.warning("Skipping a trip object because it's missing coordinate data.")
+                    counts["skipped"] += 1
                     continue
 
                 new_data = self._extract_trip_data(trip, coords, fetch_full_route)
@@ -146,11 +147,19 @@ class TripAnalyzer:
         start_ts_utc = new_data.pop("start_timestamp")
 
         if existing_trip:
+            has_changes = False
             for key, value in new_data.items():
                 if key not in self.PROTECTED_FIELDS:
-                    setattr(existing_trip, key, value)
-            self.db_session.commit()
-            counts["updated"] += 1
+                    if getattr(existing_trip, key) != value:
+                        setattr(existing_trip, key, value)
+                        has_changes = True
+            
+            if has_changes:
+                self.db_session.commit()
+                counts["updated"] += 1
+            else:
+                counts["skipped"] += 1
+
             if not existing_trip.countries and self.geocode_callback:
                 asyncio.create_task(self.geocode_callback(existing_trip.id))
         else:

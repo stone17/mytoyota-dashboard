@@ -52,14 +52,14 @@ async def _reverse_geocode_trip(trip_id: int, force: bool = False):
             geocoder = GeocoderFactory.get_geocoder(config_manager)
             countries = set()
             
-            if trip.start_lat and trip.start_lon:
+            if trip.start_lat is not None and trip.start_lon is not None:
                 start_addr, start_country = await geocoder.reverse_geocode(trip.start_lat, trip.start_lon)
                 if needs_address:
                     trip.start_address = start_addr or "Unknown"
                 if needs_countries and start_country:
                     countries.add(start_country)
 
-            if trip.end_lat and trip.end_lon:
+            if trip.end_lat is not None and trip.end_lon is not None:
                 end_addr, end_country = await geocoder.reverse_geocode(trip.end_lat, trip.end_lon)
                 if needs_address:
                     trip.end_address = end_addr or "Unknown"
@@ -78,7 +78,7 @@ async def _reverse_geocode_trip(trip_id: int, force: bool = False):
             db.close()
 
 
-async def _process_vehicle(vehicle, db_session):
+async def _process_vehicle(vehicle):
     """Processes a single vehicle: updates its data, checks odometer, and fetches trips if needed."""
     vin = vehicle.vin
     _LOGGER.info(f"Processing vehicle: {vin} ({vehicle.alias})")
@@ -105,6 +105,8 @@ async def _process_vehicle(vehicle, db_session):
     
     async def dashboard_geocode_wrapper(lat, lon):
         address, _ = await geocoder.reverse_geocode(lat, lon)
+        if address == "Unavailable":
+            return None
         return address
 
     parser = VehicleParser(vehicle, reverse_geocode_enabled, geocode_callback=dashboard_geocode_wrapper)
@@ -115,70 +117,76 @@ async def _process_vehicle(vehicle, db_session):
     except Exception as e:
         _LOGGER.error(f"Failed to fetch daily statistics for VIN {vin}: {e}", exc_info=True)
 
-    # 2. Check Odometer & Fetch Trips
-    new_odometer = vehicle_info.get("dashboard", {}).get("odometer")
-    if new_odometer is None:
-        _LOGGER.warning(f"Odometer data not available for {vin}. Skipping database entry and trip fetch.")
-        return vehicle_info
+    # Initialize a dedicated DB session for this vehicle's task
+    db_session = database.SessionLocal()
+    try:
+        # 2. Check Odometer & Fetch Trips
+        new_odometer = vehicle_info.get("dashboard", {}).get("odometer")
+        if new_odometer is None:
+            _LOGGER.warning(f"Odometer data not available for {vin}. Skipping database entry and trip fetch.")
+            return vehicle_info
 
-    latest_reading = database.get_latest_reading(vin=vin)
-    latest_trip_ts = database.get_latest_trip_timestamp(vin=vin)
+        latest_reading = database.get_latest_reading(vin=vin)
+        latest_trip_ts = database.get_latest_trip_timestamp(vin=vin)
 
-    is_first_run = not latest_trip_ts
-    odometer_changed = not latest_reading or new_odometer > latest_reading.odometer
+        is_first_run = not latest_trip_ts
+        odometer_changed = not latest_reading or new_odometer > latest_reading.odometer
 
-    if odometer_changed or is_first_run:
-        _LOGGER.info(f"New activity detected for {vin}. Odometer: {new_odometer} km. Saving reading and fetching trips.")
-        database.add_reading(vehicle_info)
+        if odometer_changed or is_first_run:
+            _LOGGER.info(f"New activity detected for {vin}. Odometer: {new_odometer} km. Saving reading and fetching trips.")
+            database.add_reading(vehicle_info)
 
-        to_date = datetime.date.today()
-        from_date = (to_date - datetime.timedelta(days=7)) if is_first_run else latest_trip_ts.date()
+            to_date = datetime.date.today()
+            from_date = (to_date - datetime.timedelta(days=7)) if is_first_run else latest_trip_ts.date()
 
-        _LOGGER.info(f"Auto-fetching recent trips from {from_date} to {to_date}.")
-        try:
-            analyzer = TripAnalyzer(vehicle, db_session, geocode_callback=_reverse_geocode_trip)
-            await analyzer.fetch_and_process(from_date, to_date)
-        except Exception as e:
-            _LOGGER.error(f"Failed to auto-fetch trips for VIN {vin}: {e}", exc_info=True)
-    else:
-        _LOGGER.info(f"Odometer for {vin} has not changed. Skipping trip fetch.")
+            _LOGGER.info(f"Auto-fetching recent trips from {from_date} to {to_date}.")
+            try:
+                analyzer = TripAnalyzer(vehicle, db_session, geocode_callback=_reverse_geocode_trip)
+                await analyzer.fetch_and_process(from_date, to_date)
+            except Exception as e:
+                _LOGGER.error(f"Failed to auto-fetch trips for VIN {vin}: {e}", exc_info=True)
+        else:
+            _LOGGER.info(f"Odometer for {vin} has not changed. Skipping trip fetch.")
 
-    # 3. Calculate Overall Database Statistics
-    vehicle_info["statistics"]["overall"] = {
-        "total_ev_distance_km": 0, "total_fuel_l": 0.0, "total_duration_seconds": 0,
-        "ev_ratio_percent": 0.0, "fuel_consumption_l_100km": 0.0, "total_highway_distance_km": 0, "score_global": None,
-    }
+        # 3. Calculate Overall Database Statistics
+        vehicle_info["statistics"]["overall"] = {
+            "total_ev_distance_km": 0, "total_fuel_l": 0.0, "total_duration_seconds": 0,
+            "ev_ratio_percent": 0.0, "fuel_consumption_l_100km": 0.0, "total_highway_distance_km": 0, "score_global": None,
+        }
 
-    stats = (
-        db_session.query(
-            func.sum(database.Trip.distance_km).label("total_distance"),
-            func.sum(database.Trip.ev_distance_km).label("total_ev_distance"),
-            func.sum(database.Trip.fuel_consumption_l_100km * database.Trip.distance_km / 100).label("total_fuel"),
-            func.sum(database.Trip.duration_seconds).label("total_duration_seconds"),
-            func.sum(database.Trip.length_highway_km).label("total_highway_distance"),
-            func.avg(database.Trip.score_global).label("score_global"),
+        stats = (
+            db_session.query(
+                func.sum(database.Trip.distance_km).label("total_distance"),
+                func.sum(database.Trip.ev_distance_km).label("total_ev_distance"),
+                func.sum(database.Trip.fuel_consumption_l_100km * database.Trip.distance_km / 100).label("total_fuel"),
+                func.sum(database.Trip.duration_seconds).label("total_duration_seconds"),
+                func.sum(database.Trip.length_highway_km).label("total_highway_distance"),
+                func.avg(database.Trip.score_global).label("score_global"),
+            )
+            .filter(database.Trip.vin == vin)
+            .first()
         )
-        .filter(database.Trip.vin == vin)
-        .first()
-    )
 
-    if stats and stats.total_distance is not None and stats.total_distance > 0:
-        total_distance = stats.total_distance
-        total_ev_distance = stats.total_ev_distance or 0.0
-        total_fuel = stats.total_fuel or 0.0
-        total_highway_distance = stats.total_highway_distance or 0.0
+        if stats and stats.total_distance is not None and stats.total_distance > 0:
+            total_distance = stats.total_distance
+            total_ev_distance = stats.total_ev_distance or 0.0
+            total_fuel = stats.total_fuel or 0.0
+            total_highway_distance = stats.total_highway_distance or 0.0
 
-        vehicle_info["statistics"]["overall"].update({
-            "total_ev_distance_km": round(total_ev_distance),
-            "total_fuel_l": round(total_fuel, 2),
-            "total_duration_seconds": stats.total_duration_seconds or 0,
-            "ev_ratio_percent": round((total_ev_distance / total_distance) * 100, 1),
-            "fuel_consumption_l_100km": round((total_fuel / total_distance) * 100, 2) if total_fuel > 0 else 0.0,
-            "total_highway_distance_km": round(total_highway_distance),
-            "score_global": round(stats.score_global) if stats.score_global is not None else None,
-        })
+            vehicle_info["statistics"]["overall"].update({
+                "total_ev_distance_km": round(total_ev_distance),
+                "total_fuel_l": round(total_fuel, 2),
+                "total_duration_seconds": stats.total_duration_seconds or 0,
+                "ev_ratio_percent": round((total_ev_distance / total_distance) * 100, 1),
+                "fuel_consumption_l_100km": round((total_fuel / total_distance) * 100, 2) if total_fuel > 0 else 0.0,
+                "total_highway_distance_km": round(total_highway_distance),
+                "score_global": round(stats.score_global) if stats.score_global is not None else None,
+            })
 
-    return vehicle_info
+        return vehicle_info
+    finally:
+        # Safely close the task-specific session
+        db_session.close()
 
 
 async def run_fetch_cycle():
@@ -211,21 +219,18 @@ async def run_fetch_cycle():
             _LOGGER.info("No vehicles found for this account.")
             return
 
-        db = database.SessionLocal()
-        try:
-            tasks = [_process_vehicle(v, db) for v in vehicles if v and v.vin]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+        # Fire concurrent processing tasks, each manages its own DB session internally
+        tasks = [_process_vehicle(v) for v in vehicles if v and v.vin]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            for res in results:
-                if isinstance(res, dict):
-                    vin = res.get("vin")
-                    if vin in vin_to_service_history:
-                        res["service_history"] = vin_to_service_history[vin]
-                    all_vehicle_data.append(res)
-                elif isinstance(res, Exception):
-                    _LOGGER.error(f"An error occurred while processing a vehicle: {res}", exc_info=res)
-        finally:
-            db.close()
+        for res in results:
+            if isinstance(res, dict):
+                vin = res.get("vin")
+                if vin in vin_to_service_history:
+                    res["service_history"] = vin_to_service_history[vin]
+                all_vehicle_data.append(res)
+            elif isinstance(res, Exception):
+                _LOGGER.error(f"An error occurred while processing a vehicle: {res}", exc_info=res)
 
         if all_vehicle_data:
             tmp_file = CACHE_FILE.with_suffix(".tmp")
