@@ -3,102 +3,27 @@ import asyncio
 import json
 import datetime
 import logging
-import httpx
-from pathlib import Path
 from typing import Optional
-
-_LOGGER = logging.getLogger(__name__)
 
 import aiofiles
 import aiofiles.os
 from pytoyoda.client import MyT
-from pytoyoda.exceptions import ToyotaLoginError, ToyotaApiError
-from pytoyoda.models.trips import Trip
+from pytoyoda.exceptions import ToyotaApiError
+from sqlalchemy import func
+
 from . import database
 from .credentials_manager import load_credentials
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy import func
 from .config import config_manager, DATA_DIR
 from .geocoder import GeocoderFactory
 from .toyota_interceptor import PatchedController
+from .trip_analyzer import TripAnalyzer
+from .vehicle_parser import VehicleParser
+
+_LOGGER = logging.getLogger(__name__)
 
 CACHE_FILE = DATA_DIR / "vehicle_data.json"
 CACHE_LOCK = asyncio.Lock()
 GEOCODE_SEMAPHORE = asyncio.Semaphore(1)
-
-
-class TripCoordinates:
-    """Robustly extracts trip coordinates from varying Pytoyoda model structures."""
-    def __init__(self, trip_obj):
-        self.start_lat = getattr(trip_obj, "start_lat", None)
-        self.start_lon = getattr(trip_obj, "start_lon", None)
-        self.end_lat = getattr(trip_obj, "end_lat", None)
-        self.end_lon = getattr(trip_obj, "end_lon", None)
-
-        if self.start_lat is None and hasattr(trip_obj, "locations") and trip_obj.locations:
-            if hasattr(trip_obj.locations, "start") and trip_obj.locations.start:
-                self.start_lat = getattr(trip_obj.locations.start, "lat", None)
-                self.start_lon = getattr(trip_obj.locations.start, "lon", None)
-            if hasattr(trip_obj.locations, "end") and trip_obj.locations.end:
-                self.end_lat = getattr(trip_obj.locations.end, "lat", None)
-                self.end_lon = getattr(trip_obj.locations.end, "lon", None)
-        
-        # New Fallback: Extract from route array if standard location fields are null
-        if self.start_lat is None and hasattr(trip_obj, "route") and trip_obj.route:
-            start_node = trip_obj.route[0]
-            end_node = trip_obj.route[-1]
-            
-            # Handle both dicts and Pydantic models dynamically
-            self.start_lat = start_node.get("lat") if isinstance(start_node, dict) else getattr(start_node, "lat", None)
-            self.start_lon = start_node.get("lon") if isinstance(start_node, dict) else getattr(start_node, "lon", None)
-            self.end_lat = end_node.get("lat") if isinstance(end_node, dict) else getattr(end_node, "lat", None)
-            self.end_lon = end_node.get("lon") if isinstance(end_node, dict) else getattr(end_node, "lon", None)
-    
-    @property
-    def is_valid(self):
-        return self.start_lat is not None and self.start_lon is not None
-
-
-async def get_address_from_coords(lat: float, lon: float) -> Optional[str]:
-    """Fetches a human-readable address from coordinates using Nominatim."""
-    if not lat or not lon:
-        return None
-
-    # Nominatim requires a custom User-Agent. Add addressdetails=1 to get component parts.
-    headers = {"User-Agent": "MyToyota-Dashboard/1.0"}
-    url = f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lon}&addressdetails=1"
-
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-
-            # Construct a shorter address from its component parts
-            address = data.get("address", {})
-            road = address.get("road")
-            house_number = address.get("house_number")
-            city = address.get("city") or address.get("town") or address.get("village")
-            postcode = address.get("postcode")
-
-            parts = []
-            if road:
-                full_street = f"{road} {house_number}" if house_number else road
-                parts.append(full_street)
-            if postcode:
-                parts.append(postcode)
-            if city:
-                parts.append(city)
-
-            if parts:
-                return ", ".join(parts)
-
-            # Fallback to the full display name if we can't build a shorter one
-            return data.get("display_name", "Unavailable")
-
-    except (httpx.RequestError, httpx.HTTPStatusError, json.JSONDecodeError) as e:
-        _LOGGER.error(f"Failed to reverse geocode coordinates ({lat}, {lon}): {e}")
-        return "Unavailable"
 
 
 async def _reverse_geocode_trip(trip_id: int, force: bool = False):
@@ -115,7 +40,6 @@ async def _reverse_geocode_trip(trip_id: int, force: bool = False):
             needs_countries = force or not trip.countries
 
             if not needs_address and not needs_countries:
-                _LOGGER.debug(f"Trip {trip_id} already fully geocoded. Skipping.")
                 return
 
             if not config_manager.settings.get("reverse_geocode_enabled", True):
@@ -128,500 +52,34 @@ async def _reverse_geocode_trip(trip_id: int, force: bool = False):
             geocoder = GeocoderFactory.get_geocoder(config_manager)
             countries = set()
             
-            # --- Start Coordinate (1 Request) ---
             if trip.start_lat and trip.start_lon:
                 start_addr, start_country = await geocoder.reverse_geocode(trip.start_lat, trip.start_lon)
-                
                 if needs_address:
                     trip.start_address = start_addr or "Unknown"
                 if needs_countries and start_country:
                     countries.add(start_country)
 
-            # --- End Coordinate (1 Request) ---
             if trip.end_lat and trip.end_lon:
                 end_addr, end_country = await geocoder.reverse_geocode(trip.end_lat, trip.end_lon)
-                
                 if needs_address:
                     trip.end_address = end_addr or "Unknown"
                 if needs_countries and end_country:
                     countries.add(end_country)
 
-            # Assign combined countries
             if needs_countries and countries:
                 trip.countries = list(countries)
 
             db.commit()
             _LOGGER.info(f"Successfully geocoded trip {trip_id}.")
         except Exception as e:
-            _LOGGER.error(
-                f"Error during background geocoding for trip {trip_id}: {e}",
-                exc_info=True,
-            )
+            _LOGGER.error(f"Error during background geocoding for trip {trip_id}: {e}", exc_info=True)
             db.rollback()
         finally:
             db.close()
 
 
-async def _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_date):
-    """Helper function to fetch, process, and save trip summaries for a given period."""
-    _LOGGER.info(
-        f"Fetching trip summaries for VIN {vehicle.vin} from {from_date} to {to_date}..."
-    )
-
-    if 1:
-        fetch_full_route = config_manager.settings.get("fetch_full_trip_route", False)
-
-        all_trips = await vehicle.get_trips(
-            from_date=from_date, to_date=to_date, full_route=fetch_full_route
-        )
-    else:
-        # Bypass the wrapper to force summary=True and get the missing data back
-        fetch_full_route = config_manager.settings.get("fetch_full_route", False)
-
-        all_trips = []
-        offset = 0
-        while True:
-            resp = await vehicle._api.get_trips(
-                vin=vehicle.vin,
-                from_date=from_date,
-                to_date=to_date,
-                route=fetch_full_route,
-                summary=True,
-                limit=5,
-                offset=offset,
-            )
-            
-            if not resp.payload:
-                break
-                
-            if resp.payload.trips:
-                all_trips.extend(Trip(t, vehicle._metric) for t in resp.payload.trips)
-                
-            offset = resp.payload.metadata.pagination.next_offset
-            if offset is None:
-                break
-
-    if not isinstance(all_trips, list):
-        _LOGGER.error(
-            f"Expected a list of trips, but got {type(all_trips)}. Aborting trip fetch."
-        )
-        return {
-            "new": 0,
-            "updated": 0,
-            "skipped": 0,
-            "error": "Invalid response from API library",
-        }
-
-    _LOGGER.info(f"API returned a total of {len(all_trips)} trips for the period.")
-    new_trips_count = 0
-    skipped_trips_count = 0
-    updated_trips_count = 0
-
-    # Define fields that should NOT be overwritten by a data backfill.
-    PROTECTED_FIELDS = {"start_address", "end_address", "countries"}
-
-    for trip in all_trips:
-        try:
-            print(trip)
-            coords = TripCoordinates(trip)
-            
-            if not coords.is_valid:
-                _LOGGER.warning(
-                    "Skipping a trip object because it's missing coordinate data."
-                )
-                continue
-
-            # --- Step 1: Extract and calculate all possible values from the fetched trip ---
-            start_ts_utc = trip.start_time.astimezone(datetime.timezone.utc)
-            distance_km = getattr(trip, "distance", 0.0) or 0.0
-            fuel_consumption_l_100km = (
-                getattr(trip, "average_fuel_consumed", 0.0) or 0.0
-            )
-            duration_seconds = getattr(
-                trip, "duration", datetime.timedelta(0)
-            ).total_seconds()
-            average_speed_kmh = (
-                (distance_km / (duration_seconds / 3600))
-                if duration_seconds > 0 and distance_km > 0
-                else 0.0
-            )
-
-            summary = (
-                trip._trip.summary
-                if hasattr(trip, "_trip") and hasattr(trip._trip, "summary")
-                else None
-            )
-            scores = (
-                trip._trip.scores
-                if hasattr(trip, "_trip") and hasattr(trip._trip, "scores")
-                else None
-            )
-            hdc = (
-                trip._trip.hdc
-                if hasattr(trip, "_trip") and hasattr(trip._trip, "hdc")
-                else None
-            )
-
-            # Correct the units for distances (API provides many in meters)
-            ev_distance_km = (
-                (hdc.ev_distance / 1000)
-                if hdc and hdc.ev_distance is not None
-                else getattr(trip, "ev_distance", 0.0)
-            )
-            hdc_charge_dist_km = (
-                (hdc.charge_dist / 1000)
-                if hdc and hdc.charge_dist is not None
-                else None
-            )
-            hdc_eco_dist_km = (
-                (hdc.eco_dist / 1000) if hdc and hdc.eco_dist is not None else None
-            )
-            hdc_power_dist_km = (
-                (hdc.power_dist / 1000) if hdc and hdc.power_dist is not None else None
-            )
-            length_overspeed_km = (
-                (summary.length_overspeed / 1000)
-                if summary and summary.length_overspeed is not None
-                else None
-            )
-            length_highway_km = (
-                (summary.length_highway / 1000)
-                if summary and summary.length_highway is not None
-                else None
-            )
-
-            route_data = None
-            if fetch_full_route and hasattr(trip, "route") and trip.route:
-                route_data = [point.model_dump(mode="json") for point in trip.route]
-
-            KM_TO_MI = 0.621371
-
-            new_data = {
-                "end_timestamp": trip.end_time.astimezone(datetime.timezone.utc),
-                "start_lat": coords.start_lat,
-                "start_lon": coords.start_lon,
-                "end_lat": coords.end_lat,
-                "end_lon": coords.end_lon,
-                "distance_km": distance_km,
-                "fuel_consumption_l_100km": fuel_consumption_l_100km,
-                "duration_seconds": int(duration_seconds),
-                "average_speed_kmh": average_speed_kmh,
-                "max_speed_kmh": summary.max_speed if summary else None,
-                "countries": summary.countries if summary else None,
-                "length_overspeed_km": length_overspeed_km,
-                "duration_overspeed_seconds": summary.duration_overspeed
-                if summary
-                else None,
-                "length_highway_km": length_highway_km,
-                "duration_highway_seconds": summary.duration_highway
-                if summary
-                else None,
-                "night_trip": summary.night_trip if summary else None,
-                "score_global": scores.global_
-                if scores
-                else getattr(trip, "score", None),
-                "score_acceleration": scores.acceleration if scores else None,
-                "score_braking": scores.braking if scores else None,
-                "score_advice": scores.advice if scores else None,
-                "score_constant_speed": scores.constant_speed if scores else None,
-                "ev_distance_km": ev_distance_km,
-                "ev_duration_seconds": hdc.ev_time
-                if hdc and hdc.ev_time is not None
-                else int(
-                    getattr(trip, "ev_duration", datetime.timedelta(0)).total_seconds()
-                ),
-                "hdc_charge_duration_seconds": hdc.charge_time if hdc else None,
-                "hdc_charge_distance_km": hdc_charge_dist_km,
-                "hdc_eco_duration_seconds": hdc.eco_time if hdc else None,
-                "hdc_eco_distance_km": hdc_eco_dist_km,
-                "hdc_power_duration_seconds": hdc.power_time if hdc else None,
-                "hdc_power_distance_km": hdc_power_dist_km,
-                "distance_mi": distance_km * KM_TO_MI,
-                "mpg": (235.214 / fuel_consumption_l_100km)
-                if fuel_consumption_l_100km > 0
-                else 0.0,
-                "mpg_uk": (282.481 / fuel_consumption_l_100km)
-                if fuel_consumption_l_100km > 0
-                else 0.0,
-                "average_speed_mph": average_speed_kmh * KM_TO_MI,
-                "ev_distance_mi": (ev_distance_km or 0.0) * KM_TO_MI,
-                "route": route_data,
-            }
-
-            # --- Step 2: Check for existing trip and apply logic ---
-            existing_trip = (
-                db_session.query(database.Trip)
-                .filter_by(vin=vehicle.vin, start_timestamp=start_ts_utc)
-                .first()
-            )
-
-            if existing_trip:
-                # Trip exists. Overwrite with latest data from API, but protect geocoded fields.
-                _LOGGER.info(
-                    f"Updating trip {existing_trip.id} with new/corrected data from API."
-                )
-                for key, value in new_data.items():
-                    if key not in PROTECTED_FIELDS:
-                        setattr(existing_trip, key, value)
-                db_session.commit()
-                updated_trips_count += 1
-
-                if not existing_trip.countries:
-                    asyncio.create_task(_reverse_geocode_trip(existing_trip.id))
-                    
-                continue
-
-            # --- Step 3: If no existing trip, create a new one ---
-            new_trip = database.Trip(
-                vin=vehicle.vin,
-                start_timestamp=start_ts_utc,
-                start_address="Geocoding...",  # Default for new trips
-                end_address="Geocoding...",
-                **new_data,
-            )
-            db_session.add(new_trip)
-            db_session.commit()
-            db_session.refresh(new_trip)
-            new_trips_count += 1
-
-            # Trigger geocoding in the background
-            asyncio.create_task(_reverse_geocode_trip(new_trip.id))
-
-        except Exception as e:
-            _LOGGER.warning(
-                f"Could not process a trip summary due to an error: {e}. Skipping.",
-                exc_info=True,
-            )
-            db_session.rollback()
-
-    _LOGGER.info(
-        f"Trip summary fetch for {vehicle.vin} complete. New: {new_trips_count}, Updated: {updated_trips_count}, Skipped (no changes): {skipped_trips_count}."
-    )
-    return {
-        "new": new_trips_count,
-        "updated": updated_trips_count,
-        "skipped": skipped_trips_count,
-    }
-
-
-async def _update_vehicle_statistics(vehicle, vehicle_info_dict):
-    """Fetches and processes daily driving statistics for the live dashboard tile."""
-    _LOGGER.info(f"Fetching today's statistics for VIN {vehicle.vin}...")
-
-    async def process_stats(stats_obj):
-        if not stats_obj:
-            return None
-
-        # Helper to safely get properties that might throw errors in pytoyoda
-        def safe_get(obj, attr, default=0.0):
-            try:
-                val = getattr(obj, attr)
-                return val if val is not None else default
-            except (AttributeError, TypeError):
-                return default
-
-        dist = safe_get(stats_obj, "distance")
-        fuel = safe_get(stats_obj, "fuel_consumed")
-        ev_dist = safe_get(stats_obj, "ev_distance")
-
-        non_ev_dist = dist - ev_dist
-        distance_for_fuel_calc = (
-            non_ev_dist if vehicle_info_dict["is_hybrid"] and non_ev_dist > 0 else dist
-        )
-        fuel_consumption = (
-            (fuel / distance_for_fuel_calc) * 100
-            if fuel > 0 and distance_for_fuel_calc > 0
-            else 0.0
-        )
-
-        return {
-            "distance": dist,
-            "fuel_consumed": fuel,
-            "calculated_fuel_consumption_l_100km": round(fuel_consumption, 2),
-        }
-
-    daily_summary = await vehicle.get_current_day_summary()
-    vehicle_info_dict["statistics"]["daily"] = await process_stats(daily_summary)
-
-
-async def _build_vehicle_info_dict(vehicle):
-    """Builds the main vehicle information dictionary from the vehicle object."""
-    aware_utcnow = datetime.datetime.now(datetime.timezone.utc)
-
-    vehicle_info = {
-        "vin": vehicle.vin,
-        "alias": vehicle.alias or "N/A",
-        "is_hybrid": vehicle.type in ["hybrid", "phev"],
-        "model_name": getattr(vehicle._vehicle_info, "car_model_name", "Unknown Model"),
-        "dashboard": {},
-        "statistics": {"overall": {}, "daily": {}},
-        "status": {},
-        "last_updated": aware_utcnow,
-    }
-
-    if vehicle.dashboard:
-        d = vehicle.dashboard
-        latitude = (
-            getattr(vehicle.location, "latitude", None)
-            if hasattr(vehicle, "location")
-            else None
-        )
-        longitude = (
-            getattr(vehicle.location, "longitude", None)
-            if hasattr(vehicle, "location")
-            else None
-        )
-
-        address = None
-        if (
-            latitude
-            and longitude
-            and config_manager.settings.get("reverse_geocode_enabled", False)
-        ):
-            address = await get_address_from_coords(latitude, longitude)
-
-        vehicle_info["dashboard"] = {
-            "odometer": getattr(d, "odometer", None),
-            "fuel_level": getattr(d, "fuel_level", None),
-            "total_range": getattr(d, "range", None),
-            "fuel_range": getattr(d, "fuel_range", None),
-            "battery_level": getattr(d, "battery_level", None),
-            "battery_range": getattr(d, "battery_range", None),
-            "battery_range_with_ac": getattr(d, "battery_range_with_ac", None),
-            "charging_status": getattr(d, "charging_status", None),
-            "latitude": latitude,
-            "longitude": longitude,
-            "address": address,
-        }
-
-    # Set default "closed" states to fallback on
-    doors_status = {
-        "front_left": {"closed": True, "locked": False},
-        "front_right": {"closed": True, "locked": False},
-        "rear_left": {"closed": True, "locked": False},
-        "rear_right": {"closed": True, "locked": False},
-    }
-    windows_status = {
-        "front_left": {"closed": True},
-        "front_right": {"closed": True},
-        "rear_left": {"closed": True},
-        "rear_right": {"closed": True},
-    }
-    hood_closed = True
-    trunk_closed = True
-    trunk_locked = False
-    last_update_timestamp = aware_utcnow.isoformat()
-    lock_status_error = False
-
-    if hasattr(vehicle, "lock_status") and vehicle.lock_status:
-        try:
-            lock_status = vehicle.lock_status
-
-            _LOGGER.debug(f"--- Raw lock_status object for VIN {vehicle.vin} ---")
-            _LOGGER.debug(lock_status)
-
-            ts = getattr(lock_status, "last_update_timestamp", getattr(lock_status, "timestamp", None))
-            if ts:
-                if isinstance(ts, datetime.datetime):
-                    if ts.tzinfo is None:
-                        ts = ts.replace(tzinfo=datetime.timezone.utc)
-                    last_update_timestamp = ts.isoformat()
-                else:
-                    last_update_timestamp = str(ts)
-
-            if hasattr(lock_status, "doors") and lock_status.doors:
-                doors = lock_status.doors
-                door_map = {
-                    "driver_seat": "front_left",
-                    "passenger_seat": "front_right",
-                    "driver_rear_seat": "rear_left",
-                    "passenger_rear_seat": "rear_right",
-                }
-                for attr_name, key in door_map.items():
-                    if hasattr(doors, attr_name) and getattr(doors, attr_name) is not None:
-                        door_obj = getattr(doors, attr_name)
-                        _LOGGER.debug(
-                            f"Processing door '{key}': raw closed={door_obj.closed}, raw locked={door_obj.locked}"
-                        )
-
-                        raw_closed = door_obj.closed
-                        raw_locked = door_obj.locked
-                        locked_status = False if raw_locked is None else raw_locked
-
-                        if raw_closed is not None:
-                            closed_status = raw_closed
-                        elif locked_status is True:
-                            _LOGGER.debug(
-                                f"Door '{key}' has closed=None but locked=True. Interpreting as closed."
-                            )
-                            closed_status = True
-                        else:
-                            closed_status = False
-
-                        doors_status[key] = {
-                            "closed": closed_status,
-                            "locked": locked_status,
-                        }
-                    else:
-                        doors_status[key] = {"closed": True, "locked": False}
-
-                if hasattr(doors, "trunk") and doors.trunk is not None:
-                    if doors.trunk.closed is not None:
-                        trunk_closed = doors.trunk.closed
-                    if doors.trunk.locked is not None:
-                        trunk_locked = doors.trunk.locked
-
-            if hasattr(lock_status, "windows") and lock_status.windows:
-                windows = lock_status.windows
-                window_map = {
-                    "driver_seat": "front_left",
-                    "passenger_seat": "front_right",
-                    "driver_rear_seat": "rear_left",
-                    "passenger_rear_seat": "rear_right",
-                }
-                for attr_name, key in window_map.items():
-                    if hasattr(windows, attr_name) and getattr(windows, attr_name) is not None:
-                        window_obj = getattr(windows, attr_name)
-                        windows_status[key] = {
-                            "closed": True
-                            if window_obj.closed is None
-                            else window_obj.closed
-                        }
-                    else:
-                        windows_status[key] = {"closed": True}
-
-            if hasattr(lock_status, "hood") and lock_status.hood is not None and lock_status.hood.closed is not None:
-                hood_closed = lock_status.hood.closed
-
-        except Exception as e:
-            _LOGGER.error(f"Error parsing lock status for VIN {vehicle.vin}: {e}", exc_info=True)
-            lock_status_error = True
-
-    vehicle_info["status"] = {
-        "doors": doors_status,
-        "windows": windows_status,
-        "hood_closed": hood_closed,
-        "trunk_closed": trunk_closed,
-        "trunk_locked": trunk_locked,
-        "last_update_timestamp": last_update_timestamp,
-        "error": lock_status_error,
-    }
-
-    notifications_data = []
-    if hasattr(vehicle, "notifications") and vehicle.notifications:
-        notifications_data = [
-            notification.model_dump(mode="json")
-            for notification in vehicle.notifications
-        ]
-    vehicle_info["notifications"] = notifications_data
-
-    return vehicle_info
-
-
 async def _process_vehicle(vehicle, db_session):
-    """
-    Processes a single vehicle: updates its data, checks odometer, and fetches trips if needed.
-    """
+    """Processes a single vehicle: updates its data, checks odometer, and fetches trips if needed."""
     vin = vehicle.vin
     _LOGGER.info(f"Processing vehicle: {vin} ({vehicle.alias})")
 
@@ -634,26 +92,33 @@ async def _process_vehicle(vehicle, db_session):
             _LOGGER.info(f"Live data updated for VIN: {vin}")
             break
         except ToyotaApiError as e:
-            _LOGGER.warning(
-                f"API error during vehicle.update() for VIN {vin} (Attempt {attempt + 1}): {e}"
-            )
+            _LOGGER.warning(f"API error during vehicle.update() for VIN {vin} (Attempt {attempt + 1}): {e}")
             if attempt < api_retries:
                 await asyncio.sleep(api_retry_delay)
             else:
                 _LOGGER.error(f"Failed to update vehicle {vin} after all retries.")
                 raise
 
-    vehicle_info = await _build_vehicle_info_dict(vehicle)
+    # 1. Parse Vehicle Info
+    reverse_geocode_enabled = config_manager.settings.get("reverse_geocode_enabled", False)
+    geocoder = GeocoderFactory.get_geocoder(config_manager)
+    
+    async def dashboard_geocode_wrapper(lat, lon):
+        address, _ = await geocoder.reverse_geocode(lat, lon)
+        return address
+
+    parser = VehicleParser(vehicle, reverse_geocode_enabled, geocode_callback=dashboard_geocode_wrapper)
+    
+    vehicle_info = await parser.build_info_dict()
     try:
-        await _update_vehicle_statistics(vehicle, vehicle_info)
+        await parser.update_daily_statistics(vehicle_info)
     except Exception as e:
         _LOGGER.error(f"Failed to fetch daily statistics for VIN {vin}: {e}", exc_info=True)
 
+    # 2. Check Odometer & Fetch Trips
     new_odometer = vehicle_info.get("dashboard", {}).get("odometer")
     if new_odometer is None:
-        _LOGGER.warning(
-            f"Odometer data not available for {vin}. Skipping database entry and trip fetch."
-        )
+        _LOGGER.warning(f"Odometer data not available for {vin}. Skipping database entry and trip fetch.")
         return vehicle_info
 
     latest_reading = database.get_latest_reading(vin=vin)
@@ -663,45 +128,32 @@ async def _process_vehicle(vehicle, db_session):
     odometer_changed = not latest_reading or new_odometer > latest_reading.odometer
 
     if odometer_changed or is_first_run:
-        _LOGGER.info(
-            f"New activity detected for {vin}. Odometer: {new_odometer} km. Saving reading and fetching trips."
-        )
+        _LOGGER.info(f"New activity detected for {vin}. Odometer: {new_odometer} km. Saving reading and fetching trips.")
         database.add_reading(vehicle_info)
 
         to_date = datetime.date.today()
-        from_date = (
-            (to_date - datetime.timedelta(days=7))
-            if is_first_run
-            else latest_trip_ts.date()
-        )
+        from_date = (to_date - datetime.timedelta(days=7)) if is_first_run else latest_trip_ts.date()
 
         _LOGGER.info(f"Auto-fetching recent trips from {from_date} to {to_date}.")
         try:
-            await _fetch_and_process_trip_summaries(vehicle, db_session, from_date, to_date)
+            analyzer = TripAnalyzer(vehicle, db_session, geocode_callback=_reverse_geocode_trip)
+            await analyzer.fetch_and_process(from_date, to_date)
         except Exception as e:
             _LOGGER.error(f"Failed to auto-fetch trips for VIN {vin}: {e}", exc_info=True)
     else:
         _LOGGER.info(f"Odometer for {vin} has not changed. Skipping trip fetch.")
 
-    # Initialize overall stats to ensure keys exist even if no trips are found
+    # 3. Calculate Overall Database Statistics
     vehicle_info["statistics"]["overall"] = {
-        "total_ev_distance_km": 0,
-        "total_fuel_l": 0.0,
-        "total_duration_seconds": 0,
-        "ev_ratio_percent": 0.0,
-        "fuel_consumption_l_100km": 0.0,
-        "total_highway_distance_km": 0,
-        "score_global": None,
+        "total_ev_distance_km": 0, "total_fuel_l": 0.0, "total_duration_seconds": 0,
+        "ev_ratio_percent": 0.0, "fuel_consumption_l_100km": 0.0, "total_highway_distance_km": 0, "score_global": None,
     }
 
-    # --- Correctly calculate and add all overall statistics to the vehicle_info dict ---
     stats = (
         db_session.query(
             func.sum(database.Trip.distance_km).label("total_distance"),
             func.sum(database.Trip.ev_distance_km).label("total_ev_distance"),
-            func.sum(
-                database.Trip.fuel_consumption_l_100km * database.Trip.distance_km / 100
-            ).label("total_fuel"),
+            func.sum(database.Trip.fuel_consumption_l_100km * database.Trip.distance_km / 100).label("total_fuel"),
             func.sum(database.Trip.duration_seconds).label("total_duration_seconds"),
             func.sum(database.Trip.length_highway_km).label("total_highway_distance"),
             func.avg(database.Trip.score_global).label("score_global"),
@@ -716,36 +168,21 @@ async def _process_vehicle(vehicle, db_session):
         total_fuel = stats.total_fuel or 0.0
         total_highway_distance = stats.total_highway_distance or 0.0
 
-        vehicle_info["statistics"]["overall"].update(
-            {
-                "total_ev_distance_km": round(total_ev_distance),
-                "total_fuel_l": round(total_fuel, 2),
-                "total_duration_seconds": stats.total_duration_seconds or 0,
-                "ev_ratio_percent": round(
-                    (total_ev_distance / total_distance) * 100, 1
-                ),
-                "fuel_consumption_l_100km": round(
-                    (total_fuel / total_distance) * 100, 2
-                )
-                if total_fuel > 0
-                else 0.0,
-                "total_highway_distance_km": round(total_highway_distance),
-                "score_global": round(stats.score_global)
-                if stats.score_global is not None
-                else None,
-            }
-        )
-        _LOGGER.debug(
-            f"Calculated overall stats for {vin}: {vehicle_info['statistics']['overall']}"
-        )
+        vehicle_info["statistics"]["overall"].update({
+            "total_ev_distance_km": round(total_ev_distance),
+            "total_fuel_l": round(total_fuel, 2),
+            "total_duration_seconds": stats.total_duration_seconds or 0,
+            "ev_ratio_percent": round((total_ev_distance / total_distance) * 100, 1),
+            "fuel_consumption_l_100km": round((total_fuel / total_distance) * 100, 2) if total_fuel > 0 else 0.0,
+            "total_highway_distance_km": round(total_highway_distance),
+            "score_global": round(stats.score_global) if stats.score_global is not None else None,
+        })
 
     return vehicle_info
 
 
 async def run_fetch_cycle():
-    """
-    The main entrypoint for scheduled data fetching.
-    """
+    """The main entrypoint for scheduled data fetching."""
     _LOGGER.info("Starting scheduled data fetch cycle...")
     username, password = load_credentials()
     if not username or not password:
@@ -764,12 +201,7 @@ async def run_fetch_cycle():
                     existing_cache = json.loads(content)
                 for vehicle_data in existing_cache.get("vehicles", []):
                     if "service_history" in vehicle_data and "vin" in vehicle_data:
-                        vin_to_service_history[vehicle_data["vin"]] = vehicle_data[
-                            "service_history"
-                        ]
-                _LOGGER.debug(
-                    f"Preserving service history for VINs: {list(vin_to_service_history.keys())}"
-                )
+                        vin_to_service_history[vehicle_data["vin"]] = vehicle_data["service_history"]
             except (IOError, json.JSONDecodeError):
                 _LOGGER.warning("Could not read existing cache file to preserve data.")
 
@@ -789,52 +221,30 @@ async def run_fetch_cycle():
                     vin = res.get("vin")
                     if vin in vin_to_service_history:
                         res["service_history"] = vin_to_service_history[vin]
-                        _LOGGER.debug(f"Restored service history for VIN {vin}.")
                     all_vehicle_data.append(res)
-
                 elif isinstance(res, Exception):
-                    _LOGGER.error(
-                        f"An error occurred while processing a vehicle: {res}",
-                        exc_info=res,
-                    )
+                    _LOGGER.error(f"An error occurred while processing a vehicle: {res}", exc_info=res)
         finally:
             db.close()
+
         if all_vehicle_data:
             tmp_file = CACHE_FILE.with_suffix(".tmp")
             async with CACHE_LOCK:
                 async with aiofiles.open(tmp_file, "w") as f:
                     aware_utcnow = datetime.datetime.now(datetime.timezone.utc)
-                    await f.write(
-                        json.dumps(
-                            {
-                                "last_updated": aware_utcnow.isoformat(),
-                                "vehicles": all_vehicle_data,
-                            },
-                            indent=2,
-                            default=str,
-                        )
-                    )
+                    await f.write(json.dumps({
+                        "last_updated": aware_utcnow.isoformat(),
+                        "vehicles": all_vehicle_data,
+                    }, indent=2, default=str))
                 await aiofiles.os.replace(tmp_file, CACHE_FILE)
-            _LOGGER.info(
-                f"Successfully fetched and cached data for {len(all_vehicle_data)} vehicle(s)."
-            )
-        else:
-            _LOGGER.info("No new vehicle data was processed, cache file not updated.")
+            _LOGGER.info(f"Successfully fetched and cached data for {len(all_vehicle_data)} vehicle(s).")
 
     except Exception as e:
-        _LOGGER.error(
-            f"An unexpected error occurred in the fetch cycle: {e}", exc_info=True
-        )
+        _LOGGER.error(f"An unexpected error occurred in the fetch cycle: {e}", exc_info=True)
         return None
     finally:
-        if (
-            client
-            and hasattr(client, "_session")
-            and client._session
-            and not client._session.is_closed
-        ):
+        if hasattr(client, "_session") and client._session and not client._session.is_closed:
             await client._session.aclose()
-            _LOGGER.info("Pytoyoda client session closed.")
 
     return all_vehicle_data
 
@@ -849,9 +259,7 @@ async def backfill_trips(vin: str, period: str):
     client = MyT(username=username, password=password, use_metric=True, controller_class=PatchedController)
     try:
         await client.login()
-        target_vehicle = next(
-            (v for v in await client.get_vehicles() if v.vin == vin), None
-        )
+        target_vehicle = next((v for v in await client.get_vehicles() if v.vin == vin), None)
         if not target_vehicle:
             return {"error": f"Vehicle with VIN {vin} not found on this account."}
 
@@ -863,9 +271,8 @@ async def backfill_trips(vin: str, period: str):
 
         db = database.SessionLocal()
         try:
-            result = await _fetch_and_process_trip_summaries(
-                target_vehicle, db, from_date, to_date
-            )
+            analyzer = TripAnalyzer(target_vehicle, db, geocode_callback=_reverse_geocode_trip)
+            result = await analyzer.fetch_and_process(from_date, to_date)
             return {"message": f"Fetch for '{period}' complete.", **result}
         finally:
             db.close()
@@ -873,22 +280,13 @@ async def backfill_trips(vin: str, period: str):
         _LOGGER.error(f"Error during trip backfill: {e}", exc_info=True)
         return {"error": "An internal error occurred during the fetch."}
     finally:
-        if (
-            client
-            and hasattr(client, "_session")
-            and client._session
-            and not client._session.is_closed
-        ):
+        if hasattr(client, "_session") and client._session and not client._session.is_closed:
             await client._session.aclose()
 
 
 async def backfill_geocoding(force_all: bool = False):
-    """Finds trips to geocode and queues them for processing.
-    If force_all is True, queues all trips regardless of their current status.
-    """
-    _LOGGER.info(
-        f"Starting manual geocoding backfill process (force_all={force_all})..."
-    )
+    """Finds trips to geocode and queues them for processing."""
+    _LOGGER.info(f"Starting manual geocoding backfill process (force_all={force_all})...")
     db = database.SessionLocal()
     try:
         query = db.query(database.Trip)
@@ -896,17 +294,13 @@ async def backfill_geocoding(force_all: bool = False):
             query = query.filter(database.Trip.start_address == "Geocoding...")
 
         pending_trips = query.all()
-
         if not pending_trips:
             return {"message": "No trips require geocoding."}
 
-        _LOGGER.info(f"Found {len(pending_trips)} trips to geocode. Queueing tasks...")
         for trip in pending_trips:
             asyncio.create_task(_reverse_geocode_trip(trip.id, force=force_all))
 
-        return {
-            "message": f"Successfully queued {len(pending_trips)} trips for geocoding."
-        }
+        return {"message": f"Successfully queued {len(pending_trips)} trips for geocoding."}
     finally:
         db.close()
 
@@ -925,19 +319,10 @@ async def fetch_service_history(vin: str):
 
         if history_response and history_response.payload:
             return history_response.payload.model_dump(mode="json")
-        else:
-            return {"service_histories": []}
-
+        return {"service_histories": []}
     except Exception as e:
-        _LOGGER.error(
-            f"Error fetching service history for VIN {vin}: {e}", exc_info=True
-        )
+        _LOGGER.error(f"Error fetching service history for VIN {vin}: {e}", exc_info=True)
         return {"error": "An error occurred during the service history fetch."}
     finally:
-        if (
-            client
-            and hasattr(client, "_session")
-            and client._session
-            and not client._session.is_closed
-        ):
+        if hasattr(client, "_session") and client._session and not client._session.is_closed:
             await client._session.aclose()
