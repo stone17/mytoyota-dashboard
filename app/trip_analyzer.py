@@ -2,7 +2,6 @@
 import asyncio
 import datetime
 import logging
-from pytoyoda.models.trips import Trip as PytoyodaTrip
 from . import database
 from .config import config_manager
 
