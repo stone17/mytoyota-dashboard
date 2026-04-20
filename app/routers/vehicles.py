@@ -60,8 +60,6 @@ async def get_vehicle_data():
         # Augment vehicle data with all-time statistics from the database
         db = database.SessionLocal()
         try:
-            from sqlalchemy import func
-
             for vehicle in vehicles_data:
                 vehicle["last_updated"] = last_updated
                 vin = vehicle.get("vin")
