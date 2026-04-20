@@ -6,6 +6,7 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Body
 import aiofiles
+import aiofiles.os
 from sqlalchemy import func
 
 from .. import fetcher
