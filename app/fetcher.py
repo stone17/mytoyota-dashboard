@@ -67,7 +67,7 @@ async def _reverse_geocode_trip(trip_id: int, force: bool = False):
                     countries.add(end_country)
 
             if needs_countries and countries:
-                trip.countries = list(countries)
+                trip.countries = sorted(countries)
 
             db.commit()
             _LOGGER.info(f"Successfully geocoded trip {trip_id}.")
