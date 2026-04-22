@@ -357,8 +357,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const isMobile = () => window.matchMedia('(max-width: 1024px)').matches;
 
     function updateNavButtonsState() {
-        const isOverlay = mapPanel.classList.contains('is-overlay');
-        if (!isOverlay) return;
         prevTripBtn.disabled = currentTripContext.rowIndex <= 0;
         nextTripBtn.disabled = currentTripContext.rowIndex >= displayedTrips.length - 1;
     }
