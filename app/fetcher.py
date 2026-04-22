@@ -101,16 +101,21 @@ async def _process_vehicle(vehicle):
 
     # 1. Parse Vehicle Info
     reverse_geocode_enabled = config_manager.settings.get("reverse_geocode_enabled", False)
-    geocoder = GeocoderFactory.get_geocoder(config_manager)
-    
+    geocoder = None
+
     async def dashboard_geocode_wrapper(lat, lon):
+        nonlocal geocoder
+        if not reverse_geocode_enabled:
+            return None
+        if geocoder is None:
+            geocoder = GeocoderFactory.get_geocoder(config_manager)
         address, _ = await geocoder.reverse_geocode(lat, lon)
         if address == "Unavailable":
             return None
         return address
 
     parser = VehicleParser(vehicle, reverse_geocode_enabled, geocode_callback=dashboard_geocode_wrapper)
-    
+
     vehicle_info = await parser.build_info_dict()
     try:
         await parser.update_daily_statistics(vehicle_info)
