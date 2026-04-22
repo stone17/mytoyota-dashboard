@@ -14,6 +14,37 @@ from ..logging_config import setup_logging
 from .vehicles import get_cached_vehicle_data
 
 _LOGGER = logging.getLogger(__name__)
+_REDACTED_VALUE = "***REDACTED***"
+_SENSITIVE_CONFIG_KEY_PARTS = {
+    "api_key",
+    "apikey",
+    "key",
+    "password",
+    "passwd",
+    "secret",
+    "token",
+    "credential",
+    "credentials",
+    "username",
+    "mqtt",
+}
+
+
+def _sanitize_config(value, parent_key: str = ""):
+    """Return a copy of the config with sensitive values redacted."""
+    if isinstance(value, dict):
+        sanitized = {}
+        for key, child_value in value.items():
+            key_str = str(key).lower()
+            if any(part in key_str for part in _SENSITIVE_CONFIG_KEY_PARTS):
+                sanitized[key] = _REDACTED_VALUE
+            else:
+                sanitized[key] = _sanitize_config(child_value, key_str)
+        return sanitized
+    if isinstance(value, list):
+        return [_sanitize_config(item, parent_key) for item in value]
+    return value
+
 
 router = APIRouter(prefix="/api", tags=["system"])
 
@@ -110,7 +141,7 @@ def update_credentials(creds: dict = Body(...)):
 @router.get("/config")
 def get_config():
     """API endpoint to get the current configuration."""
-    return config_manager.settings
+    return _sanitize_config(config_manager.settings)
 
 @router.post("/config")
 def update_config(new_settings: dict = Body(...)):
