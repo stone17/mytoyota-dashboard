@@ -91,32 +91,29 @@
                 position: fixed; top: 0; left: 0; width: 100%; height: 100%;
                 background: rgba(0,0,0,0.7); z-index: 1000;
                 display: flex; align-items: center; justify-content: center;
-                padding: 15px; flex-basis: auto; position: fixed;
+                padding: 15px; box-sizing: border-box; /* Ensure padding doesn't add to 100% */
             }
-            .is-overlay #map-panel-wrapper { width: 100%; max-width: 800px; height: 90vh; max-height: 700px; display: flex; flex-direction: column; }
-            .is-overlay #map-panel-content { flex-grow: 1; }
-            .is-overlay #map { height: 100%; }
-            .is-overlay .map-nav-btn {
-                display: inline-block; padding: 5px 12px;
-                background-color: var(--accent-color); color: var(--header-text);
-                border: none; border-radius: 4px; cursor: pointer;
+            .is-overlay #map-panel-wrapper { 
+                width: 100%; 
+                max-width: 800px; 
+                height: 90vh; /* Fallback for older browsers */
+                height: 90dvh; /* Uses dynamic viewport height to account for mobile browser UI */
+                max-height: 700px; 
+                display: flex; 
+                flex-direction: column; 
             }
-            .is-overlay .map-nav-btn:disabled { background-color: var(--text-subtle); cursor: not-allowed; }
-            .is-overlay #map-panel-title { flex-grow: 1; text-align: center; }
-            .is-overlay #map-trip-stats {
-                display: flex;
-                justify-content: space-around;
+            .is-overlay #map-panel-content { 
+                flex: 1 1 auto; 
+                min-height: 0; /* CRITICAL: Prevents the map from blowing out the flex container */
+                position: relative; 
                 width: 100%;
-                background: var(--table-stripe-bg);
-                padding: 8px 0;
-                font-size: 0.8em;
-                text-align: center;
-                border-top: 1px solid var(--border-color);
-                order: 3;
             }
-            .is-overlay #map-trip-stats span { color: var(--text-color); }
-            .is-overlay #map-trip-stats strong { color: var(--text-color); }
-        }
+            .is-overlay #map { 
+                position: absolute; /* Forces Leaflet to strictly obey the parent container's box */
+                top: 0; bottom: 0; left: 0; right: 0;
+                height: 100%; 
+                width: 100%; 
+            }
     </style>
     <script>
         const savedTheme = localStorage.getItem('theme') || 'light';

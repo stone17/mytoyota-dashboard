@@ -437,15 +437,23 @@ document.addEventListener('DOMContentLoaded', () => {
     async function showTripOnMap(trip, rowIndex) {
         if (!trip) return;
         currentTripContext = { tripId: trip.id, rowIndex: rowIndex };
-        mapPanelTitle.textContent = `Trip on ${new Date(trip.start_timestamp).toLocaleDateString()}`;
+        
+        // 1. Calculate stats universally (pulled out of isMobile check)
+        const isImperial = appConfig.unit_system.startsWith('imperial');
+        const isUk = appConfig.unit_system === 'imperial_uk';
+        const distance = isImperial ? trip.distance_mi : trip.distance_km;
+        const consumption = isImperial ? (isUk ? trip.mpg_uk : trip.mpg) : trip.fuel_consumption_l_100km;
+        const evRatio = (trip.distance_km > 0 && trip.ev_distance_km) ? (trip.ev_distance_km / trip.distance_km * 100) : 0;
+        const duration = new Date(trip.duration_seconds * 1000).toISOString().slice(11, 19);
+
+        // 2. Append the stats directly to the map title
+        mapPanelTitle.innerHTML = `Trip on ${new Date(trip.start_timestamp).toLocaleDateString()} 
+            <span style="font-size: 0.8em; color: var(--text-subtle); font-weight: normal; margin-left: 8px; white-space: nowrap;">
+                (${distance.toFixed(1)} ${isImperial ? 'mi' : 'km'} | ${duration} | ${consumption.toFixed(1)} ${isImperial ? 'mpg' : 'L/100km'})
+            </span>`;
+
         if (isMobile()) {
             mapPanel.classList.add('is-overlay');
-            const isImperial = appConfig.unit_system.startsWith('imperial');
-            const isUk = appConfig.unit_system === 'imperial_uk';
-            const distance = isImperial ? trip.distance_mi : trip.distance_km;
-            const consumption = isImperial ? (isUk ? trip.mpg_uk : trip.mpg) : trip.fuel_consumption_l_100km;
-            const evRatio = (trip.distance_km > 0 && trip.ev_distance_km) ? (trip.ev_distance_km / trip.distance_km * 100) : 0;
-            const duration = new Date(trip.duration_seconds * 1000).toISOString().slice(11, 19);
             mapTripStats.innerHTML = `
                 <div><span>Time:</span> <strong>${duration}</strong></div>
                 <div><span>Dist:</span> <strong>${distance.toFixed(1)} ${isImperial ? 'mi' : 'km'}</strong></div>
@@ -455,9 +463,11 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             mapPanel.classList.remove('is-overlay');
         }
+        
         mapPanel.style.display = isMobile() ? 'flex' : 'block';
         updateNavButtonsState();
         clearMap();
+        
         const loadingPopup = L.popup().setLatLng(map.getCenter()).setContent('Loading route...').openOn(map);
         setTimeout(async () => {
             map.invalidateSize();
