@@ -105,6 +105,20 @@ async def schedule_fetch():
             logging.info(f"Next poll in {interval} seconds.")
             await asyncio.sleep(interval)
 
+async def watch_mqtt_config():
+    """Watches for changes in the MQTT configuration and reloads the handler if necessary."""
+    last_config = json.dumps(config_manager.settings.get("mqtt", {}), sort_keys=True)
+    while True:
+        await asyncio.sleep(2)
+        current_config_dict = config_manager.settings.get("mqtt", {})
+        current_config = json.dumps(current_config_dict, sort_keys=True)
+        if current_config != last_config:
+            _LOGGER.info("MQTT configuration change detected. Reloading listener...")
+            last_config = current_config
+            if hasattr(app.state, "mqtt_handler") and app.state.mqtt_handler:
+                app.state.mqtt_handler.stop_listener()
+                app.state.mqtt_handler.start_listener()
+
 @app.on_event("startup")
 async def startup_event():
     """On startup, run an immediate fetch and then schedule periodic updates."""
@@ -112,11 +126,15 @@ async def startup_event():
     database.init_db()
     logging.info("Application startup...")
 
+    loop = asyncio.get_running_loop()
+    app.state.mqtt_handler = mqtt.MqttHandler(loop=loop)
+    
     mqtt_settings = config_manager.settings.get("mqtt", {})
     if mqtt_settings.get("enabled"):
-        loop = asyncio.get_running_loop()
-        app.state.mqtt_handler = mqtt.MqttHandler(loop=loop)
         app.state.mqtt_handler.start_listener()
+
+    # Start the MQTT config watcher
+    asyncio.create_task(watch_mqtt_config())
 
     web_server_settings = config_manager.settings.get("web_server", {})
     polling_settings = web_server_settings.get("polling", {})

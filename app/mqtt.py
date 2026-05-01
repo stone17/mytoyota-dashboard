@@ -132,6 +132,7 @@ class MqttHandler:
             _LOGGER.info("Stopping MQTT command listener.")
             self.listener_client.loop_stop()
             self.listener_client.disconnect()
+            self.listener_client = None
 
     # --- Publishing Methods ---
 
