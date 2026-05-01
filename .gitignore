@@ -12,3 +12,4 @@ data/user_config.yaml
 uvicorn.log
 *codetree*
 
+.aider*

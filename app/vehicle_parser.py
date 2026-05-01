@@ -25,7 +25,7 @@ class VehicleParser:
             "statistics": {"overall": {}, "daily": {}},
             "status": {},
             "notifications": [],
-            "last_updated": aware_utcnow,
+            "last_updated": aware_utcnow.isoformat(),
         }
 
         if self.vehicle.dashboard:

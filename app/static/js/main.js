@@ -716,9 +716,24 @@ document.addEventListener('DOMContentLoaded', () => {
             setVal('.charging_status', chargeStatus);
 
             setVal('.vin span', vehicleToRender.vin);
-            const lastUpdatedSpan = vehicleCard.querySelector('.last-updated-time');
-            const lastUpdated = vehicleToRender.last_updated;
-            lastUpdatedSpan.textContent = lastUpdated ? new Date(lastUpdated).toLocaleString() : "Never";
+            
+            // Compare the server's last_updated with our local optimistic timestamp
+            let serverLastUpdated = (vehicleToRender.status && vehicleToRender.status.last_update_timestamp) || vehicleToRender.last_updated;
+            const optimisticLastUpdated = localStorage.getItem(`optimistic_last_updated_${vehicleToRender.vin}`);
+            
+            if (optimisticLastUpdated) {
+                if (!serverLastUpdated || serverLastUpdated === "Never" || new Date(optimisticLastUpdated) > new Date(serverLastUpdated)) {
+                    serverLastUpdated = optimisticLastUpdated;
+                } else {
+                    // Server has caught up, clear the optimistic timestamp
+                    localStorage.removeItem(`optimistic_last_updated_${vehicleToRender.vin}`);
+                }
+            }
+
+            const formattedDate = serverLastUpdated && serverLastUpdated !== "Never" ? new Date(serverLastUpdated).toLocaleString() : "Never";
+            setVal('.last-updated-time', formattedDate);
+            setVal('.last_updated', formattedDate);
+            setVal('.last-updated', formattedDate);
             
             const lat = dashboard.latitude;
             const lon = dashboard.longitude;
@@ -760,7 +775,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const refreshBtn = vehicleCard.querySelector('.force-poll');
             if (refreshBtn) {
-                refreshBtn.addEventListener('click', (e) => handlePollRequest('/api/force_poll', e.target));
+                refreshBtn.addEventListener('click', (e) => handlePollRequest('/api/force_poll', e.target, vehicleToRender.vin));
             }
 
             const leftMetricSelect = vehicleCard.querySelector('.chart-metric-select[data-axis="left"]');
@@ -868,11 +883,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function handlePollRequest(url, clickedButton) {
+    async function handlePollRequest(url, clickedButton, vin) {
         const allPollButtons = document.querySelectorAll('.force-poll');
         allPollButtons.forEach(btn => btn.disabled = true);
         const originalText = clickedButton.textContent;
         clickedButton.textContent = 'Updating...';
+        
+        // Save the optimistic timestamp to localStorage so it survives the immediate reload
+        const nowIso = new Date().toISOString();
+        if (vin) {
+            localStorage.setItem(`optimistic_last_updated_${vin}`, nowIso);
+        }
+        
         try {
             const response = await fetch(url, { method: 'POST' });
             if (response.ok) {
