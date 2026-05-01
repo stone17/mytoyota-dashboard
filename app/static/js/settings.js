@@ -79,6 +79,12 @@ document.addEventListener('DOMContentLoaded', () => {
         element.textContent = message;
         element.className = `status-message ${type}`;
         element.style.display = 'block';
+        
+        // Keep error messages on screen indefinitely
+        if (type === 'error') {
+            duration = 0;
+        }
+
         if (duration > 0) {
             element.timeoutId = setTimeout(() => { element.style.display = 'none'; }, duration);
         }
@@ -389,9 +395,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (mqttTestBtn) {
         mqttTestBtn.addEventListener('click', async () => {
-            showMessage(mqttStatusMessage, 'Sending test message based on latest saved settings...', 'info');
+            showMessage(mqttStatusMessage, 'Testing MQTT connection with current settings...', 'info');
+            
+            const enabledSensors = {};
+            document.querySelectorAll('#mqtt-sensor-selection input[type="checkbox"]').forEach(cb => {
+                enabledSensors[cb.dataset.sensorKey] = cb.checked;
+            });
+
+            const getVal = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
+            const getCheck = (id) => { const el = document.getElementById(id); return el ? el.checked : false; };
+
+            const testSettings = {
+                enabled: getCheck('mqtt-enabled'),
+                host: getVal('mqtt-host'),
+                port: parseInt(getVal('mqtt-port') || 1883, 10),
+                username: getVal('mqtt-username'),
+                password: getVal('mqtt-password'),
+                base_topic: getVal('mqtt-base-topic'),
+                discovery_prefix: getVal('mqtt-discovery-prefix'),
+                enabled_sensors: enabledSensors
+            };
+
             try {
-                const response = await fetch('/api/mqtt/test', { method: 'POST' });
+                const response = await fetch('/api/mqtt/test', { 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(testSettings)
+                });
                 const result = await response.json();
                 if (response.ok) {
                     showMessage(mqttStatusMessage, result.message, 'success');

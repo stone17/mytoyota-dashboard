@@ -137,16 +137,18 @@ class MqttHandler:
 
     # --- Publishing Methods ---
 
-    def _get_publisher_client(self) -> Optional[mqtt_client.Client]:
+    def _get_publisher_client(self, override_config: dict = None) -> Optional[mqtt_client.Client]:
         """Gets a temporary, connected client for publishing data."""
-        # Always use the latest config
-        current_mqtt_config = config_manager.settings.get("mqtt", {})
-        if not current_mqtt_config.get("enabled"):
+        current_mqtt_config = override_config if override_config is not None else config_manager.settings.get("mqtt", {})
+        
+        if not current_mqtt_config.get("enabled") and override_config is None:
             _LOGGER.info("MQTT is not enabled in settings. Skipping publish.")
             return None
         
         broker = current_mqtt_config.get("broker") or current_mqtt_config.get("host")
         if not broker:
+            if override_config is not None:
+                raise ValueError("Broker host is required.")
             _LOGGER.warning("MQTT is enabled, but no broker/host is configured.")
             return None
         
@@ -160,17 +162,18 @@ class MqttHandler:
             client.loop_start()
             return client
         except Exception as e:
+            if override_config is not None:
+                raise  # Bubble up the exception for the test endpoint
             _LOGGER.error(f"Failed to connect to MQTT broker for publishing: {e}")
             return None
 
-    def _publish_autodiscovery_configs(self, client: mqtt_client.Client, vehicle_data: dict):
+    def _publish_autodiscovery_configs(self, client: mqtt_client.Client, vehicle_data: dict, override_config: dict = None):
         vin = vehicle_data.get("vin")
         if not vin:
             return
 
         _LOGGER.info(f"Publishing MQTT auto-discovery configs for VIN {vin}...")
-        # Always use the latest config
-        current_mqtt_config = config_manager.settings.get("mqtt", {})
+        current_mqtt_config = override_config if override_config is not None else config_manager.settings.get("mqtt", {})
         discovery_prefix = current_mqtt_config.get("discovery_prefix", "homeassistant")
         base_topic = current_mqtt_config.get("base_topic", "mytoyota/{vin}").format(vin=vin)
         enabled_sensors = current_mqtt_config.get("enabled_sensors", {})
@@ -224,13 +227,13 @@ class MqttHandler:
 
             client.publish(config_topic, json.dumps(payload), retain=True)
 
-    def _publish_vehicle_data(self, client: mqtt_client.Client, vehicle_data: dict):
+    def _publish_vehicle_data(self, client: mqtt_client.Client, vehicle_data: dict, override_config: dict = None):
         try:
             vin = vehicle_data.get("vin")
             if not vin:
                 _LOGGER.warning("Cannot publish MQTT data, VIN not found in vehicle data.")
                 return
-            current_mqtt_config = config_manager.settings.get("mqtt", {})
+            current_mqtt_config = override_config if override_config is not None else config_manager.settings.get("mqtt", {})
             base_topic = current_mqtt_config.get("base_topic", "mytoyota/{vin}").format(vin=vin)
             enabled_sensors = current_mqtt_config.get("enabled_sensors", {})
             
@@ -248,18 +251,18 @@ class MqttHandler:
                 odometer_km = dashboard.get("odometer")
                 if odometer_km is not None:
                     odom_value = round(odometer_km * KM_TO_MI) if is_imperial else round(odometer_km)
-                    client.publish(f"{base_topic}/odometer", json.dumps({"value": odom_value}))
+                    client.publish(f"{base_topic}/odometer", json.dumps({"value": odom_value}), retain=True)
                 else: log_skip("odometer")
             
             if enabled_sensors.get("lock_status", False):
                 status = vehicle_data.get("status", {})
                 all_locked = all(door.get("locked") for door in status.get("doors", {}).values()) if status.get("doors") else False
                 lock_payload = "Locked" if all_locked else "Open"
-                client.publish(f"{base_topic}/lock_status", json.dumps({"value": lock_payload}))
+                client.publish(f"{base_topic}/lock_status", json.dumps({"value": lock_payload}), retain=True)
 
             if enabled_sensors.get("fuel_level", False):
                 fuel_level = dashboard.get("fuel_level")
-                if fuel_level is not None: client.publish(f"{base_topic}/fuel_level", json.dumps({"value": fuel_level}))
+                if fuel_level is not None: client.publish(f"{base_topic}/fuel_level", json.dumps({"value": fuel_level}), retain=True)
                 else: log_skip("fuel_level")
 
             if enabled_sensors.get("fuel_consumption", False):
@@ -269,75 +272,75 @@ class MqttHandler:
                     if is_imperial and consumption_l100km > 0:
                         mpg_factor = 282.481 if unit_system == "imperial_uk" else 235.214
                         consump_value = mpg_factor / consumption_l100km
-                    client.publish(f"{base_topic}/fuel_consumption", json.dumps({"value": consump_value}))
+                    client.publish(f"{base_topic}/fuel_consumption", json.dumps({"value": consump_value}), retain=True)
                 else: log_skip("fuel_consumption")
             
             if enabled_sensors.get("total_range", False):
                 range_km = dashboard.get("total_range")
                 if range_km is not None:
                     range_value = round(range_km * KM_TO_MI) if is_imperial else round(range_km)
-                    client.publish(f"{base_topic}/total_range", json.dumps({"value": range_value}))
+                    client.publish(f"{base_topic}/total_range", json.dumps({"value": range_value}), retain=True)
                 else: log_skip("total_range")
             
             if enabled_sensors.get("battery_level", False):
                 battery_level = dashboard.get("battery_level")
-                if battery_level is not None: client.publish(f"{base_topic}/battery_level", json.dumps({"value": battery_level}))
+                if battery_level is not None: client.publish(f"{base_topic}/battery_level", json.dumps({"value": battery_level}), retain=True)
                 else: log_skip("battery_level")
 
             if enabled_sensors.get("ev_range", False):
                 ev_range_km = dashboard.get("battery_range")
                 if ev_range_km is not None:
                     ev_range_value = round(ev_range_km * KM_TO_MI) if is_imperial else round(ev_range_km)
-                    client.publish(f"{base_topic}/ev_range", json.dumps({"value": ev_range_value}))
+                    client.publish(f"{base_topic}/ev_range", json.dumps({"value": ev_range_value}), retain=True)
                 else: log_skip("ev_range")
 
             if enabled_sensors.get("score", False):
                 score = overall_stats.get("score_global")
-                if score is not None: client.publish(f"{base_topic}/score", json.dumps({"value": score}))
+                if score is not None: client.publish(f"{base_topic}/score", json.dumps({"value": score}), retain=True)
                 else: log_skip("score")
             
             if enabled_sensors.get("location_lat_long", False):
                 lat = dashboard.get("latitude")
                 lon = dashboard.get("longitude")
-                if lat is not None and lon is not None: client.publish(f"{base_topic}/location_lat_long", json.dumps({"value": f"{lat}, {lon}"}))
+                if lat is not None and lon is not None: client.publish(f"{base_topic}/location_lat_long", json.dumps({"value": f"{lat}, {lon}"}), retain=True)
                 else: log_skip("location_lat_long")
 
             if enabled_sensors.get("location", False):
                 address = dashboard.get("address")
-                if address and address != "Unavailable": client.publish(f"{base_topic}/location", json.dumps({"value": address}))
+                if address and address != "Unavailable": client.publish(f"{base_topic}/location", json.dumps({"value": address}), retain=True)
                 else: log_skip("location")
             
             if enabled_sensors.get("highway_distance", False):
                 highway_dist_km = overall_stats.get("total_highway_distance_km")
                 if highway_dist_km is not None:
                     dist_value = round(highway_dist_km * KM_TO_MI) if is_imperial else round(highway_dist_km)
-                    client.publish(f"{base_topic}/highway_distance", json.dumps({"value": dist_value}))
+                    client.publish(f"{base_topic}/highway_distance", json.dumps({"value": dist_value}), retain=True)
                 else: log_skip("highway_distance")
 
             if enabled_sensors.get("total_ev_distance", False):
                 ev_dist_km = overall_stats.get("total_ev_distance_km")
                 if ev_dist_km is not None:
                     dist_value = round(ev_dist_km * KM_TO_MI) if is_imperial else round(ev_dist_km)
-                    client.publish(f"{base_topic}/total_ev_distance", json.dumps({"value": dist_value}))
+                    client.publish(f"{base_topic}/total_ev_distance", json.dumps({"value": dist_value}), retain=True)
                 else: log_skip("total_ev_distance")
 
             _LOGGER.info(f"Finished publishing data for VIN {vin}")
         except Exception as e:
             _LOGGER.error(f"Error publishing vehicle data to MQTT for VIN {vin}: {e}", exc_info=True)
 
-    def publish(self, vehicle_data: dict, autodiscovery: bool = False):
+    def publish(self, vehicle_data: dict, autodiscovery: bool = False, override_config: dict = None):
         """
         Connects to the MQTT broker, publishes vehicle data, and disconnects.
         Optionally publishes Home Assistant auto-discovery configuration.
         """
-        client = self._get_publisher_client()
+        client = self._get_publisher_client(override_config)
         if not client:
             return
 
         try:
             if autodiscovery:
-                self._publish_autodiscovery_configs(client, vehicle_data)
-            self._publish_vehicle_data(client, vehicle_data)
+                self._publish_autodiscovery_configs(client, vehicle_data, override_config)
+            self._publish_vehicle_data(client, vehicle_data, override_config)
         finally:
             client.disconnect()
             client.loop_stop()

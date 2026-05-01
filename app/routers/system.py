@@ -84,17 +84,27 @@ async def force_poll(request: Request):
             status_code=500, detail="An internal error occurred during the data poll."
         )
 
+class MqttTestRequest(BaseModel):
+    enabled: bool
+    host: str
+    port: int
+    username: Optional[str] = ""
+    password: Optional[str] = ""
+    base_topic: str
+    discovery_prefix: str
+    enabled_sensors: dict
+
 @router.post("/mqtt/test")
-async def mqtt_test(request: Request):
+async def mqtt_test(request: Request, test_config: MqttTestRequest):
     """
-    Sends the latest cached data to the MQTT broker for testing purposes.
+    Sends the latest cached data to the MQTT broker for testing purposes using the provided config.
     """
     _LOGGER.info("MQTT test message triggered via API.")
 
     if not hasattr(request.app.state, "mqtt_handler") or not request.app.state.mqtt_handler:
         raise HTTPException(
             status_code=400,
-            detail="MQTT is not enabled or configured correctly. Please check settings.",
+            detail="MQTT handler is not initialized.",
         )
 
     vehicles = await get_cached_vehicle_data()
@@ -104,14 +114,21 @@ async def mqtt_test(request: Request):
             detail="No cached vehicle data found. Please run a poll first.",
         )
 
+    config_dict = test_config.dict()
+    
+    # Handle redacted password
+    if config_dict.get("password") == "***REDACTED***":
+        saved_config = config_manager.settings.get("mqtt", {})
+        config_dict["password"] = saved_config.get("password", "")
+
     try:
         for vehicle in vehicles:
-            request.app.state.mqtt_handler.publish(vehicle, autodiscovery=True)
+            request.app.state.mqtt_handler.publish(vehicle, autodiscovery=True, override_config=config_dict)
         return {"message": "Test message sent successfully to MQTT broker."}
     except Exception as e:
         _LOGGER.error(f"Error during MQTT test publish: {e}", exc_info=True)
         raise HTTPException(
-            status_code=500, detail="An error occurred while sending the MQTT message."
+            status_code=500, detail=f"Failed to connect or publish to MQTT broker: {str(e)}"
         )
 
 @router.get("/credentials")
