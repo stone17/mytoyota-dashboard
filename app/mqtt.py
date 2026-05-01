@@ -3,6 +3,7 @@ import logging
 import asyncio
 import os
 import json
+import uuid
 from paho.mqtt import client as mqtt_client
 from typing import Optional
 
@@ -105,11 +106,13 @@ class MqttHandler:
             return
         try:
             _LOGGER.info("Setting up persistent MQTT client for commands...")
-            client_id = f"mytoyota-dashboard-listener-{os.getpid()}"
+            client_id = f"mytoyota-dashboard-listener-{os.getpid()}-{uuid.uuid4().hex[:8]}"
             self.listener_client = mqtt_client.Client(mqtt_client.CallbackAPIVersion.VERSION1, client_id=client_id)
             
-            if current_mqtt_config.get("username") and current_mqtt_config.get("password"):
-                self.listener_client.username_pw_set(current_mqtt_config.get("username"), current_mqtt_config.get("password"))
+            username = current_mqtt_config.get("username")
+            password = current_mqtt_config.get("password")
+            if username:
+                self.listener_client.username_pw_set(username, password if password else None)
             
             self.listener_client.on_connect = self._on_connect
             self.listener_client.on_message = self._on_message
@@ -154,10 +157,14 @@ class MqttHandler:
         
         try:
             port = int(current_mqtt_config.get("port", 1883))
-            client_id = f"mytoyota-app-publisher-{os.getpid()}"
+            client_id = f"mytoyota-app-publisher-{os.getpid()}-{uuid.uuid4().hex[:8]}"
             client = mqtt_client.Client(mqtt_client.CallbackAPIVersion.VERSION1, client_id)
-            if current_mqtt_config.get("username") and current_mqtt_config.get("password"):
-                client.username_pw_set(current_mqtt_config.get("username"), current_mqtt_config.get("password"))
+            
+            username = current_mqtt_config.get("username")
+            password = current_mqtt_config.get("password")
+            if username:
+                client.username_pw_set(username, password if password else None)
+                
             client.connect(broker, port)
             client.loop_start()
             return client
@@ -335,6 +342,8 @@ class MqttHandler:
         """
         client = self._get_publisher_client(override_config)
         if not client:
+            if override_config is not None:
+                raise Exception("Failed to create MQTT client. Check host and port.")
             return
 
         try:

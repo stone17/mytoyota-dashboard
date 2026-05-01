@@ -126,7 +126,7 @@ async def mqtt_test(request: Request, test_config: MqttTestRequest):
             request.app.state.mqtt_handler.publish(vehicle, autodiscovery=True, override_config=config_dict)
         return {"message": "Test message sent successfully to MQTT broker."}
     except Exception as e:
-        _LOGGER.error(f"Error during MQTT test publish: {e}", exc_info=True)
+        _LOGGER.error(f"Error during MQTT test publish: {e}")
         raise HTTPException(
             status_code=500, detail=f"Failed to connect or publish to MQTT broker: {str(e)}"
         )
