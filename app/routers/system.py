@@ -25,8 +25,6 @@ _SENSITIVE_CONFIG_KEY_PARTS = {
     "token",
     "credential",
     "credentials",
-    "username",
-    "mqtt",
 }
 
 

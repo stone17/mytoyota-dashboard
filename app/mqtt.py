@@ -120,18 +120,19 @@ class MqttHandler:
                 _LOGGER.error("MQTT is enabled, but no broker/host is configured.")
                 return
             
-            self.listener_client.connect_async(broker, current_mqtt_config.get("port", 1883), 60)
+            port = int(current_mqtt_config.get("port", 1883))
+            self.listener_client.connect_async(broker, port, 60)
             self.listener_client.loop_start()
         except Exception as e:
-            _LOGGER.error(f"Failed to setup persistent MQTT client: {e}", exc_info=True)
+            _LOGGER.error(f"Failed to setup persistent MQTT client: {e}")
             self.listener_client = None
 
     def stop_listener(self):
         """Stops the MQTT command listener gracefully."""
         if self.listener_client:
             _LOGGER.info("Stopping MQTT command listener.")
-            self.listener_client.loop_stop()
             self.listener_client.disconnect()
+            self.listener_client.loop_stop()
             self.listener_client = None
 
     # --- Publishing Methods ---
@@ -149,9 +150,9 @@ class MqttHandler:
             _LOGGER.warning("MQTT is enabled, but no broker/host is configured.")
             return None
         
-        port = current_mqtt_config.get("port", 1883)
-        client_id = f"mytoyota-app-publisher-{os.getpid()}"
         try:
+            port = int(current_mqtt_config.get("port", 1883))
+            client_id = f"mytoyota-app-publisher-{os.getpid()}"
             client = mqtt_client.Client(mqtt_client.CallbackAPIVersion.VERSION1, client_id)
             if current_mqtt_config.get("username") and current_mqtt_config.get("password"):
                 client.username_pw_set(current_mqtt_config.get("username"), current_mqtt_config.get("password"))
@@ -159,7 +160,7 @@ class MqttHandler:
             client.loop_start()
             return client
         except Exception as e:
-            _LOGGER.error(f"Failed to connect to MQTT broker for publishing: {e}", exc_info=True)
+            _LOGGER.error(f"Failed to connect to MQTT broker for publishing: {e}")
             return None
 
     def _publish_autodiscovery_configs(self, client: mqtt_client.Client, vehicle_data: dict):
@@ -338,6 +339,6 @@ class MqttHandler:
                 self._publish_autodiscovery_configs(client, vehicle_data)
             self._publish_vehicle_data(client, vehicle_data)
         finally:
-            client.loop_stop()
             client.disconnect()
+            client.loop_stop()
             _LOGGER.debug("Disconnected from MQTT broker after publishing.")

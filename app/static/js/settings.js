@@ -55,6 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Populate Sensor Checkboxes ---
     function populateCheckboxes(container, sensorMap, prefix) {
+        if (!container) return;
         for (const [key, label] of Object.entries(sensorMap)) {
             const labelEl = document.createElement('label');
             const checkbox = document.createElement('input');
@@ -121,10 +122,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             testTripSelect.addEventListener('change', (e) => {
                 if (!e.target.value) {
-                    document.getElementById('test-start-lat').value = '';
-                    document.getElementById('test-start-lon').value = '';
-                    document.getElementById('test-end-lat').value = '';
-                    document.getElementById('test-end-lon').value = '';
+                    const startLatEl = document.getElementById('test-start-lat');
+                    const startLonEl = document.getElementById('test-start-lon');
+                    const endLatEl = document.getElementById('test-end-lat');
+                    const endLonEl = document.getElementById('test-end-lon');
+                    if (startLatEl) startLatEl.value = '';
+                    if (startLonEl) startLonEl.value = '';
+                    if (endLatEl) endLatEl.value = '';
+                    if (endLonEl) endLonEl.value = '';
                     
                     if (geocodingMap) {
                         if (startMarker) geocodingMap.removeLayer(startMarker);
@@ -135,10 +140,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const coords = JSON.parse(e.target.value);
-                document.getElementById('test-start-lat').value = coords.start_lat;
-                document.getElementById('test-start-lon').value = coords.start_lon;
-                document.getElementById('test-end-lat').value = coords.end_lat;
-                document.getElementById('test-end-lon').value = coords.end_lon;
+                const startLatEl = document.getElementById('test-start-lat');
+                const startLonEl = document.getElementById('test-start-lon');
+                const endLatEl = document.getElementById('test-end-lat');
+                const endLonEl = document.getElementById('test-end-lon');
+                
+                if (startLatEl) startLatEl.value = coords.start_lat;
+                if (startLonEl) startLonEl.value = coords.start_lon;
+                if (endLatEl) endLatEl.value = coords.end_lat;
+                if (endLonEl) endLonEl.value = coords.end_lon;
                 
                 updateMapWithCoords(coords.start_lat, coords.start_lon, coords.end_lat, coords.end_lon);
             });
@@ -163,8 +173,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         if (endLat && endLon) {
-            // Use a different color or icon for end marker if possible, 
-            // but standard marker is fine for now, we'll label it.
             endMarker = L.marker([endLat, endLon]).addTo(geocodingMap);
             endMarker.bindTooltip("End");
             bounds.push([endLat, endLon]);
@@ -201,7 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch('/api/credentials');
             const data = await response.json();
-            if (data.username) {
+            if (data.username && usernameInput) {
                 usernameInput.value = data.username;
             }
         } catch (error) {
@@ -209,71 +217,81 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    credentialsForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const username = usernameInput.value;
-        const password = passwordInput.value;
+    if (credentialsForm) {
+        credentialsForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = usernameInput ? usernameInput.value : '';
+            const password = passwordInput ? passwordInput.value : '';
 
-        if (!password) {
-            showMessage(credentialsMessage, 'Password is required to save credentials.', 'error');
-            return;
-        }
-
-        try {
-            const response = await fetch('/api/credentials', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password }),
-            });
-            const result = await response.json();
-            if (response.ok) {
-                showMessage(credentialsMessage, result.message, 'success');
-                passwordInput.value = '';
-
-                showMessage(credentialsMessage, 'Credentials saved. Triggering data fetch...', 'info');
-                try {
-                    const pollResponse = await fetch('/api/force_poll', { method: 'POST' });
-                    const pollResult = await pollResponse.json();
-                    if (pollResponse.ok) {
-                        showMessage(credentialsMessage, 'Data fetch completed successfully!', 'success');
-                    } else {
-                        throw new Error(pollResult.detail || 'Polling failed.');
-                    }
-                } catch (pollError) {
-                    showMessage(credentialsMessage, `Data fetch failed: ${pollError.message}`, 'error');
-                }
-            } else {
-                throw new Error(result.detail || 'An unknown error occurred.');
+            if (!password) {
+                showMessage(credentialsMessage, 'Password is required to save credentials.', 'error');
+                return;
             }
-        } catch (error) {
-            showMessage(credentialsMessage, `Error: ${error.message}`, 'error');
-        }
-    });
+
+            try {
+                const response = await fetch('/api/credentials', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password }),
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    showMessage(credentialsMessage, result.message, 'success');
+                    if (passwordInput) passwordInput.value = '';
+
+                    showMessage(credentialsMessage, 'Credentials saved. Triggering data fetch...', 'info');
+                    try {
+                        const pollResponse = await fetch('/api/force_poll', { method: 'POST' });
+                        const pollResult = await pollResponse.json();
+                        if (pollResponse.ok) {
+                            showMessage(credentialsMessage, 'Data fetch completed successfully!', 'success');
+                        } else {
+                            throw new Error(pollResult.detail || 'Polling failed.');
+                        }
+                    } catch (pollError) {
+                        showMessage(credentialsMessage, `Data fetch failed: ${pollError.message}`, 'error');
+                    }
+                } else {
+                    throw new Error(result.detail || 'An unknown error occurred.');
+                }
+            } catch (error) {
+                showMessage(credentialsMessage, `Error: ${error.message}`, 'error');
+            }
+        });
+    }
 
     // --- Load Settings ---
     async function loadSettings() {
         try {
             const response = await fetch('/api/config');
             const config = await response.json();
+            console.log("Loaded config from API:", config);
+
+            const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+            const setCheck = (id, val) => { const el = document.getElementById(id); if (el) el.checked = val; };
 
             const polling = config.web_server?.polling || {};
-            document.querySelector(`input[name="poll_mode"][value="${polling.mode || 'interval'}"]`).checked = true;
-            document.getElementById('refresh-interval').value = polling.interval_seconds || 3600;
-            document.getElementById('fixed-time').value = polling.fixed_time || '07:00';
+            const pollModeEl = document.querySelector(`input[name="poll_mode"][value="${polling.mode || 'interval'}"]`);
+            if (pollModeEl) pollModeEl.checked = true;
+            
+            setVal('refresh-interval', polling.interval_seconds || 3600);
+            setVal('fixed-time', polling.fixed_time || '07:00');
             togglePollingInputs();
 
-            document.getElementById('api-retries').value = config.api_retries || 3;
-            document.getElementById('api-retry-delay').value = config.api_retry_delay_seconds || 20;
-            document.querySelector(`input[name="unit_system"][value="${config.unit_system || 'metric'}"]`).checked = true;
+            setVal('api-retries', config.api_retries || 3);
+            setVal('api-retry-delay', config.api_retry_delay_seconds || 20);
+            
+            const unitSystemEl = document.querySelector(`input[name="unit_system"][value="${config.unit_system || 'metric'}"]`);
+            if (unitSystemEl) unitSystemEl.checked = true;
 
-            document.getElementById('reverse-geocode-enabled').checked = config.reverse_geocode_enabled !== false;
-            document.getElementById('fetch-full-route').checked = config.fetch_full_trip_route || false;
+            setCheck('reverse-geocode-enabled', config.reverse_geocode_enabled !== false);
+            setCheck('fetch-full-route', config.fetch_full_trip_route || false);
             
             const geocoding = config.geocoding || {};
             if (geocodingProviderSelect) {
                 geocodingProviderSelect.value = geocoding.provider || 'nominatim';
-                document.getElementById('opencage-api-key').value = geocoding.opencage_api_key || '';
-                document.getElementById('google-maps-api-key').value = geocoding.google_maps_api_key || '';
+                setVal('opencage-api-key', geocoding.opencage_api_key || '');
+                setVal('google-maps-api-key', geocoding.google_maps_api_key || '');
                 
                 function toggleGeocodingProviderFields() {
                     const provider = geocodingProviderSelect.value;
@@ -286,12 +304,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const mqtt = config.mqtt || {};
-            document.getElementById('mqtt-enabled').checked = mqtt.enabled || false;
-            document.getElementById('mqtt-host').value = mqtt.host || '';
-            document.getElementById('mqtt-port').value = mqtt.port || 1883;
-            document.getElementById('mqtt-username').value = mqtt.username || '';
-            document.getElementById('mqtt-base-topic').value = mqtt.base_topic || '';
-            document.getElementById('mqtt-discovery-prefix').value = mqtt.discovery_prefix || 'homeassistant';
+            console.log("MQTT config to apply:", mqtt);
+            setCheck('mqtt-enabled', mqtt.enabled || false);
+            setVal('mqtt-host', mqtt.host || mqtt.broker || '');
+            setVal('mqtt-port', mqtt.port || 1883);
+            setVal('mqtt-username', mqtt.username || '');
+            setVal('mqtt-password', mqtt.password || '');
+            setVal('mqtt-base-topic', mqtt.base_topic || '');
+            setVal('mqtt-discovery-prefix', mqtt.discovery_prefix || 'homeassistant');
 
             // Load sensor selection
             const enabledSensors = mqtt.enabled_sensors || {};
@@ -306,9 +326,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function togglePollingInputs() {
-        const mode = document.querySelector('input[name="poll_mode"]:checked').value;
-        intervalSettingsDiv.style.display = mode === 'interval' ? 'block' : 'none';
-        fixedTimeSettingsDiv.style.display = mode === 'fixed_time' ? 'block' : 'none';
+        const checkedMode = document.querySelector('input[name="poll_mode"]:checked');
+        if (!checkedMode) return;
+        const mode = checkedMode.value;
+        if (intervalSettingsDiv) intervalSettingsDiv.style.display = mode === 'interval' ? 'block' : 'none';
+        if (fixedTimeSettingsDiv) fixedTimeSettingsDiv.style.display = mode === 'fixed_time' ? 'block' : 'none';
     }
 
     document.querySelectorAll('input[name="poll_mode"]').forEach(radio => {
@@ -316,95 +338,113 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- Save Settings Event Listeners ---
-    pollingSettingsForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const formData = new FormData(pollingSettingsForm);
-        const newSettings = {
-            web_server: {
-                polling: {
-                    mode: formData.get('poll_mode'),
-                    interval_seconds: parseInt(formData.get('interval_seconds'), 10),
-                    fixed_time: formData.get('fixed_time'),
+    if (pollingSettingsForm) {
+        pollingSettingsForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(pollingSettingsForm);
+            const newSettings = {
+                web_server: {
+                    polling: {
+                        mode: formData.get('poll_mode'),
+                        interval_seconds: parseInt(formData.get('interval_seconds'), 10),
+                        fixed_time: formData.get('fixed_time'),
+                    }
                 }
-            }
-        };
-        saveConfig(newSettings, pollingStatusMessage);
-    });
-    
-    mqttSettingsForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        
-        const enabledSensors = {};
-        document.querySelectorAll('#mqtt-sensor-selection input[type="checkbox"]').forEach(cb => {
-            enabledSensors[cb.dataset.sensorKey] = cb.checked;
+            };
+            saveConfig(newSettings, pollingStatusMessage);
         });
+    }
+    
+    if (mqttSettingsForm) {
+        mqttSettingsForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const enabledSensors = {};
+            document.querySelectorAll('#mqtt-sensor-selection input[type="checkbox"]').forEach(cb => {
+                enabledSensors[cb.dataset.sensorKey] = cb.checked;
+            });
 
-        const newSettings = {
-            mqtt: {
-                enabled: document.getElementById('mqtt-enabled').checked,
-                host: document.getElementById('mqtt-host').value,
-                port: parseInt(document.getElementById('mqtt-port').value, 10),
-                username: document.getElementById('mqtt-username').value,
-                password: document.getElementById('mqtt-password').value,
-                base_topic: document.getElementById('mqtt-base-topic').value,
-                discovery_prefix: document.getElementById('mqtt-discovery-prefix').value,
-                enabled_sensors: enabledSensors
+            const getVal = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
+            const getCheck = (id) => { const el = document.getElementById(id); return el ? el.checked : false; };
+
+            const newSettings = {
+                mqtt: {
+                    enabled: getCheck('mqtt-enabled'),
+                    host: getVal('mqtt-host'),
+                    port: parseInt(getVal('mqtt-port') || 1883, 10),
+                    username: getVal('mqtt-username'),
+                    password: getVal('mqtt-password'),
+                    base_topic: getVal('mqtt-base-topic'),
+                    discovery_prefix: getVal('mqtt-discovery-prefix'),
+                    enabled_sensors: enabledSensors
+                }
+            };
+
+            if (!newSettings.mqtt.password) {
+                delete newSettings.mqtt.password;
             }
-        };
+            saveConfig(newSettings, mqttStatusMessage);
+        });
+    }
 
-        if (!newSettings.mqtt.password) {
-            delete newSettings.mqtt.password;
-        }
-        saveConfig(newSettings, mqttStatusMessage);
-    });
-
-    mqttTestBtn.addEventListener('click', async () => {
-        showMessage(mqttStatusMessage, 'Sending test message based on latest saved settings...', 'info');
-        try {
-            const response = await fetch('/api/mqtt/test', { method: 'POST' });
-            const result = await response.json();
-            if (response.ok) {
-                showMessage(mqttStatusMessage, result.message, 'success');
-            } else {
-                throw new Error(result.detail || 'An unknown error occurred.');
+    if (mqttTestBtn) {
+        mqttTestBtn.addEventListener('click', async () => {
+            showMessage(mqttStatusMessage, 'Sending test message based on latest saved settings...', 'info');
+            try {
+                const response = await fetch('/api/mqtt/test', { method: 'POST' });
+                const result = await response.json();
+                if (response.ok) {
+                    showMessage(mqttStatusMessage, result.message, 'success');
+                } else {
+                    throw new Error(result.detail || 'An unknown error occurred.');
+                }
+            } catch (error) {
+                showMessage(mqttStatusMessage, `Error: ${error.message}`, 'error');
             }
-        } catch (error) {
-            showMessage(mqttStatusMessage, `Error: ${error.message}`, 'error');
-        }
-    });
+        });
+    }
 
-    apiRetriesForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const formData = new FormData(apiRetriesForm);
-        const newSettings = {
-            api_retries: parseInt(formData.get('api_retries'), 10),
-            api_retry_delay_seconds: parseInt(formData.get('api_retry_delay_seconds'), 10),
-        };
-        saveConfig(newSettings, apiRetriesStatusMessage);
-    });
+    if (apiRetriesForm) {
+        apiRetriesForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(apiRetriesForm);
+            const newSettings = {
+                api_retries: parseInt(formData.get('api_retries'), 10),
+                api_retry_delay_seconds: parseInt(formData.get('api_retry_delay_seconds'), 10),
+            };
+            saveConfig(newSettings, apiRetriesStatusMessage);
+        });
+    }
 
-    displaySettingsForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const formData = new FormData(displaySettingsForm);
-        const newSettings = {
-            unit_system: formData.get('unit_system'),
-        };
-        saveConfig(newSettings, displayStatusMessage);
-    });
+    if (displaySettingsForm) {
+        displaySettingsForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(displaySettingsForm);
+            const newSettings = {
+                unit_system: formData.get('unit_system'),
+            };
+            saveConfig(newSettings, displayStatusMessage);
+        });
+    }
 
-    geocodingSettingsForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const newSettings = {
-            reverse_geocode_enabled: document.getElementById('reverse-geocode-enabled').checked,
-            fetch_full_trip_route: document.getElementById('fetch-full-route').checked,
-            geocoding: {
-                provider: geocodingProviderSelect.value,
-                opencage_api_key: document.getElementById('opencage-api-key').value,
-                google_maps_api_key: document.getElementById('google-maps-api-key').value
-            }
-        };
-        saveConfig(newSettings, geocodingStatusMessage);
-    });
+    if (geocodingSettingsForm) {
+        geocodingSettingsForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const getVal = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
+            const getCheck = (id) => { const el = document.getElementById(id); return el ? el.checked : false; };
+
+            const newSettings = {
+                reverse_geocode_enabled: getCheck('reverse-geocode-enabled'),
+                fetch_full_trip_route: getCheck('fetch-full-route'),
+                geocoding: {
+                    provider: geocodingProviderSelect ? geocodingProviderSelect.value : 'nominatim',
+                    opencage_api_key: getVal('opencage-api-key'),
+                    google_maps_api_key: getVal('google-maps-api-key')
+                }
+            };
+            saveConfig(newSettings, geocodingStatusMessage);
+        });
+    }
 
     async function saveConfig(newSettings, messageElement) {
         console.log("Attempting to save new settings:", JSON.stringify(newSettings, null, 2));
@@ -482,19 +522,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (testGeocodeBtn) {
         testGeocodeBtn.addEventListener('click', async () => {
-            const startLat = document.getElementById('test-start-lat').value;
-            const startLon = document.getElementById('test-start-lon').value;
-            const endLat = document.getElementById('test-end-lat').value;
-            const endLon = document.getElementById('test-end-lon').value;
+            const startLatEl = document.getElementById('test-start-lat');
+            const startLonEl = document.getElementById('test-start-lon');
+            const endLatEl = document.getElementById('test-end-lat');
+            const endLonEl = document.getElementById('test-end-lon');
+            
+            const startLat = startLatEl ? startLatEl.value : '';
+            const startLon = startLonEl ? startLonEl.value : '';
+            const endLat = endLatEl ? endLatEl.value : '';
+            const endLon = endLonEl ? endLonEl.value : '';
             
             if ((!startLat || !startLon) && (!endLat || !endLon)) {
                 showMessage(geocodingTestResult, 'Please provide at least one set of coordinates.', 'error', 0);
                 return;
             }
 
-            const provider = geocodingProviderSelect.value;
-            const opencageKey = document.getElementById('opencage-api-key').value;
-            const googleMapsKey = document.getElementById('google-maps-api-key').value;
+            const provider = geocodingProviderSelect ? geocodingProviderSelect.value : 'nominatim';
+            const opencageKeyEl = document.getElementById('opencage-api-key');
+            const googleMapsKeyEl = document.getElementById('google-maps-api-key');
+            const opencageKey = opencageKeyEl ? opencageKeyEl.value : '';
+            const googleMapsKey = googleMapsKeyEl ? googleMapsKeyEl.value : '';
 
             showMessage(geocodingTestResult, 'Testing geocoder...', 'info', 0);
             testGeocodeBtn.disabled = true;
