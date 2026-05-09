@@ -67,6 +67,10 @@ async def get_vehicle_data():
                 if not vin:
                     continue
 
+                # Ensure an alias (pretty-name) is always available, defaulting to the VIN
+                if not vehicle.get("alias"):
+                    vehicle["alias"] = vin
+
                 stats = (
                     db.query(
                         func.sum(database.Trip.distance_km).label("total_distance"),
@@ -171,12 +175,13 @@ def get_vehicle_history(vin: str, days: int = 30):
     db = database.SessionLocal()
     try:
         start_date = datetime.datetime.utcnow() - datetime.timedelta(days=days)
+        filters = [database.VehicleReading.timestamp >= start_date]
+        if vin != "all":
+            filters.append(database.VehicleReading.vin == vin)
+            
         readings = (
             db.query(database.VehicleReading)
-            .filter(
-                database.VehicleReading.vin == vin,
-                database.VehicleReading.timestamp >= start_date,
-            )
+            .filter(*filters)
             .order_by(database.VehicleReading.timestamp.asc())
             .all()
         )
@@ -199,11 +204,14 @@ def get_daily_summary(vin: str, period: str = "30"):
             raise HTTPException(status_code=400, detail="Invalid period specified.")
 
         # First, find the absolute earliest trip for this VIN to use as a boundary.
-        earliest_trip_ts = (
-            db.query(func.min(database.Trip.start_timestamp))
-            .filter(database.Trip.vin == vin)
-            .scalar()
-        )
+        if vin == "all":
+            earliest_trip_ts = db.query(func.min(database.Trip.start_timestamp)).scalar()
+        else:
+            earliest_trip_ts = (
+                db.query(func.min(database.Trip.start_timestamp))
+                .filter(database.Trip.vin == vin)
+                .scalar()
+            )
 
         if not earliest_trip_ts:
             _LOGGER.info(
@@ -221,6 +229,10 @@ def get_daily_summary(vin: str, period: str = "30"):
             actual_start_date_filter = max(earliest_trip_ts, requested_start_date)
 
         # Build the main query for trips within the determined date range.
+        filters = [database.Trip.start_timestamp >= actual_start_date_filter]
+        if vin != "all":
+            filters.append(database.Trip.vin == vin)
+            
         trips_query = (
             db.query(
                 func.date(database.Trip.start_timestamp).label("day"),
@@ -236,10 +248,7 @@ def get_daily_summary(vin: str, period: str = "30"):
                 func.sum(database.Trip.duration_seconds).label("total_duration"),
                 func.max(database.Trip.max_speed_kmh).label("max_speed"),
             )
-            .filter(
-                database.Trip.vin == vin,
-                database.Trip.start_timestamp >= actual_start_date_filter,
-            )
+            .filter(*filters)
             .group_by(func.date(database.Trip.start_timestamp))
             .all()
         )
@@ -318,11 +327,14 @@ def get_trip_count(vin: str, period: str = "30"):
             return {"trip_count": 0}  # Should not happen with current UI
 
         # Find the absolute earliest trip for this VIN to use as a boundary.
-        earliest_trip_ts = (
-            db.query(func.min(database.Trip.start_timestamp))
-            .filter(database.Trip.vin == vin)
-            .scalar()
-        )
+        if vin == "all":
+            earliest_trip_ts = db.query(func.min(database.Trip.start_timestamp)).scalar()
+        else:
+            earliest_trip_ts = (
+                db.query(func.min(database.Trip.start_timestamp))
+                .filter(database.Trip.vin == vin)
+                .scalar()
+            )
 
         if not earliest_trip_ts:
             return {"trip_count": 0}
@@ -336,12 +348,13 @@ def get_trip_count(vin: str, period: str = "30"):
             start_date_filter = max(earliest_trip_ts, requested_start_date)
 
         # Perform the count query
+        filters = [database.Trip.start_timestamp >= start_date_filter]
+        if vin != "all":
+            filters.append(database.Trip.vin == vin)
+            
         count = (
             db.query(database.Trip)
-            .filter(
-                database.Trip.vin == vin,
-                database.Trip.start_timestamp >= start_date_filter,
-            )
+            .filter(*filters)
             .count()
         )
 
@@ -354,13 +367,13 @@ def get_available_countries(vin: str):
     """Gets a unique, sorted list of country codes for all trips for a given VIN."""
     db = database.SessionLocal()
     try:
+        filters = [database.Trip.countries.is_not(None), database.Trip.countries != ""]
+        if vin != "all":
+            filters.append(database.Trip.vin == vin)
+            
         results = (
             db.query(database.Trip.countries)
-            .filter(
-                database.Trip.vin == vin,
-                database.Trip.countries.is_not(None),
-                database.Trip.countries != "",
-            )
+            .filter(*filters)
             .distinct()
             .all()
         )
@@ -396,11 +409,15 @@ def get_trip_data(
         elif period != "all":
             return {"values": []}
 
-        earliest_trip_ts = (
-            db.query(func.min(database.Trip.start_timestamp))
-            .filter(database.Trip.vin == vin)
-            .scalar()
-        )
+        if vin == "all":
+            earliest_trip_ts = db.query(func.min(database.Trip.start_timestamp)).scalar()
+        else:
+            earliest_trip_ts = (
+                db.query(func.min(database.Trip.start_timestamp))
+                .filter(database.Trip.vin == vin)
+                .scalar()
+            )
+            
         if not earliest_trip_ts:
             return {"values": []}
 
@@ -412,12 +429,13 @@ def get_trip_data(
             start_date_filter = max(earliest_trip_ts, requested_start_date)
 
         # Query for the single column of data.
+        filters = [database.Trip.start_timestamp >= start_date_filter]
+        if vin != "all":
+            filters.append(database.Trip.vin == vin)
+            
         query_result = (
             db.query(getattr(database.Trip, metric))
-            .filter(
-                database.Trip.vin == vin,
-                database.Trip.start_timestamp >= start_date_filter,
-            )
+            .filter(*filters)
             .all()
         )
 
@@ -436,9 +454,13 @@ def get_heatmap_data(vin: str):
     db = database.SessionLocal()
     try:
         # Query for all trips for the given VIN that have route data
+        filters = [database.Trip.route.is_not(None)]
+        if vin != "all":
+            filters.append(database.Trip.vin == vin)
+            
         trips_with_routes = (
             db.query(database.Trip.route)
-            .filter(database.Trip.vin == vin, database.Trip.route.is_not(None))
+            .filter(*filters)
             .all()
         )
 
