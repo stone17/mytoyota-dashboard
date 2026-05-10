@@ -580,10 +580,351 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function loadVehicleData() {
+    function renderVehicle(vehicleToRender, vehicles) {
         const isImperial = appConfig.unit_system.startsWith('imperial');
         const isUk = appConfig.unit_system === 'imperial_uk';
 
+        vehicleContainer.innerHTML = '';
+        if (!vehicleToRender) {
+            vehicleContainer.innerHTML = `<p class="error">No vehicle data available.</p>`;
+            return;
+        }
+
+        const vehicleFragment = vehicleTemplate.content.cloneNode(true);
+        const vehicleCard = vehicleFragment.querySelector('.vehicle-wrapper');
+        const get = (obj, path, def = 'N/A') => path.split('.').reduce((o, k) => (o && o[k] != null) ? o[k] : def, obj);
+        
+        const distanceUnit = isImperial ? 'mi' : 'km';
+        const consumptionUnit = isImperial ? (isUk ? 'UK MPG' : 'US MPG') : 'L/100km';
+        const fuelUnit = isImperial ? (isUk ? 'UK gal' : 'US gal') : 'L';
+        const speedUnit = isImperial ? 'mph' : 'km/h';
+        
+        // Generate stat elements
+        const statsContainer = vehicleCard.querySelector('.vehicle-stats');
+        for (const key in ALL_DASHBOARD_STATS) {
+            const statInfo = ALL_DASHBOARD_STATS[key];
+            const statEl = document.createElement('div');
+            statEl.className = `stat stat-${key}`;
+            statEl.dataset.statKey = key;
+
+            const h3 = document.createElement('h3');
+            h3.textContent = window.i18n ? window.i18n.t(`dashboard.stats.${key}`) : statInfo.title;
+
+            const p = document.createElement('p');
+            p.innerHTML = statInfo.element;
+
+            statEl.appendChild(h3);
+            statEl.appendChild(p);
+            statsContainer.appendChild(statEl);
+        }
+
+        // Update unit labels for dynamically generated stats
+        const updateUnit = (key, unit) => {
+            const h3 = statsContainer.querySelector(`.stat-${key} h3`);
+            if(h3) {
+                const translatedTitle = window.i18n ? window.i18n.t(`dashboard.stats.${key}`) : ALL_DASHBOARD_STATS[key].title;
+                h3.textContent = `${translatedTitle} (${unit})`;
+            }
+        }
+        updateUnit('odometer', distanceUnit);
+        updateUnit('range', distanceUnit);
+        updateUnit('total_ev_distance', distanceUnit);
+        updateUnit('daily_distance', distanceUnit);
+        updateUnit('consumption', consumptionUnit);
+        updateUnit('total_fuel', fuelUnit);
+        updateUnit('max_speed', speedUnit);
+        updateUnit('highway_distance', distanceUnit);
+        const evRangeEl = statsContainer.querySelector(`.stat-ev_range h3`);
+        if (evRangeEl) { const tTitle = window.i18n ? window.i18n.t('dashboard.stats.ev_range') : 'EV Range'; evRangeEl.innerHTML = `${tTitle} (<span class="distance_unit">${distanceUnit}</span>)`; }
+
+
+        const dashboard = vehicleToRender.dashboard || {};
+        const statsOverall = vehicleToRender.statistics.overall || {};
+        const statsDaily = vehicleToRender.statistics.daily || {};
+
+        const odometerKm = dashboard.odometer || 0;
+        const rangeKm = dashboard.total_range || 0;
+        const batteryRangeKm = dashboard.battery_range || 'N/A';
+        const batteryRangeWithAcKm = dashboard.battery_range_with_ac || 'N/A';
+        const evDistanceKm = statsOverall.total_ev_distance_km || 0;
+        const dailyDistanceKm = statsDaily.distance || 0;
+        const consumptionL100km = statsOverall.fuel_consumption_l_100km || 0;
+        const totalFuelL = statsOverall.total_fuel_l || 0;
+        const overallMaxSpeedKmh = statsOverall.overall_max_speed_kmh || 'N/A';
+        const allCountries = statsOverall.countries || 'N/A';
+        const totalHighwayDistKm = statsOverall.total_highway_distance_km || 0;
+        const highwayRatio = statsOverall.highway_ratio_percent !== undefined ? statsOverall.highway_ratio_percent : 'N/A';
+
+        vehicleCard.querySelector('.alias').innerHTML = vehicleToRender.alias;
+        vehicleCard.querySelector('.model-name').textContent = vehicleToRender.model_name;
+
+        // Setup the vehicle selector inside the card
+        const vehicleSelect = vehicleCard.querySelector('.vehicle-select');
+        if (vehicles && vehicles.length > 1) {
+            vehicleSelect.style.display = 'inline-block';
+            vehicles.forEach(v => {
+                vehicleSelect.appendChild(new Option(`${v.alias} (${v.vin})`, v.vin));
+            });
+            vehicleSelect.appendChild(new Option("All Cars", "all"));
+            vehicleSelect.value = vehicleToRender.vin;
+            vehicleSelect.addEventListener('change', (e) => {
+                localStorage.setItem('selected_vin', e.target.value);
+                let selectedVehicle;
+                if (e.target.value === 'all') {
+                    selectedVehicle = {
+                        vin: 'all',
+                        alias: 'All Cars',
+                        model_name: 'Aggregated Data',
+                        dashboard: {
+                            odometer: vehicles.reduce((sum, v) => sum + (v.dashboard?.odometer || 0), 0),
+                            total_range: vehicles.reduce((sum, v) => sum + (v.dashboard?.total_range || 0), 0),
+                            fuel_level: null,
+                            battery_level: null,
+                            battery_range: vehicles.reduce((sum, v) => sum + (v.dashboard?.battery_range || 0), 0),
+                            battery_range_with_ac: vehicles.reduce((sum, v) => sum + (v.dashboard?.battery_range_with_ac || 0), 0),
+                        },
+                        statistics: {
+                            overall: {
+                                total_distance: vehicles.reduce((sum, v) => sum + (v.statistics?.overall?.total_distance || 0), 0),
+                                total_ev_distance_km: vehicles.reduce((sum, v) => sum + (v.statistics?.overall?.total_ev_distance_km || 0), 0),
+                                total_fuel_l: vehicles.reduce((sum, v) => sum + (v.statistics?.overall?.total_fuel_l || 0), 0),
+                                total_duration_seconds: vehicles.reduce((sum, v) => sum + (v.statistics?.overall?.total_duration_seconds || 0), 0),
+                                total_highway_distance_km: vehicles.reduce((sum, v) => sum + (v.statistics?.overall?.total_highway_distance_km || 0), 0),
+                                overall_max_speed_kmh: Math.max(...vehicles.map(v => v.statistics?.overall?.overall_max_speed_kmh || 0)),
+                                countries: [...new Set(vehicles.flatMap(v => (v.statistics?.overall?.countries || '').split(', ')))].filter(c => c && c !== 'N/A').join(', '),
+                            },
+                            daily: {
+                                distance: vehicles.reduce((sum, v) => sum + (v.statistics?.daily?.distance || 0), 0)
+                            }
+                        },
+                        status: null,
+                        last_updated: vehicles[0].last_updated
+                    };
+                    const totDist = selectedVehicle.statistics.overall.total_distance;
+                    if (totDist > 0) {
+                        selectedVehicle.statistics.overall.ev_ratio_percent = (selectedVehicle.statistics.overall.total_ev_distance_km / totDist) * 100;
+                        selectedVehicle.statistics.overall.highway_ratio_percent = (selectedVehicle.statistics.overall.total_highway_distance_km / totDist) * 100;
+                        selectedVehicle.statistics.overall.fuel_consumption_l_100km = (selectedVehicle.statistics.overall.total_fuel_l / totDist) * 100;
+                    }
+                } else {
+                    selectedVehicle = vehicles.find(v => v.vin === e.target.value);
+                }
+                renderVehicle(selectedVehicle, vehicles);
+            });
+        } else {
+            vehicleSelect.style.display = 'none';
+        }
+
+        const setVal = (selector, val) => {
+            const el = vehicleCard.querySelector(selector);
+            if (el) el.textContent = val;
+        };
+
+        setVal('.fuel_level', dashboard.fuel_level !== undefined ? dashboard.fuel_level : 'N/A');
+        setVal('.ev_ratio_percent', statsOverall.ev_ratio_percent !== undefined ? statsOverall.ev_ratio_percent : 'N/A');
+        const totalSeconds = statsOverall.total_duration_seconds || 0;
+        setVal('.total_duration', Math.round(totalSeconds / 3600));
+        setVal('.highway_ratio_percent', highwayRatio);
+
+        if (isImperial) {
+            setVal('.odometer', Math.round(odometerKm * KM_TO_MI));
+            setVal('.total_range', Math.round(rangeKm * KM_TO_MI));
+            setVal('.total_ev_distance_km', Math.round(evDistanceKm * KM_TO_MI));
+            setVal('.daily_distance', (dailyDistanceKm * KM_TO_MI).toFixed(1));
+            setVal('.overall_fuel_consumption', l100kmToMpg(consumptionL100km, isUk).toFixed(1));
+            setVal('.total_fuel_l', (totalFuelL * (isUk ? L_TO_GAL_UK : L_TO_GAL_US)).toFixed(2));
+            setVal('.battery_range', batteryRangeKm !== 'N/A' ? Math.round(batteryRangeKm * KM_TO_MI) : 'N/A');
+            setVal('.battery_range_with_ac', batteryRangeWithAcKm !== 'N/A' ? Math.round(batteryRangeWithAcKm * KM_TO_MI) : 'N/A');
+            setVal('.overall_max_speed', overallMaxSpeedKmh !== 'N/A' ? Math.round(overallMaxSpeedKmh * KM_TO_MI) : 'N/A');
+            setVal('.total_highway_distance_km', Math.round(totalHighwayDistKm * KM_TO_MI));
+        } else {
+            setVal('.odometer', Math.round(odometerKm));
+            setVal('.total_range', Math.round(rangeKm));
+            setVal('.total_ev_distance_km', Math.round(evDistanceKm));
+            setVal('.daily_distance', (dailyDistanceKm || 0).toFixed(1));
+            setVal('.overall_fuel_consumption', consumptionL100km.toFixed(1));
+            setVal('.total_fuel_l', totalFuelL.toFixed(2));
+            setVal('.battery_range', batteryRangeKm !== 'N/A' ? Math.round(batteryRangeKm) : 'N/A');
+            setVal('.battery_range_with_ac', batteryRangeWithAcKm !== 'N/A' ? Math.round(batteryRangeWithAcKm) : 'N/A');
+            setVal('.overall_max_speed', overallMaxSpeedKmh !== 'N/A' ? Math.round(overallMaxSpeedKmh) : 'N/A');
+            setVal('.total_highway_distance_km', Math.round(totalHighwayDistKm));
+        }
+
+        setVal('.all_countries', allCountries);
+
+        setVal('.battery_level', dashboard.battery_level !== undefined ? dashboard.battery_level : 'N/A');
+        
+        let chargeStatus = get(vehicleToRender, 'dashboard.charging_status', 'N/A');
+        if (chargeStatus && typeof chargeStatus === 'string') {
+            chargeStatus = chargeStatus.replace(/([A-Z])/g, ' $1').trim();
+            chargeStatus = chargeStatus.charAt(0).toUpperCase() + chargeStatus.slice(1);
+        }
+        setVal('.charging_status', chargeStatus);
+
+        setVal('.vin span', vehicleToRender.vin);
+        
+        // Compare the server's last_updated with our local optimistic timestamp
+        let serverLastUpdated = (vehicleToRender.status && vehicleToRender.status.last_update_timestamp) || vehicleToRender.last_updated;
+        const optimisticLastUpdated = localStorage.getItem(`optimistic_last_updated_${vehicleToRender.vin}`);
+        
+        if (optimisticLastUpdated) {
+            if (!serverLastUpdated || serverLastUpdated === "Never" || new Date(optimisticLastUpdated) > new Date(serverLastUpdated)) {
+                serverLastUpdated = optimisticLastUpdated;
+            } else {
+                // Server has caught up, clear the optimistic timestamp
+                localStorage.removeItem(`optimistic_last_updated_${vehicleToRender.vin}`);
+            }
+        }
+
+        const formattedDate = serverLastUpdated && serverLastUpdated !== "Never" ? new Date(serverLastUpdated).toLocaleString() : "Never";
+        setVal('.last-updated-time', formattedDate);
+        setVal('.last_updated', formattedDate);
+        setVal('.last-updated', formattedDate);
+        
+        const lat = dashboard.latitude;
+        const lon = dashboard.longitude;
+        const mapContainer = vehicleCard.querySelector('.location-map-container');
+        if (lat && lon) {
+            const embedUrl = `https://maps.google.com/maps?q=${lat},${lon}&z=15&output=embed`;
+            mapContainer.innerHTML = `<iframe src="${embedUrl}"></iframe>`;
+        } else {
+            mapContainer.innerHTML = '<p style="text-align: center; padding-top: 50px; color: #888;">Location data not available.</p>';
+        }
+
+        const enabledSensors = appConfig.dashboard_sensors || {};
+        vehicleCard.querySelectorAll('.stat[data-stat-key]').forEach(el => {
+            const key = el.dataset.statKey;
+            if (enabledSensors[key] === false) {
+                el.style.display = 'none';
+            } else {
+                el.style.display = '';
+            }
+        });
+
+        const visibleStats = Array.from(vehicleCard.querySelectorAll('.stat')).filter(
+            el => el.style.display !== 'none'
+        );
+        visibleStats.forEach(stat => stat.style.gridColumn = '');
+        if (visibleStats.length % 2 !== 0) {
+            const lastVisibleStat = visibleStats[visibleStats.length - 1];
+            if (lastVisibleStat) {
+                lastVisibleStat.style.gridColumn = 'span 2';
+            }
+        }
+
+        updateStatusPanel(vehicleCard, vehicleToRender.status);
+
+        applyStatOrder(vehicleCard, vehicleToRender.vin);
+        // Pass VIN to the new setup function
+        setupStatEditing(vehicleCard, vehicleToRender.vin);
+
+
+        const refreshBtn = vehicleCard.querySelector('.force-poll');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', (e) => handlePollRequest('/api/force_poll', e.target, vehicleToRender.vin));
+        }
+
+        const leftMetricSelect = vehicleCard.querySelector('.chart-metric-select[data-axis="left"]');
+        const rightMetricSelect = vehicleCard.querySelector('.chart-metric-select[data-axis="right"]');
+        const periodSelect = vehicleCard.querySelector('.chart-period-select');
+        const histogramToggleBtn = vehicleCard.querySelector('.histogram-toggle-btn');
+        const rollingAvgBtnLeft = vehicleCard.querySelector('.rolling-avg-btn[data-axis="left"]');
+        const rollingAvgBtnRight = vehicleCard.querySelector('.rolling-avg-btn[data-axis="right"]');
+        const chartCanvas = vehicleCard.querySelector('.history-chart');
+        const settingsKey = `chartSettings-${vehicleToRender.vin}`;
+
+        const updateChart = () => {
+            const metric1 = leftMetricSelect.value;
+            const metric2 = rightMetricSelect.value;
+            const period = periodSelect.value;
+            const isHistogram = histogramToggleBtn.classList.contains('active');
+            const isRollingAvgLeft = rollingAvgBtnLeft.classList.contains('active');
+            const isRollingAvgRight = rollingAvgBtnRight.classList.contains('active');
+
+            localStorage.setItem(settingsKey, JSON.stringify({
+                metric1, metric2, period, isHistogram, isRollingAvgLeft, isRollingAvgRight
+            }));
+
+            renderHistoryChart(vehicleToRender.vin, chartCanvas, metric1, metric2, period, isHistogram, isRollingAvgLeft, isRollingAvgRight);
+        };
+
+        const savedSettings = localStorage.getItem(settingsKey);
+        if (savedSettings) {
+            try {
+                const settings = JSON.parse(savedSettings);
+                leftMetricSelect.value = settings.metric1 || 'distance_km';
+                rightMetricSelect.value = settings.metric2 || 'none';
+                periodSelect.value = settings.period || '30';
+                if (settings.isHistogram) histogramToggleBtn.classList.add('active');
+                if (settings.isRollingAvgLeft) rollingAvgBtnLeft.classList.add('active');
+                if (settings.isRollingAvgRight) rollingAvgBtnRight.classList.add('active');
+            } catch (e) {
+                console.error(`Error parsing saved chart settings:`, e);
+                localStorage.removeItem(settingsKey);
+            }
+        }
+
+        const setUIState = () => {
+            const isHistogram = histogramToggleBtn.classList.contains('active');
+            const isRollingAvg = rollingAvgBtnLeft.classList.contains('active') || rollingAvgBtnRight.classList.contains('active');
+
+            // Mutual exclusion: Histogram vs Rolling Average
+            if (isHistogram && isRollingAvg) {
+                // This is handled by the click handlers
+                rollingAvgBtnLeft.classList.remove('active');
+                rollingAvgBtnRight.classList.remove('active');
+
+            }
+
+            // Update right axis controls based on histogram state
+            rightMetricSelect.disabled = isHistogram;
+            rollingAvgBtnRight.disabled = isHistogram;
+            if (isHistogram) {
+                rightMetricSelect.value = 'none';
+                rollingAvgBtnRight.classList.remove('active');
+            }
+        };
+
+        histogramToggleBtn.addEventListener('click', () => {
+            histogramToggleBtn.classList.toggle('active');
+            if (histogramToggleBtn.classList.contains('active')) {
+                // When turning histogram on, turn rolling average off
+                rollingAvgBtnLeft.classList.remove('active');
+                rollingAvgBtnRight.classList.remove('active');
+            }
+            setUIState();
+            updateChart();
+        });
+
+        rollingAvgBtnLeft.addEventListener('click', () => {
+            rollingAvgBtnLeft.classList.toggle('active');
+            if (rollingAvgBtnLeft.classList.contains('active')) {
+                // When turning rolling average on, turn histogram off
+                histogramToggleBtn.classList.remove('active');
+            }
+            setUIState();
+            updateChart();
+        });
+
+        rollingAvgBtnRight.addEventListener('click', () => {
+            rollingAvgBtnRight.classList.toggle('active');
+            // No need to disable histogram here as the button is already disabled if histogram is active
+            setUIState();
+            updateChart();
+        });
+
+        leftMetricSelect.addEventListener('change', updateChart);
+        rightMetricSelect.addEventListener('change', updateChart);
+        periodSelect.addEventListener('change', updateChart);
+
+        setUIState(); // Set initial state
+        updateChart(); // Initial chart render
+
+        window.i18n.translateDOM(vehicleFragment);
+        vehicleContainer.appendChild(vehicleFragment);
+    }
+
+    async function loadVehicleData() {
         try {
             const response = await fetch('/api/vehicles');
             if (!response.ok) {
@@ -591,7 +932,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             const vehicles = await response.json();
-            vehicleContainer.innerHTML = '';
+
             let vehicleToRender;
             if (vehicles.length === 0) {
                 vehicleToRender = {
@@ -599,283 +940,49 @@ document.addEventListener('DOMContentLoaded', () => {
                     dashboard: {}, statistics: { overall: {}, daily: {} }, status: {}, last_updated: "Never"
                 };
             } else {
-                vehicleToRender = vehicles[0];
-            }
-            const vehicleFragment = vehicleTemplate.content.cloneNode(true);
-            const vehicleCard = vehicleFragment.querySelector('.vehicle-wrapper');
-            const get = (obj, path, def = 'N/A') => path.split('.').reduce((o, k) => (o && o[k] != null) ? o[k] : def, obj);
-            
-            const distanceUnit = isImperial ? 'mi' : 'km';
-            const consumptionUnit = isImperial ? (isUk ? 'UK MPG' : 'US MPG') : 'L/100km';
-            const fuelUnit = isImperial ? (isUk ? 'UK gal' : 'US gal') : 'L';
-            const speedUnit = isImperial ? 'mph' : 'km/h';
-            
-            // Generate stat elements
-            const statsContainer = vehicleCard.querySelector('.vehicle-stats');
-            for (const key in ALL_DASHBOARD_STATS) {
-                const statInfo = ALL_DASHBOARD_STATS[key];
-                const statEl = document.createElement('div');
-                statEl.className = `stat stat-${key}`;
-                statEl.dataset.statKey = key;
-
-                const h3 = document.createElement('h3');
-                h3.textContent = window.i18n ? window.i18n.t(`dashboard.stats.${key}`) : statInfo.title;
-
-                const p = document.createElement('p');
-                p.innerHTML = statInfo.element;
-
-                statEl.appendChild(h3);
-                statEl.appendChild(p);
-                statsContainer.appendChild(statEl);
-            }
-
-            // Update unit labels for dynamically generated stats
-            const updateUnit = (key, unit) => {
-                const h3 = statsContainer.querySelector(`.stat-${key} h3`);
-                if(h3) {
-                    const translatedTitle = window.i18n ? window.i18n.t(`dashboard.stats.${key}`) : ALL_DASHBOARD_STATS[key].title;
-                    h3.textContent = `${translatedTitle} (${unit})`;
-                }
-            }
-            updateUnit('odometer', distanceUnit);
-            updateUnit('range', distanceUnit);
-            updateUnit('total_ev_distance', distanceUnit);
-            updateUnit('daily_distance', distanceUnit);
-            updateUnit('consumption', consumptionUnit);
-            updateUnit('total_fuel', fuelUnit);
-            updateUnit('max_speed', speedUnit);
-            updateUnit('highway_distance', distanceUnit);
-            const evRangeEl = statsContainer.querySelector(`.stat-ev_range h3`);
-            if (evRangeEl) { const tTitle = window.i18n ? window.i18n.t('dashboard.stats.ev_range') : 'EV Range'; evRangeEl.innerHTML = `${tTitle} (<span class="distance_unit">${distanceUnit}</span>)`; }
-
-
-            const dashboard = vehicleToRender.dashboard || {};
-            const statsOverall = vehicleToRender.statistics.overall || {};
-            const statsDaily = vehicleToRender.statistics.daily || {};
-
-            const odometerKm = dashboard.odometer || 0;
-            const rangeKm = dashboard.total_range || 0;
-            const batteryRangeKm = dashboard.battery_range || 'N/A';
-            const batteryRangeWithAcKm = dashboard.battery_range_with_ac || 'N/A';
-            const evDistanceKm = statsOverall.total_ev_distance_km || 0;
-            const dailyDistanceKm = statsDaily.distance || 0;
-            const consumptionL100km = statsOverall.fuel_consumption_l_100km || 0;
-            const totalFuelL = statsOverall.total_fuel_l || 0;
-            const overallMaxSpeedKmh = statsOverall.overall_max_speed_kmh || 'N/A';
-            const allCountries = statsOverall.countries || 'N/A';
-            const totalHighwayDistKm = statsOverall.total_highway_distance_km || 0;
-            const highwayRatio = statsOverall.highway_ratio_percent !== undefined ? statsOverall.highway_ratio_percent : 'N/A';
-
-            vehicleCard.querySelector('.alias').innerHTML = vehicleToRender.alias;
-            vehicleCard.querySelector('.model-name').textContent = vehicleToRender.model_name;
-
-            const setVal = (selector, val) => {
-                const el = vehicleCard.querySelector(selector);
-                if (el) el.textContent = val;
-            };
-
-            setVal('.fuel_level', dashboard.fuel_level !== undefined ? dashboard.fuel_level : 'N/A');
-            setVal('.ev_ratio_percent', statsOverall.ev_ratio_percent !== undefined ? statsOverall.ev_ratio_percent : 'N/A');
-            const totalSeconds = statsOverall.total_duration_seconds || 0;
-            setVal('.total_duration', Math.round(totalSeconds / 3600));
-            setVal('.highway_ratio_percent', highwayRatio);
-
-            if (isImperial) {
-                setVal('.odometer', Math.round(odometerKm * KM_TO_MI));
-                setVal('.total_range', Math.round(rangeKm * KM_TO_MI));
-                setVal('.total_ev_distance_km', Math.round(evDistanceKm * KM_TO_MI));
-                setVal('.daily_distance', (dailyDistanceKm * KM_TO_MI).toFixed(1));
-                setVal('.overall_fuel_consumption', l100kmToMpg(consumptionL100km, isUk).toFixed(1));
-                setVal('.total_fuel_l', (totalFuelL * (isUk ? L_TO_GAL_UK : L_TO_GAL_US)).toFixed(2));
-                setVal('.battery_range', batteryRangeKm !== 'N/A' ? Math.round(batteryRangeKm * KM_TO_MI) : 'N/A');
-                setVal('.battery_range_with_ac', batteryRangeWithAcKm !== 'N/A' ? Math.round(batteryRangeWithAcKm * KM_TO_MI) : 'N/A');
-                setVal('.overall_max_speed', overallMaxSpeedKmh !== 'N/A' ? Math.round(overallMaxSpeedKmh * KM_TO_MI) : 'N/A');
-                setVal('.total_highway_distance_km', Math.round(totalHighwayDistKm * KM_TO_MI));
-            } else {
-                setVal('.odometer', Math.round(odometerKm));
-                setVal('.total_range', Math.round(rangeKm));
-                setVal('.total_ev_distance_km', Math.round(evDistanceKm));
-                setVal('.daily_distance', (dailyDistanceKm || 0).toFixed(1));
-                setVal('.overall_fuel_consumption', consumptionL100km.toFixed(1));
-                setVal('.total_fuel_l', totalFuelL.toFixed(2));
-                setVal('.battery_range', batteryRangeKm !== 'N/A' ? Math.round(batteryRangeKm) : 'N/A');
-                setVal('.battery_range_with_ac', batteryRangeWithAcKm !== 'N/A' ? Math.round(batteryRangeWithAcKm) : 'N/A');
-                setVal('.overall_max_speed', overallMaxSpeedKmh !== 'N/A' ? Math.round(overallMaxSpeedKmh) : 'N/A');
-                setVal('.total_highway_distance_km', Math.round(totalHighwayDistKm));
-            }
-
-            setVal('.all_countries', allCountries);
-
-            setVal('.battery_level', dashboard.battery_level !== undefined ? dashboard.battery_level : 'N/A');
-            
-            let chargeStatus = get(vehicleToRender, 'dashboard.charging_status', 'N/A');
-            if (chargeStatus && typeof chargeStatus === 'string') {
-                chargeStatus = chargeStatus.replace(/([A-Z])/g, ' $1').trim();
-                chargeStatus = chargeStatus.charAt(0).toUpperCase() + chargeStatus.slice(1);
-            }
-            setVal('.charging_status', chargeStatus);
-
-            setVal('.vin span', vehicleToRender.vin);
-            
-            // Compare the server's last_updated with our local optimistic timestamp
-            let serverLastUpdated = (vehicleToRender.status && vehicleToRender.status.last_update_timestamp) || vehicleToRender.last_updated;
-            const optimisticLastUpdated = localStorage.getItem(`optimistic_last_updated_${vehicleToRender.vin}`);
-            
-            if (optimisticLastUpdated) {
-                if (!serverLastUpdated || serverLastUpdated === "Never" || new Date(optimisticLastUpdated) > new Date(serverLastUpdated)) {
-                    serverLastUpdated = optimisticLastUpdated;
+                let savedVin = localStorage.getItem('selected_vin');
+                if (savedVin === 'all' && vehicles.length > 1) {
+                    vehicleToRender = {
+                        vin: 'all',
+                        alias: 'All Cars',
+                        model_name: 'Aggregated Data',
+                        dashboard: {
+                            odometer: vehicles.reduce((sum, v) => sum + (v.dashboard?.odometer || 0), 0),
+                            total_range: vehicles.reduce((sum, v) => sum + (v.dashboard?.total_range || 0), 0),
+                            fuel_level: null,
+                            battery_level: null,
+                            battery_range: vehicles.reduce((sum, v) => sum + (v.dashboard?.battery_range || 0), 0),
+                            battery_range_with_ac: vehicles.reduce((sum, v) => sum + (v.dashboard?.battery_range_with_ac || 0), 0),
+                        },
+                        statistics: {
+                            overall: {
+                                total_distance: vehicles.reduce((sum, v) => sum + (v.statistics?.overall?.total_distance || 0), 0),
+                                total_ev_distance_km: vehicles.reduce((sum, v) => sum + (v.statistics?.overall?.total_ev_distance_km || 0), 0),
+                                total_fuel_l: vehicles.reduce((sum, v) => sum + (v.statistics?.overall?.total_fuel_l || 0), 0),
+                                total_duration_seconds: vehicles.reduce((sum, v) => sum + (v.statistics?.overall?.total_duration_seconds || 0), 0),
+                                total_highway_distance_km: vehicles.reduce((sum, v) => sum + (v.statistics?.overall?.total_highway_distance_km || 0), 0),
+                                overall_max_speed_kmh: Math.max(...vehicles.map(v => v.statistics?.overall?.overall_max_speed_kmh || 0)),
+                                countries: [...new Set(vehicles.flatMap(v => (v.statistics?.overall?.countries || '').split(', ')))].filter(c => c && c !== 'N/A').join(', '),
+                            },
+                            daily: {
+                                distance: vehicles.reduce((sum, v) => sum + (v.statistics?.daily?.distance || 0), 0)
+                            }
+                        },
+                        status: null,
+                        last_updated: vehicles[0].last_updated
+                    };
+                    const totDist = vehicleToRender.statistics.overall.total_distance;
+                    if (totDist > 0) {
+                        vehicleToRender.statistics.overall.ev_ratio_percent = (vehicleToRender.statistics.overall.total_ev_distance_km / totDist) * 100;
+                        vehicleToRender.statistics.overall.highway_ratio_percent = (vehicleToRender.statistics.overall.total_highway_distance_km / totDist) * 100;
+                        vehicleToRender.statistics.overall.fuel_consumption_l_100km = (vehicleToRender.statistics.overall.total_fuel_l / totDist) * 100;
+                    }
                 } else {
-                    // Server has caught up, clear the optimistic timestamp
-                    localStorage.removeItem(`optimistic_last_updated_${vehicleToRender.vin}`);
+                    vehicleToRender = vehicles.find(v => v.vin === savedVin) || vehicles[0];
                 }
             }
-
-            const formattedDate = serverLastUpdated && serverLastUpdated !== "Never" ? new Date(serverLastUpdated).toLocaleString() : "Never";
-            setVal('.last-updated-time', formattedDate);
-            setVal('.last_updated', formattedDate);
-            setVal('.last-updated', formattedDate);
             
-            const lat = dashboard.latitude;
-            const lon = dashboard.longitude;
-            const mapContainer = vehicleCard.querySelector('.location-map-container');
-            if (lat && lon) {
-                const embedUrl = `https://maps.google.com/maps?q=${lat},${lon}&z=15&output=embed`;
-                mapContainer.innerHTML = `<iframe src="${embedUrl}"></iframe>`;
-            } else {
-                mapContainer.innerHTML = '<p style="text-align: center; padding-top: 50px; color: #888;">Location data not available.</p>';
-            }
-
-            const enabledSensors = appConfig.dashboard_sensors || {};
-            vehicleCard.querySelectorAll('.stat[data-stat-key]').forEach(el => {
-                const key = el.dataset.statKey;
-                if (enabledSensors[key] === false) {
-                    el.style.display = 'none';
-                } else {
-                    el.style.display = '';
-                }
-            });
-
-            const visibleStats = Array.from(vehicleCard.querySelectorAll('.stat')).filter(
-                el => el.style.display !== 'none'
-            );
-            visibleStats.forEach(stat => stat.style.gridColumn = '');
-            if (visibleStats.length % 2 !== 0) {
-                const lastVisibleStat = visibleStats[visibleStats.length - 1];
-                if (lastVisibleStat) {
-                    lastVisibleStat.style.gridColumn = 'span 2';
-                }
-            }
-
-            updateStatusPanel(vehicleCard, vehicleToRender.status);
-
-            applyStatOrder(vehicleCard, vehicleToRender.vin);
-            // Pass VIN to the new setup function
-            setupStatEditing(vehicleCard, vehicleToRender.vin);
-
-
-            const refreshBtn = vehicleCard.querySelector('.force-poll');
-            if (refreshBtn) {
-                refreshBtn.addEventListener('click', (e) => handlePollRequest('/api/force_poll', e.target, vehicleToRender.vin));
-            }
-
-            const leftMetricSelect = vehicleCard.querySelector('.chart-metric-select[data-axis="left"]');
-            const rightMetricSelect = vehicleCard.querySelector('.chart-metric-select[data-axis="right"]');
-            const periodSelect = vehicleCard.querySelector('.chart-period-select');
-            const histogramToggleBtn = vehicleCard.querySelector('.histogram-toggle-btn');
-            const rollingAvgBtnLeft = vehicleCard.querySelector('.rolling-avg-btn[data-axis="left"]');
-            const rollingAvgBtnRight = vehicleCard.querySelector('.rolling-avg-btn[data-axis="right"]');
-            const chartCanvas = vehicleCard.querySelector('.history-chart');
-            const settingsKey = `chartSettings-${vehicleToRender.vin}`;
-
-            const updateChart = () => {
-                const metric1 = leftMetricSelect.value;
-                const metric2 = rightMetricSelect.value;
-                const period = periodSelect.value;
-                const isHistogram = histogramToggleBtn.classList.contains('active');
-                const isRollingAvgLeft = rollingAvgBtnLeft.classList.contains('active');
-                const isRollingAvgRight = rollingAvgBtnRight.classList.contains('active');
-
-                localStorage.setItem(settingsKey, JSON.stringify({
-                    metric1, metric2, period, isHistogram, isRollingAvgLeft, isRollingAvgRight
-                }));
-
-                renderHistoryChart(vehicleToRender.vin, chartCanvas, metric1, metric2, period, isHistogram, isRollingAvgLeft, isRollingAvgRight);
-            };
-
-            const savedSettings = localStorage.getItem(settingsKey);
-            if (savedSettings) {
-                try {
-                    const settings = JSON.parse(savedSettings);
-                    leftMetricSelect.value = settings.metric1 || 'distance_km';
-                    rightMetricSelect.value = settings.metric2 || 'none';
-                    periodSelect.value = settings.period || '30';
-                    if (settings.isHistogram) histogramToggleBtn.classList.add('active');
-                    if (settings.isRollingAvgLeft) rollingAvgBtnLeft.classList.add('active');
-                    if (settings.isRollingAvgRight) rollingAvgBtnRight.classList.add('active');
-                } catch (e) {
-                    console.error(`Error parsing saved chart settings:`, e);
-                    localStorage.removeItem(settingsKey);
-                }
-            }
-
-            const setUIState = () => {
-                const isHistogram = histogramToggleBtn.classList.contains('active');
-                const isRollingAvg = rollingAvgBtnLeft.classList.contains('active') || rollingAvgBtnRight.classList.contains('active');
-
-                // Mutual exclusion: Histogram vs Rolling Average
-                if (isHistogram && isRollingAvg) {
-                    // This is handled by the click handlers
-                    rollingAvgBtnLeft.classList.remove('active');
-                    rollingAvgBtnRight.classList.remove('active');
-
-                }
-
-                // Update right axis controls based on histogram state
-                rightMetricSelect.disabled = isHistogram;
-                rollingAvgBtnRight.disabled = isHistogram;
-                if (isHistogram) {
-                    rightMetricSelect.value = 'none';
-                    rollingAvgBtnRight.classList.remove('active');
-                }
-            };
-
-            histogramToggleBtn.addEventListener('click', () => {
-                histogramToggleBtn.classList.toggle('active');
-                if (histogramToggleBtn.classList.contains('active')) {
-                    // When turning histogram on, turn rolling average off
-                    rollingAvgBtnLeft.classList.remove('active');
-                    rollingAvgBtnRight.classList.remove('active');
-                }
-                setUIState();
-                updateChart();
-            });
-
-            rollingAvgBtnLeft.addEventListener('click', () => {
-                rollingAvgBtnLeft.classList.toggle('active');
-                if (rollingAvgBtnLeft.classList.contains('active')) {
-                    // When turning rolling average on, turn histogram off
-                    histogramToggleBtn.classList.remove('active');
-                }
-                setUIState();
-                updateChart();
-            });
-
-            rollingAvgBtnRight.addEventListener('click', () => {
-                rollingAvgBtnRight.classList.toggle('active');
-                // No need to disable histogram here as the button is already disabled if histogram is active
-                setUIState();
-                updateChart();
-            });
-
-            leftMetricSelect.addEventListener('change', updateChart);
-            rightMetricSelect.addEventListener('change', updateChart);
-            periodSelect.addEventListener('change', updateChart);
-
-            setUIState(); // Set initial state
-            updateChart(); // Initial chart render
-
-            window.i18n.translateDOM(vehicleFragment);
-            vehicleContainer.appendChild(vehicleFragment);
+            renderVehicle(vehicleToRender, vehicles);
         }
         catch (error) {
             console.error("CRITICAL ERROR in loadVehicleData:", error);

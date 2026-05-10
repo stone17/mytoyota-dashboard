@@ -76,7 +76,8 @@ def get_trips(
 
         # Base query
         query = db.query(database.Trip).options(defer(database.Trip.route))
-        query = query.filter(database.Trip.vin == vin)
+        if vin != "all":
+            query = query.filter(database.Trip.vin == vin)
 
         # Apply date filters if provided
         if start_date:
@@ -270,7 +271,8 @@ def export_trips_to_csv(
     try:
         # --- 1. Fetch filtered trip data (logic copied from get_trips) ---
         query = db.query(database.Trip).options(defer(database.Trip.route))
-        query = query.filter(database.Trip.vin == vin)
+        if vin != "all":
+            query = query.filter(database.Trip.vin == vin)
 
         if start_date:
             start_dt = datetime.datetime.fromisoformat(start_date).replace(

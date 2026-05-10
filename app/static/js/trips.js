@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- Element Selectors ---
-    const vinSelect = document.getElementById('vin-select');
+    const vinSelect = document.getElementById('global-vehicle-select');
+    const vehicleSelectorGroup = document.getElementById('vehicle-selector-group');
     const tripsTableBody = document.getElementById('trips-table-body');
     const tableHeaderRow = document.getElementById('trip-table-header-row');
     const mapPanel = document.getElementById('map-panel');
@@ -39,6 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let displayedTrips = [];
     let currentTripContext = { tripId: null, rowIndex: -1 };
     let areaFilterMode = null;
+    let globalVehiclesList = [];
     let activeFilters = { 
         area: { bounds: null, layer: null }, 
         start: { bounds: null, layer: null }, 
@@ -271,16 +273,35 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadVins() {
         try {
             const response = await fetch('/api/vehicles');
-            const vehicles = await response.json();
-            vinSelect.innerHTML = '';
-            if (vehicles.length > 0) {
-                vehicles.forEach(vehicle => { vinSelect.appendChild(new Option(`${vehicle.alias} (${vehicle.vin})`, vehicle.vin)); });
-            } else { vinSelect.innerHTML = window.i18n ? `<option>${window.i18n.t('dashboard.no_vehicles')}</option>` : '<option>No vehicles found</option>'; }
+            globalVehiclesList = await response.json();
+            if (vinSelect) {
+                vinSelect.innerHTML = '';
+                if (globalVehiclesList.length > 0) {
+                    if (globalVehiclesList.length > 1) {
+                        vehicleSelectorGroup.style.display = 'block';
+                        vinSelect.appendChild(new Option("All Cars", "all"));
+                    } else {
+                        vehicleSelectorGroup.style.display = 'none';
+                    }
+                    globalVehiclesList.forEach(vehicle => { vinSelect.appendChild(new Option(`${vehicle.alias} (${vehicle.vin})`, vehicle.vin)); });
+                    
+                    let savedVin = localStorage.getItem('selected_vin');
+                    if (savedVin && (savedVin === 'all' || globalVehiclesList.some(v => v.vin === savedVin))) {
+                        vinSelect.value = savedVin;
+                    } else {
+                        localStorage.setItem('selected_vin', globalVehiclesList[0].vin);
+                        vinSelect.value = globalVehiclesList[0].vin;
+                    }
+                } else { 
+                    vehicleSelectorGroup.style.display = 'none';
+                    tripsTableBody.innerHTML = window.i18n ? `<tr><td colspan="27">${window.i18n.t('dashboard.no_vehicles')}</td></tr>` : '<tr><td colspan="27">No vehicles found</td></tr>'; 
+                }
+            }
         } catch (e) { tripsTableBody.innerHTML = window.i18n ? `<tr><td colspan="27">${window.i18n.t('dashboard.error_loading_vehicles')} ${e.message}</td></tr>` : `<tr><td colspan="27">Could not load vehicle list: ${e.message}</td></tr>`; }
     }
 
     async function loadCountryFilter(savedCountries = []) {
-        const selectedVin = vinSelect.value;
+        const selectedVin = vinSelect ? vinSelect.value : null;
         if (!selectedVin) return;
         try {
             const response = await fetch(`/api/vehicles/${selectedVin}/countries`);
@@ -312,7 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadTrips(keepFilters = false) {
-        const selectedVin = vinSelect.value;
+        const selectedVin = vinSelect ? vinSelect.value : null;
         if (!selectedVin) return;
         
         if (!keepFilters) {
@@ -323,7 +344,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         try {
             const params = new URLSearchParams({
-                vin: selectedVin,
                 sort_by: currentSort.by,
                 sort_direction: currentSort.direction,
                 unit_system: appConfig.unit_system
@@ -341,8 +361,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 params.append('countries', selectedCountries.join(','));
             }
 
+            params.append('vin', selectedVin);
             const response = await fetch(`/api/trips?${params.toString()}`);
-            const trips = await response.json();
+            let trips = await response.json();
+            
             originalTrips = trips;
             
             if (keepFilters) {
@@ -783,11 +805,14 @@ document.addEventListener('DOMContentLoaded', () => {
         loadTrips(true);
     });
 
-    vinSelect.addEventListener('change', async () => {
-        const savedFilters = loadAndApplyTripFilters();
-        await loadCountryFilter(savedFilters.countries || []);
-        loadTrips(false);
-    });
+    if (vinSelect) {
+        vinSelect.addEventListener('change', async () => {
+            localStorage.setItem('selected_vin', vinSelect.value);
+            const savedFilters = loadAndApplyTripFilters();
+            await loadCountryFilter(savedFilters.countries || []);
+            loadTrips(false);
+        });
+    }
     
     periodSelect.addEventListener('change', () => {
         saveTripFilters();
@@ -820,9 +845,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     backfillControls.addEventListener('click', async (event) => {
         if (event.target.tagName !== 'BUTTON') return;
-        const vin = vinSelect.value;
+        const vin = vinSelect ? vinSelect.value : null;
         const period = event.target.dataset.period;
-        if (!vin) { showBackfillStatus('Please select a vehicle.', 'error'); return; }
+        if (!vin || vin === 'all') { showBackfillStatus('Please select a specific vehicle to backfill.', 'error'); return; }
         const button = event.target;
         button.disabled = true;
         button.textContent = 'Fetching...';
@@ -854,7 +879,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     exportCsvBtn.addEventListener('click', () => {
-        const selectedVin = vinSelect.value;
+        const selectedVin = vinSelect ? vinSelect.value : null;
         if (!selectedVin) {
             alert("Please select a vehicle first.");
             return;
@@ -895,7 +920,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loadColumnPreferences();
         loadAndApplyColumnOrder();
         await loadVins();
-        if (vinSelect.value) {
+        if (vinSelect && vinSelect.value) {
             await loadCountryFilter(savedFilters.countries || []);
             await loadTrips(true);
         }
