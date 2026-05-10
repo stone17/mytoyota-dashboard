@@ -191,9 +191,12 @@ class MqttHandler:
         consump_unit = "MPG" if is_imperial else "L/100km"
         range_unit = "mi" if is_imperial else "km"
 
+        alias = vehicle_data.get("alias")
+        device_name = alias if alias and alias != "N/A" else vin
+
         device_info = {
             "identifiers": [vin],
-            "name": vehicle_data.get("alias", f"Toyota {vin}"),
+            "name": device_name,
             "model": vehicle_data.get("model_name", "Unknown"),
             "manufacturer": "Toyota"
         }
