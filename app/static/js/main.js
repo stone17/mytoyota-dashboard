@@ -941,7 +941,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
             } else {
                 let savedVin = localStorage.getItem('selected_vin');
-                if (savedVin === 'all') {
+                if (savedVin === 'all' && vehicles.length > 1) {
                     vehicleToRender = {
                         vin: 'all',
                         alias: 'All Cars',

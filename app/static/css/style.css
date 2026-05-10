@@ -184,6 +184,26 @@ body {
     }
 }
 
+.page-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.page-header h1 {
+    margin: 0;
+}
+
+.vehicle-select {
+    padding: 5px;
+    border-radius: 4px;
+    background: var(--panel-bg);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    font-size: 1em;
+}
+
 .vehicle-header {
     display: flex;
     justify-content: space-between;

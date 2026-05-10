@@ -361,29 +361,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 params.append('countries', selectedCountries.join(','));
             }
 
-            let trips = [];
-            if (selectedVin === 'all') {
-                const promises = globalVehiclesList.map(v => {
-                    const p = new URLSearchParams(params);
-                    p.set('vin', v.vin);
-                    return fetch(`/api/trips?${p.toString()}`).then(r => r.json());
-                });
-                const results = await Promise.all(promises);
-                trips = results.flat();
-                
-                // Sort the combined array
-                trips.sort((a, b) => {
-                    let valA = a[currentSort.by];
-                    let valB = b[currentSort.by];
-                    if (valA < valB) return currentSort.direction === 'asc' ? -1 : 1;
-                    if (valA > valB) return currentSort.direction === 'asc' ? 1 : -1;
-                    return 0;
-                });
-            } else {
-                params.append('vin', selectedVin);
-                const response = await fetch(`/api/trips?${params.toString()}`);
-                trips = await response.json();
-            }
+            params.append('vin', selectedVin);
+            const response = await fetch(`/api/trips?${params.toString()}`);
+            let trips = await response.json();
             
             originalTrips = trips;
             
