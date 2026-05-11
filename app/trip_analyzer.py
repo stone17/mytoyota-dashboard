@@ -2,10 +2,73 @@
 import asyncio
 import datetime
 import logging
+import math
 from . import database
 from .config import config_manager
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class RouteMetricsCalculator:
+    """Calculates missing kinematic metrics from raw GPS route nodes."""
+    
+    @staticmethod
+    def _haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+        R = 6371.0 
+        phi1, phi2 = math.radians(lat1), math.radians(lat2)
+        dphi = math.radians(lat2 - lat1)
+        dlambda = math.radians(lon2 - lon1)
+        a = math.sin(dphi / 2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2)**2
+        return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+    @classmethod
+    def calculate(cls, route: list, avg_speed_kmh: float) -> dict:
+        metrics = {
+            "length_overspeed_km": 0.0,
+            "duration_overspeed_seconds": 0,
+            "length_highway_km": 0.0,
+            "duration_highway_seconds": 0
+        }
+        
+        if not route or len(route) < 2:
+            return metrics
+
+        avg_speed_kms = (avg_speed_kmh / 3600.0) if avg_speed_kmh > 0 else 0.0
+
+        for i in range(1, len(route)):
+            p1, p2 = route[i-1], route[i]
+            
+            os_val = p2.get("overspeed") or p2.get("overSpeed")
+            hw_val = p2.get("highway")
+            
+            is_overspeed = os_val is True or str(os_val).lower() == "true"
+            is_highway = hw_val is True or str(hw_val).lower() == "true"
+
+            if is_overspeed or is_highway:
+                lat1, lon1 = p1.get("lat"), p1.get("lon")
+                lat2, lon2 = p2.get("lat"), p2.get("lon")
+
+                if lat1 is None or lon1 is None or lat2 is None or lon2 is None:
+                    continue
+
+                dx_km = cls._haversine(float(lat1), float(lon1), float(lat2), float(lon2))
+                dt_seconds = (dx_km / avg_speed_kms) if avg_speed_kms > 0 else 0
+
+                if is_overspeed:
+                    metrics["length_overspeed_km"] += dx_km
+                    metrics["duration_overspeed_seconds"] += dt_seconds
+                    
+                if is_highway:
+                    metrics["length_highway_km"] += dx_km
+                    metrics["duration_highway_seconds"] += dt_seconds
+
+        metrics["length_overspeed_km"] = round(metrics["length_overspeed_km"], 3)
+        metrics["length_highway_km"] = round(metrics["length_highway_km"], 3)
+        metrics["duration_overspeed_seconds"] = int(metrics["duration_overspeed_seconds"])
+        metrics["duration_highway_seconds"] = int(metrics["duration_highway_seconds"])
+        
+        return metrics
+
 
 class TripCoordinates:
     """Robustly extracts trip coordinates from varying Pytoyoda model structures."""
@@ -84,24 +147,62 @@ class TripAnalyzer:
 
     def _extract_trip_data(self, trip, coords, fetch_full_route):
         """Extracts and normalizes data points from the API trip object."""
-        distance_km = getattr(trip, "distance", 0.0) or 0.0
-        fuel_consumption_l_100km = getattr(trip, "average_fuel_consumed", 0.0) or 0.0
-        duration_seconds = getattr(trip, "duration", datetime.timedelta(0)).total_seconds()
-        average_speed_kmh = (distance_km / (duration_seconds / 3600)) if duration_seconds > 0 and distance_km > 0 else 0.0
-
+        
         summary = trip._trip.summary if hasattr(trip, "_trip") and hasattr(trip._trip, "summary") else None
         scores = trip._trip.scores if hasattr(trip, "_trip") and hasattr(trip._trip, "scores") else None
         hdc = trip._trip.hdc if hasattr(trip, "_trip") and hasattr(trip._trip, "hdc") else None
 
+        # 1. Safely extract timestamps 
+        start_ts_raw = getattr(trip, "start_time", None) or (summary.start_ts if summary else None)
+        end_ts_raw = getattr(trip, "end_time", None) or (summary.end_ts if summary else None)
+        start_timestamp = start_ts_raw.astimezone(datetime.timezone.utc) if start_ts_raw else None
+        end_timestamp = end_ts_raw.astimezone(datetime.timezone.utc) if end_ts_raw else None
+
+        # 2. Safely extract core metrics avoiding NoneType math errors
+        distance_km = getattr(trip, "distance", 0.0) or 0.0
+        fuel_consumption_l_100km = getattr(trip, "average_fuel_consumed", 0.0) or 0.0
+        
+        raw_duration = getattr(trip, "duration", 0) or 0
+        duration_seconds = raw_duration.total_seconds() if hasattr(raw_duration, "total_seconds") else float(raw_duration)
+        
+        average_speed_kmh = (distance_km / (duration_seconds / 3600)) if duration_seconds > 0 and distance_km > 0 else 0.0
+
         ev_distance_km = (hdc.ev_distance / 1000) if hdc and hdc.ev_distance is not None else getattr(trip, "ev_distance", 0.0)
         
+        raw_ev_duration = getattr(trip, "ev_duration", 0) or 0
+        fallback_ev_seconds = raw_ev_duration.total_seconds() if hasattr(raw_ev_duration, "total_seconds") else float(raw_ev_duration)
+        
+        # 3. Route Calculation
         route_data = None
-        if fetch_full_route and hasattr(trip, "route") and trip.route:
-            route_data = [point.model_dump(mode="json") for point in trip.route]
+        route_metrics = {"length_overspeed_km": 0.0, "duration_overspeed_seconds": 0, "length_highway_km": 0.0, "duration_highway_seconds": 0}
 
+        # Bypass the Pytoyoda wrapper to access the raw Pydantic payload
+        raw_route = trip._trip.route if hasattr(trip, "_trip") and hasattr(trip._trip, "route") else getattr(trip, "route", None)
+
+        if fetch_full_route and raw_route:
+            route_data = []
+            for point in raw_route:
+                # Extract directly from the unadulterated raw model
+                if hasattr(point, "model_dump"):
+                    point_dict = point.model_dump(mode="json", by_alias=True)
+                elif isinstance(point, dict):
+                    point_dict = point
+                else:
+                    point_dict = vars(point)
+                
+                # Standardize keys for the calculator
+                route_data.append({
+                    "lat": point_dict.get("lat"),
+                    "lon": point_dict.get("lon"),
+                    "overspeed": point_dict.get("overspeed") or point_dict.get("overSpeed") or False,
+                    "highway": point_dict.get("highway", False)
+                })
+            
+            route_metrics = RouteMetricsCalculator.calculate(route_data, average_speed_kmh)
+            
         return {
-            "start_timestamp": trip.start_time.astimezone(datetime.timezone.utc),
-            "end_timestamp": trip.end_time.astimezone(datetime.timezone.utc),
+            "start_timestamp": start_timestamp,
+            "end_timestamp": end_timestamp,
             "start_lat": coords.start_lat,
             "start_lon": coords.start_lon,
             "end_lat": coords.end_lat,
@@ -112,10 +213,10 @@ class TripAnalyzer:
             "average_speed_kmh": average_speed_kmh,
             "max_speed_kmh": summary.max_speed if summary else None,
             "countries": summary.countries if summary else None,
-            "length_overspeed_km": (summary.length_overspeed / 1000) if summary and summary.length_overspeed is not None else None,
-            "duration_overspeed_seconds": summary.duration_overspeed if summary else None,
-            "length_highway_km": (summary.length_highway / 1000) if summary and summary.length_highway is not None else None,
-            "duration_highway_seconds": summary.duration_highway if summary else None,
+            "length_overspeed_km": (summary.length_overspeed / 1000) if summary and summary.length_overspeed else route_metrics["length_overspeed_km"],
+            "duration_overspeed_seconds": summary.duration_overspeed if summary and summary.duration_overspeed else route_metrics["duration_overspeed_seconds"],
+            "length_highway_km": (summary.length_highway / 1000) if summary and summary.length_highway else route_metrics["length_highway_km"],
+            "duration_highway_seconds": summary.duration_highway if summary and summary.duration_highway else route_metrics["duration_highway_seconds"],
             "night_trip": summary.night_trip if summary else None,
             "score_global": scores.global_ if scores else getattr(trip, "score", None),
             "score_acceleration": scores.acceleration if scores else None,
@@ -123,7 +224,7 @@ class TripAnalyzer:
             "score_advice": scores.advice if scores else None,
             "score_constant_speed": scores.constant_speed if scores else None,
             "ev_distance_km": ev_distance_km,
-            "ev_duration_seconds": hdc.ev_time if hdc and hdc.ev_time is not None else int(getattr(trip, "ev_duration", datetime.timedelta(0)).total_seconds()),
+            "ev_duration_seconds": hdc.ev_time if hdc and hdc.ev_time is not None else int(fallback_ev_seconds),
             "hdc_charge_duration_seconds": hdc.charge_time if hdc else None,
             "hdc_charge_distance_km": (hdc.charge_dist / 1000) if hdc and hdc.charge_dist is not None else None,
             "hdc_eco_duration_seconds": hdc.eco_time if hdc else None,
@@ -149,10 +250,17 @@ class TripAnalyzer:
         if existing_trip:
             has_changes = False
             for key, value in new_data.items():
+                # 1. Skip fields that should never be overwritten by the API
                 if key not in self.PROTECTED_FIELDS:
-                    if getattr(existing_trip, key) != value:
-                        setattr(existing_trip, key, value)
-                        has_changes = True
+                    existing_val = getattr(existing_trip, key)
+                    if existing_val != value:
+                        # 2. Prevent overwriting valid data with empty/zero values from historical fetches
+                        existing_is_empty = existing_val in (None, "", "N/A", 0, 0.0)
+                        new_is_empty = value in (None, "", "N/A", 0, 0.0)
+                        
+                        if existing_is_empty or not new_is_empty:
+                            setattr(existing_trip, key, value)
+                            has_changes = True
             
             if has_changes:
                 self.db_session.commit()
