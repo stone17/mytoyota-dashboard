@@ -9,6 +9,48 @@ from .config import config_manager
 _LOGGER = logging.getLogger(__name__)
 
 
+class HighwayEstimator:
+    """Kinematic estimator for missing route segment durations."""
+    
+    @staticmethod
+    def _calculate_dynamic_k(v_avg_kmh: float) -> float:
+        """
+        Dynamically calculates the k-factor (v_hw / v_other).
+        High v_avg (>= 90) -> k approaches 1.0.
+        Mid  v_avg ( = 30) -> k equals 2.
+        Low  v_avg (<= 30) -> k approaches 2.5.
+        """
+        base_k = 1.0 + max(0.0, (90.0 - v_avg_kmh) / 60.0)
+        return min(base_k, 2.5)
+
+    @classmethod
+    def estimate_highway_duration(cls, total_distance_km: float, highway_distance_km: float, total_duration_seconds: float) -> float:
+        if total_duration_seconds <= 0:
+            return 0.0
+            
+        total_duration_hours = total_duration_seconds / 3600.0
+        v_avg = total_distance_km / total_duration_hours
+        
+        d_hw = min(highway_distance_km, total_distance_km)
+        d_other = max(0.0, total_distance_km - d_hw)
+        
+        k_factor = cls._calculate_dynamic_k(v_avg)
+        
+        # Calculate baseline v_hw based on dynamic k-factor
+        v_hw = (d_hw + k_factor * d_other) / total_duration_hours
+        
+        # Clamp highway speed to a minimum of 80 km/h
+        v_hw = max(v_hw, 80.0)
+        
+        # Calculate duration based on the clamped speed
+        t_hw_hours = (d_hw / v_hw) if v_hw > 0 else 0.0
+        
+        # Guard against exceeding total time
+        t_hw_hours = min(t_hw_hours, total_duration_hours)
+        
+        return t_hw_hours * 3600.0
+
+
 class RouteMetricsCalculator:
     """Calculates missing kinematic metrics from raw GPS route nodes."""
     
@@ -22,12 +64,12 @@ class RouteMetricsCalculator:
         return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
     @classmethod
-    def calculate(cls, route: list, avg_speed_kmh: float) -> dict:
+    def calculate(cls, route: list, avg_speed_kmh: float, total_distance_km: float = 0.0, total_duration_seconds: float = 0.0) -> dict:
         metrics = {
             "length_overspeed_km": 0.0,
-            "duration_overspeed_seconds": 0,
+            "duration_overspeed_seconds": 0.0,
             "length_highway_km": 0.0,
-            "duration_highway_seconds": 0
+            "duration_highway_seconds": 0.0
         }
         
         if not route or len(route) < 2:
@@ -52,15 +94,21 @@ class RouteMetricsCalculator:
                     continue
 
                 dx_km = cls._haversine(float(lat1), float(lon1), float(lat2), float(lon2))
-                dt_seconds = (dx_km / avg_speed_kms) if avg_speed_kms > 0 else 0
 
                 if is_overspeed:
+                    dt_seconds = (dx_km / avg_speed_kms) if avg_speed_kms > 0 else 0
                     metrics["length_overspeed_km"] += dx_km
                     metrics["duration_overspeed_seconds"] += dt_seconds
                     
                 if is_highway:
                     metrics["length_highway_km"] += dx_km
-                    metrics["duration_highway_seconds"] += dt_seconds
+
+        # Apply kinematic model to resolve highway time
+        metrics["duration_highway_seconds"] = HighwayEstimator.estimate_highway_duration(
+            total_distance_km, 
+            metrics["length_highway_km"], 
+            total_duration_seconds
+        )
 
         metrics["length_overspeed_km"] = round(metrics["length_overspeed_km"], 3)
         metrics["length_highway_km"] = round(metrics["length_highway_km"], 3)
@@ -198,7 +246,9 @@ class TripAnalyzer:
                     "highway": point_dict.get("highway", False)
                 })
             
-            route_metrics = RouteMetricsCalculator.calculate(route_data, average_speed_kmh)
+            route_metrics = RouteMetricsCalculator.calculate(
+                route_data, average_speed_kmh, distance_km, duration_seconds
+            )
             
         return {
             "start_timestamp": start_timestamp,
