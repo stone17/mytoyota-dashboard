@@ -243,6 +243,8 @@
         "backfill": "Fahrten nachtragen",
         "fetch_week": "Letzte Woche abrufen",
         "fetch_month": "Letzten Monat abrufen",
+        "fetch_year": "Letztes Jahr abrufen",
+        "fetch_all": "Alles abrufen (kann dauern)",
         "options_filters": "Optionen & Filter",
         "select_vehicle": "Fahrzeug ausw\u00e4hlen",
         "filter_area": "Nach Bereich filtern (Karte)",
