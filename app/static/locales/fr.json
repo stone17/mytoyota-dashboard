@@ -243,6 +243,8 @@
         "backfill": "Remplir l'historique des trajets",
         "fetch_week": "Récupérer la semaine dernière",
         "fetch_month": "Récupérer le mois dernier",
+        "fetch_year": "Récupérer l'année dernière",
+        "fetch_all": "Tout récupérer (peut prendre du temps)",
         "options_filters": "Options et filtres",
         "select_vehicle": "Sélectionner le véhicule",
         "filter_area": "Filtrer par zone (Carte)",

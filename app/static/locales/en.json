@@ -243,6 +243,8 @@
         "backfill": "Backfill Trip History",
         "fetch_week": "Fetch Last Week",
         "fetch_month": "Fetch Last Month",
+        "fetch_year": "Fetch Last Year",
+        "fetch_all": "Fetch All (may take a while)",
         "options_filters": "Options & Filters",
         "select_vehicle": "Select Vehicle",
         "filter_area": "Filter by Area (Map)",

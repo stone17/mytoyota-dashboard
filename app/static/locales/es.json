@@ -243,6 +243,8 @@
         "backfill": "Completar Historial de Viajes",
         "fetch_week": "Obtener \u00daltima Semana",
         "fetch_month": "Obtener \u00daltimo Mes",
+        "fetch_year": "Obtener \u00daltimo A\u00f1o",
+        "fetch_all": "Obtener Todo (puede tardar)",
         "options_filters": "Opciones y Filtros",
         "select_vehicle": "Seleccionar Veh\u00edculo",
         "filter_area": "Filtrar por \u00c1rea (Mapa)",
