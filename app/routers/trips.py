@@ -192,12 +192,8 @@ async def import_trips_from_csv(file: UploadFile = File(...)):
                 start_address_csv = row[0]
                 end_address_csv = row[2]
                 distance_csv = float(row[4].replace(",", "."))
-                start_ts_utc = datetime.datetime.fromisoformat(row[1]).astimezone(
-                    datetime.timezone.utc
-                )
-                end_ts_utc = datetime.datetime.fromisoformat(row[3]).astimezone(
-                    datetime.timezone.utc
-                )
+                start_ts_utc = datetime.datetime.fromisoformat(row[1]).astimezone().replace(tzinfo=None)
+                end_ts_utc = datetime.datetime.fromisoformat(row[3]).astimezone().replace(tzinfo=None)
                 fuel_consumption_csv = float(row[5].replace(",", "."))
 
                 # --- Content-Based Deduplication Logic ---

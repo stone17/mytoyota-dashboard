@@ -9,6 +9,8 @@ services:
     volumes:
       # Persist all application data in a single volume
       - ./data:/app/data
+    # environment:
+    #   - TZ=Europe/London
     # Preferred: Use web interface to set credentials for better security
     # Optional: Uncomment the following lines to set environment variables for credentials as plaintext
     #   - MYT_USERNAME=your_email@example.com

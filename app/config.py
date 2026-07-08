@@ -1,6 +1,8 @@
 # app/config.py
 import yaml
 import logging
+import os
+import time
 from pathlib import Path
 
 _LOGGER = logging.getLogger(__name__)
@@ -59,6 +61,14 @@ class ConfigManager:
 
         # 3. Merge user settings over the defaults and store in the instance
         self.settings = self._deep_merge(source=user_settings, destination=default_settings)
+
+        # 4. Set Timezone
+        timezone = self.settings.get("timezone")
+        if timezone:
+            os.environ['TZ'] = timezone
+            if hasattr(time, 'tzset'):
+                time.tzset()
+
         _LOGGER.info("Configuration loaded successfully.")
 
     def update_and_reload(self, path_keys: list, new_value: dict) -> bool:

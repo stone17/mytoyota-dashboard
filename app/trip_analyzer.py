@@ -203,8 +203,8 @@ class TripAnalyzer:
         # 1. Safely extract timestamps 
         start_ts_raw = getattr(trip, "start_time", None) or (summary.start_ts if summary else None)
         end_ts_raw = getattr(trip, "end_time", None) or (summary.end_ts if summary else None)
-        start_timestamp = start_ts_raw.astimezone(datetime.timezone.utc) if start_ts_raw else None
-        end_timestamp = end_ts_raw.astimezone(datetime.timezone.utc) if end_ts_raw else None
+        start_timestamp = start_ts_raw.astimezone().replace(tzinfo=None) if start_ts_raw else None
+        end_timestamp = end_ts_raw.astimezone().replace(tzinfo=None) if end_ts_raw else None
 
         # 2. Safely extract core metrics avoiding NoneType math errors
         distance_km = getattr(trip, "distance", 0.0) or 0.0

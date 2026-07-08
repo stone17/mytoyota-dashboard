@@ -290,6 +290,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const unitSystemEl = document.querySelector(`input[name="unit_system"][value="${config.unit_system || 'metric'}"]`);
             if (unitSystemEl) unitSystemEl.checked = true;
 
+            const tzInput = document.getElementById('timezone');
+            if (tzInput) {
+                tzInput.value = config.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+            }
+
             setCheck('reverse-geocode-enabled', config.reverse_geocode_enabled !== false);
             setCheck('fetch-full-route', config.fetch_full_trip_route || false);
             
@@ -452,6 +457,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const formData = new FormData(displaySettingsForm);
             const newSettings = {
                 unit_system: formData.get('unit_system'),
+                timezone: formData.get('timezone'),
             };
             saveConfig(newSettings, displayStatusMessage);
         });
