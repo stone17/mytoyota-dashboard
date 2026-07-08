@@ -11,6 +11,8 @@ from sqlalchemy import func
 
 from .. import fetcher
 from .. import database
+from .. import time_utils
+from ..config import config_manager
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -174,7 +176,7 @@ def get_vehicle_history(vin: str, days: int = 30):
     """API endpoint to get historical data for a vehicle."""
     db = database.SessionLocal()
     try:
-        start_date = datetime.datetime.now() - datetime.timedelta(days=days)
+        start_date = time_utils.get_local_now(config_manager) - datetime.timedelta(days=days)
         filters = [database.VehicleReading.timestamp >= start_date]
         if vin != "all":
             filters.append(database.VehicleReading.vin == vin)
@@ -223,7 +225,7 @@ def get_daily_summary(vin: str, period: str = "30"):
         actual_start_date_filter = earliest_trip_ts
         if days is not None:
             # If a specific period is requested, find the later of the two dates.
-            requested_start_date = datetime.datetime.now() - datetime.timedelta(
+            requested_start_date = time_utils.get_local_now(config_manager) - datetime.timedelta(
                 days=days
             )
             actual_start_date_filter = max(earliest_trip_ts, requested_start_date)
@@ -256,7 +258,7 @@ def get_daily_summary(vin: str, period: str = "30"):
         # Create a dictionary with default zero values for every day in the date range.
         daily_data = {}
         start_date_for_range = actual_start_date_filter.date()
-        end_date_for_range = datetime.datetime.now().date()
+        end_date_for_range = time_utils.get_local_now(config_manager).date()
         num_days_in_range = (end_date_for_range - start_date_for_range).days + 1
 
         if num_days_in_range > 0:
@@ -342,7 +344,7 @@ def get_trip_count(vin: str, period: str = "30"):
         # Determine the start date for the query filter.
         start_date_filter = earliest_trip_ts
         if days is not None:
-            requested_start_date = datetime.datetime.utcnow() - datetime.timedelta(
+            requested_start_date = time_utils.get_local_now(config_manager) - datetime.timedelta(
                 days=days
             )
             start_date_filter = max(earliest_trip_ts, requested_start_date)
@@ -423,7 +425,7 @@ def get_trip_data(
 
         start_date_filter = earliest_trip_ts
         if days is not None:
-            requested_start_date = datetime.datetime.utcnow() - datetime.timedelta(
+            requested_start_date = time_utils.get_local_now(config_manager) - datetime.timedelta(
                 days=days
             )
             start_date_filter = max(earliest_trip_ts, requested_start_date)

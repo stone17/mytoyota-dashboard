@@ -189,12 +189,23 @@
                         <label><input type="radio" name="unit_system" value="imperial_us"> <span data-i18n="settings.imperial_us">Imperial (miles, US MPG)</span></label>
                         <label><input type="radio" name="unit_system" value="imperial_uk"> <span data-i18n="settings.imperial_uk">Imperial (miles, UK MPG)</span></label>
                     </div>
-                    <div class="form-group">
-                        <label for="timezone" data-i18n="settings.timezone">Timezone</label>
-                        <input type="text" id="timezone" name="timezone" placeholder="e.g. Europe/London">
-                    </div>
                     <button type="submit" data-i18n="settings.save_units">Save Unit Settings</button>
                     <p id="display-status-message" class="status-message"></p>
+                </form>
+            </section>
+
+            <section class="settings-section">
+                <h2 data-i18n="settings.timezone_settings">Timezone Settings</h2>
+                <p data-i18n="settings.timezone_desc">Configure the timezone for all displayed dates and times.</p>
+                <form id="timezone-settings-form">
+                    <div class="form-group">
+                        <label for="timezone" data-i18n="settings.timezone">Timezone</label>
+                        <select id="timezone" name="timezone">
+                            <!-- Options will be populated by JS -->
+                        </select>
+                    </div>
+                    <button type="submit" data-i18n="settings.save_timezone">Save Timezone</button>
+                    <p id="timezone-status-message" class="status-message"></p>
                 </form>
             </section>
 

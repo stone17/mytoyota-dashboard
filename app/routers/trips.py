@@ -11,6 +11,8 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import defer
 
 from .. import database
+from .. import time_utils
+from ..config import config_manager
 
 router = APIRouter(prefix="/api", tags=["trips"])
 
@@ -192,8 +194,8 @@ async def import_trips_from_csv(file: UploadFile = File(...)):
                 start_address_csv = row[0]
                 end_address_csv = row[2]
                 distance_csv = float(row[4].replace(",", "."))
-                start_ts_utc = datetime.datetime.fromisoformat(row[1]).astimezone().replace(tzinfo=None)
-                end_ts_utc = datetime.datetime.fromisoformat(row[3]).astimezone().replace(tzinfo=None)
+                start_ts_utc = time_utils.convert_to_local_naive(datetime.datetime.fromisoformat(row[1]), config_manager)
+                end_ts_utc = time_utils.convert_to_local_naive(datetime.datetime.fromisoformat(row[3]), config_manager)
                 fuel_consumption_csv = float(row[5].replace(",", "."))
 
                 # --- Content-Based Deduplication Logic ---

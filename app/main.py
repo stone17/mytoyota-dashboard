@@ -32,6 +32,7 @@ from fastapi.staticfiles import StaticFiles
 from . import fetcher
 from . import database
 from . import mqtt
+from . import time_utils
 from .config import config_manager
 from .logging_config import setup_logging
 
@@ -102,7 +103,7 @@ async def schedule_fetch():
 
         try:
             if mode == "fixed_time":
-                now = datetime.datetime.now()
+                now = time_utils.get_local_now(config_manager)
                 target_time_str = polling_settings.get("fixed_time", "07:00")
                 hour, minute = map(int, target_time_str.split(":"))
 
