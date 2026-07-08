@@ -115,6 +115,9 @@ def get_trips(
 
         # Apply sorting and fetch all results
         trips = query.order_by(sort_expression).all()
+        
+        # Detach the models from the session before modifying them for presentation
+        db.expunge_all()
 
         # Convert timestamps from naive UTC to naive local timezone for frontend display
         for trip in trips:

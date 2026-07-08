@@ -195,6 +195,10 @@ def get_vehicle_history(vin: str, days: int = 30):
             .order_by(database.VehicleReading.timestamp.asc())
             .all()
         )
+        
+        # Detach the models from the session before modifying them for presentation
+        db.expunge_all()
+        
         for reading in readings:
             reading.timestamp = time_utils.convert_utc_to_local_naive(reading.timestamp, config_manager)
         return readings

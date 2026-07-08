@@ -4,7 +4,9 @@ from typing import Optional
 
 def get_timezone(config_manager) -> ZoneInfo:
     """Gets the configured timezone as a ZoneInfo object. Defaults to UTC."""
-    tz_string = config_manager.settings.get("timezone", "UTC")
+    tz_string = "UTC"
+    if config_manager and getattr(config_manager, "settings", None):
+        tz_string = config_manager.settings.get("timezone", "UTC")
     try:
         return ZoneInfo(tz_string)
     except Exception:
