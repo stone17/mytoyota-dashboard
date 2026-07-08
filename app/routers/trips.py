@@ -116,6 +116,11 @@ def get_trips(
         # Apply sorting and fetch all results
         trips = query.order_by(sort_expression).all()
 
+        # Convert timestamps from naive UTC to naive local timezone for frontend display
+        for trip in trips:
+            trip.start_timestamp = time_utils.convert_utc_to_local_naive(trip.start_timestamp, config_manager)
+            trip.end_timestamp = time_utils.convert_utc_to_local_naive(trip.end_timestamp, config_manager)
+
         # This prevents "N/A" on the frontend if the backfill hasn't run for new trips.
         if unit_system.startswith("imperial"):
             KM_TO_MI = 0.621371

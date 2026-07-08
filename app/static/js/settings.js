@@ -92,10 +92,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Calculate the offset for display
             try {
                 const date = new Date();
-                const invDate = new Date(date.toLocaleString('en-US', { timeZone: tz }));
-                const diff = invDate.getTime() - date.getTime();
-                const tzOffset = new Date().getTimezoneOffset() * 60000;
-                const offset = diff + tzOffset;
+                const utcDate = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' }));
+                const tzDate = new Date(date.toLocaleString('en-US', { timeZone: tz }));
+                const offset = tzDate.getTime() - utcDate.getTime();
                 
                 const hours = Math.floor(Math.abs(offset) / 3600000);
                 const minutes = Math.floor((Math.abs(offset) % 3600000) / 60000);

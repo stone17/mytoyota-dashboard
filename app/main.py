@@ -34,7 +34,7 @@ from . import database
 from . import mqtt
 from . import time_utils
 from .config import config_manager
-from .logging_config import setup_logging
+from .logging_config import setup_logging, TimezoneFormatter
 
 # Import the new routers
 from .routers import pages, trips, vehicles, system
@@ -60,7 +60,7 @@ class WebLogHandler(logging.Handler):
 
 web_log_handler = WebLogHandler()
 web_log_handler.setFormatter(
-    logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    TimezoneFormatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 )
 logging.getLogger().addHandler(web_log_handler)
 

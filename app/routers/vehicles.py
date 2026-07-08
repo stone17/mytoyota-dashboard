@@ -59,6 +59,14 @@ async def get_vehicle_data():
 
         vehicles_data = data.get("vehicles", [])
         last_updated = data.get("last_updated") or "Never"
+        
+        if last_updated != "Never":
+            try:
+                dt = datetime.datetime.fromisoformat(last_updated)
+                local_dt = time_utils.convert_utc_to_local_naive(dt, config_manager)
+                last_updated = local_dt.isoformat()
+            except ValueError:
+                pass
 
         # Augment vehicle data with all-time statistics from the database
         db = database.SessionLocal()
@@ -176,7 +184,7 @@ def get_vehicle_history(vin: str, days: int = 30):
     """API endpoint to get historical data for a vehicle."""
     db = database.SessionLocal()
     try:
-        start_date = time_utils.get_local_now(config_manager) - datetime.timedelta(days=days)
+        start_date = time_utils.get_naive_utc_now(config_manager) - datetime.timedelta(days=days)
         filters = [database.VehicleReading.timestamp >= start_date]
         if vin != "all":
             filters.append(database.VehicleReading.vin == vin)
@@ -187,6 +195,8 @@ def get_vehicle_history(vin: str, days: int = 30):
             .order_by(database.VehicleReading.timestamp.asc())
             .all()
         )
+        for reading in readings:
+            reading.timestamp = time_utils.convert_utc_to_local_naive(reading.timestamp, config_manager)
         return readings
     finally:
         db.close()
@@ -225,7 +235,7 @@ def get_daily_summary(vin: str, period: str = "30"):
         actual_start_date_filter = earliest_trip_ts
         if days is not None:
             # If a specific period is requested, find the later of the two dates.
-            requested_start_date = time_utils.get_local_now(config_manager) - datetime.timedelta(
+            requested_start_date = time_utils.get_naive_utc_now(config_manager) - datetime.timedelta(
                 days=days
             )
             actual_start_date_filter = max(earliest_trip_ts, requested_start_date)
@@ -235,9 +245,12 @@ def get_daily_summary(vin: str, period: str = "30"):
         if vin != "all":
             filters.append(database.Trip.vin == vin)
             
+        offset_str = time_utils.get_sqlite_offset_string(config_manager)
+        local_timestamp = func.datetime(database.Trip.start_timestamp, offset_str)
+            
         trips_query = (
             db.query(
-                func.date(database.Trip.start_timestamp).label("day"),
+                func.date(local_timestamp).label("day"),
                 func.sum(database.Trip.distance_km).label("distance"),
                 func.sum(
                     database.Trip.fuel_consumption_l_100km
@@ -251,14 +264,14 @@ def get_daily_summary(vin: str, period: str = "30"):
                 func.max(database.Trip.max_speed_kmh).label("max_speed"),
             )
             .filter(*filters)
-            .group_by(func.date(database.Trip.start_timestamp))
+            .group_by(func.date(local_timestamp))
             .all()
         )
 
         # Create a dictionary with default zero values for every day in the date range.
         daily_data = {}
         start_date_for_range = actual_start_date_filter.date()
-        end_date_for_range = time_utils.get_local_now(config_manager).date()
+        end_date_for_range = time_utils.get_naive_utc_now(config_manager).date()
         num_days_in_range = (end_date_for_range - start_date_for_range).days + 1
 
         if num_days_in_range > 0:
@@ -344,7 +357,7 @@ def get_trip_count(vin: str, period: str = "30"):
         # Determine the start date for the query filter.
         start_date_filter = earliest_trip_ts
         if days is not None:
-            requested_start_date = time_utils.get_local_now(config_manager) - datetime.timedelta(
+            requested_start_date = time_utils.get_naive_utc_now(config_manager) - datetime.timedelta(
                 days=days
             )
             start_date_filter = max(earliest_trip_ts, requested_start_date)
@@ -425,7 +438,7 @@ def get_trip_data(
 
         start_date_filter = earliest_trip_ts
         if days is not None:
-            requested_start_date = time_utils.get_local_now(config_manager) - datetime.timedelta(
+            requested_start_date = time_utils.get_naive_utc_now(config_manager) - datetime.timedelta(
                 days=days
             )
             start_date_filter = max(earliest_trip_ts, requested_start_date)

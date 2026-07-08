@@ -11,20 +11,35 @@ def get_timezone(config_manager) -> ZoneInfo:
         return ZoneInfo("UTC")
 
 def get_local_now(config_manager=None) -> datetime.datetime:
-    """Returns the current time in the configured timezone, as a naive datetime."""
-    tz = get_timezone(config_manager) if config_manager else ZoneInfo("UTC")
-    now_utc = datetime.datetime.now(datetime.timezone.utc)
-    return now_utc.astimezone(tz).replace(tzinfo=None)
+    """Returns the current UTC time as a naive datetime (for database storage)."""
+    return datetime.datetime.utcnow()
 
 def convert_to_local_naive(dt: datetime.datetime, config_manager=None) -> datetime.datetime:
-    """Converts an aware datetime to a naive datetime in the configured timezone."""
+    """Converts an aware datetime to a naive UTC datetime (for database storage)."""
     if dt is None:
         return None
-    if dt.tzinfo is None:
-        # If it's already naive, assume it's UTC and add tzinfo before converting
-        dt = dt.replace(tzinfo=datetime.timezone.utc)
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(datetime.timezone.utc)
+    return dt.replace(tzinfo=None)
+
+def convert_utc_to_local_naive(dt: datetime.datetime, config_manager=None) -> datetime.datetime:
+    """Converts a naive UTC datetime to a naive datetime in the configured local timezone."""
+    if dt is None:
+        return None
+    dt_utc_aware = dt.replace(tzinfo=datetime.timezone.utc)
     tz = get_timezone(config_manager) if config_manager else ZoneInfo("UTC")
-    return dt.astimezone(tz).replace(tzinfo=None)
+    dt_local_aware = dt_utc_aware.astimezone(tz)
+    return dt_local_aware.replace(tzinfo=None)
+
+def get_sqlite_offset_string(config_manager) -> str:
+    """Returns the SQLite modifier string for the current timezone offset (e.g., '+02:00')."""
+    tz = get_timezone(config_manager)
+    now = datetime.datetime.now(tz)
+    offset_seconds = now.utcoffset().total_seconds()
+    hours = int(offset_seconds // 3600)
+    minutes = int((abs(offset_seconds) % 3600) // 60)
+    sign = '+' if offset_seconds >= 0 else '-'
+    return f"{sign}{abs(hours):02d}:{minutes:02d}"
 
 def convert_from_local_naive(dt: datetime.datetime, config_manager=None) -> datetime.datetime:
     """Converts a naive datetime (assumed to be in local timezone) to an aware UTC datetime."""
