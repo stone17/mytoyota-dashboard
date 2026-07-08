@@ -103,7 +103,8 @@ async def schedule_fetch():
 
         try:
             if mode == "fixed_time":
-                now = time_utils.get_local_now(config_manager)
+                tz = time_utils.get_timezone(config_manager)
+                now = datetime.datetime.now(tz)
                 target_time_str = polling_settings.get("fixed_time", "07:00")
                 hour, minute = map(int, target_time_str.split(":"))
 

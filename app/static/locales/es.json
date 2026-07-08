@@ -109,6 +109,10 @@
     },
     "settings": {
         "title": "Ajustes",
+        "timezone_settings": "Ajustes de Zona Horaria",
+        "timezone_desc": "Configure la zona horaria para todas las fechas y horas mostradas.",
+        "timezone": "Zona Horaria",
+        "save_timezone": "Guardar Zona Horaria",
         "language": "Idioma",
         "language_desc": "Seleccione el idioma de visualizaci\u00f3n para el panel.",
         "select_language": "Seleccionar Idioma",

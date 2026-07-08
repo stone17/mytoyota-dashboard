@@ -26,20 +26,22 @@ def convert_utc_to_local_naive(dt: datetime.datetime, config_manager=None) -> da
     """Converts a naive UTC datetime to a naive datetime in the configured local timezone."""
     if dt is None:
         return None
-    dt_utc_aware = dt.replace(tzinfo=datetime.timezone.utc)
+    if dt.tzinfo is None:
+        dt_utc_aware = dt.replace(tzinfo=datetime.timezone.utc)
+    else:
+        dt_utc_aware = dt
     tz = get_timezone(config_manager) if config_manager else ZoneInfo("UTC")
     dt_local_aware = dt_utc_aware.astimezone(tz)
     return dt_local_aware.replace(tzinfo=None)
 
 def get_sqlite_offset_string(config_manager) -> str:
-    """Returns the SQLite modifier string for the current timezone offset (e.g., '+02:00')."""
+    """Returns the SQLite modifier string for the current timezone offset in minutes (e.g., '+120 minutes')."""
     tz = get_timezone(config_manager)
     now = datetime.datetime.now(tz)
     offset_seconds = now.utcoffset().total_seconds()
-    hours = int(offset_seconds // 3600)
-    minutes = int((abs(offset_seconds) % 3600) // 60)
-    sign = '+' if offset_seconds >= 0 else '-'
-    return f"{sign}{abs(hours):02d}:{minutes:02d}"
+    offset_minutes = int(offset_seconds // 60)
+    sign = '+' if offset_minutes >= 0 else ''
+    return f"{sign}{offset_minutes} minutes"
 
 def convert_from_local_naive(dt: datetime.datetime, config_manager=None) -> datetime.datetime:
     """Converts a naive datetime (assumed to be in local timezone) to an aware UTC datetime."""

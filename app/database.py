@@ -47,7 +47,7 @@ class VehicleReading(Base):
     __tablename__ = "readings"
 
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, default=datetime.datetime.now)
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
     vin = Column(String, index=True)
     odometer = Column(Float)
     fuel_level = Column(Float)

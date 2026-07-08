@@ -109,6 +109,10 @@
     },
     "settings": {
         "title": "Settings",
+        "timezone_settings": "Timezone Settings",
+        "timezone_desc": "Configure the timezone for all displayed dates and times.",
+        "timezone": "Timezone",
+        "save_timezone": "Save Timezone",
         "language": "Language",
         "language_desc": "Select the display language for the dashboard.",
         "select_language": "Select Language",

@@ -109,6 +109,10 @@
     },
     "settings": {
         "title": "Paramètres",
+        "timezone_settings": "Paramètres de fuseau horaire",
+        "timezone_desc": "Configurez le fuseau horaire pour toutes les dates et heures affichées.",
+        "timezone": "Fuseau horaire",
+        "save_timezone": "Enregistrer le fuseau horaire",
         "language": "Langue",
         "language_desc": "Sélectionnez la langue d'affichage pour le tableau de bord.",
         "select_language": "Sélectionner la langue",
