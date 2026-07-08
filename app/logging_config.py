@@ -14,9 +14,10 @@ class TimezoneFormatter(logging.Formatter):
     def formatTime(self, record, datefmt=None):
         dt = datetime.datetime.fromtimestamp(record.created, tz=datetime.timezone.utc)
         tz_str = config_manager.settings.get("timezone", "UTC") if config_manager.settings else "UTC"
-        if tz_str != self._cached_tz:
+        if tz_str != self._cached_tz or self._cached_tz_obj is None:
+            new_tz_obj = time_utils.get_timezone(config_manager)
+            self._cached_tz_obj = new_tz_obj
             self._cached_tz = tz_str
-            self._cached_tz_obj = time_utils.get_timezone(config_manager)
         
         local_dt = dt.astimezone(self._cached_tz_obj)
         if datefmt:
