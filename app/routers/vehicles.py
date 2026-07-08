@@ -196,12 +196,13 @@ def get_vehicle_history(vin: str, days: int = 30):
             .all()
         )
         
-        # Detach the models from the session before modifying them for presentation
-        db.expunge_all()
-        
+        reading_dicts = []
         for reading in readings:
-            reading.timestamp = time_utils.convert_utc_to_local_naive(reading.timestamp, config_manager)
-        return readings
+            reading_dict = {c.name: getattr(reading, c.name) for c in reading.__table__.columns}
+            reading_dict["timestamp"] = time_utils.convert_utc_to_local_naive(reading.timestamp, config_manager)
+            reading_dicts.append(reading_dict)
+            
+        return reading_dicts
     finally:
         db.close()
 
@@ -249,6 +250,12 @@ def get_daily_summary(vin: str, period: str = "30"):
         if vin != "all":
             filters.append(database.Trip.vin == vin)
             
+        # Note: SQLite lacks native timezone tables. Using a single current timezone 
+        # offset (calculated at the moment of the request) to group historical trips 
+        # will result in incorrect daily groupings across DST boundaries. For example, 
+        # during summer (DST), a winter trip near midnight will be shifted by the 
+        # summer offset, grouping it into the wrong day. This limitation is accepted 
+        # for now, but could be handled via application-side grouping in the future.
         offset_str = time_utils.get_sqlite_offset_string(config_manager)
         local_timestamp = func.datetime(database.Trip.start_timestamp, offset_str)
             

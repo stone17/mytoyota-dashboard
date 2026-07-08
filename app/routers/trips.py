@@ -116,35 +116,34 @@ def get_trips(
         # Apply sorting and fetch all results
         trips = query.order_by(sort_expression).all()
         
-        # Detach the models from the session before modifying them for presentation
-        db.expunge_all()
-
-        # Convert timestamps from naive UTC to naive local timezone for frontend display
+        trip_dicts = []
         for trip in trips:
-            trip.start_timestamp = time_utils.convert_utc_to_local_naive(trip.start_timestamp, config_manager)
-            trip.end_timestamp = time_utils.convert_utc_to_local_naive(trip.end_timestamp, config_manager)
+            trip_dict = {c.name: getattr(trip, c.name) for c in trip.__table__.columns if c.name != 'route'}
+            trip_dict["start_timestamp"] = time_utils.convert_utc_to_local_naive(trip.start_timestamp, config_manager)
+            trip_dict["end_timestamp"] = time_utils.convert_utc_to_local_naive(trip.end_timestamp, config_manager)
+            trip_dicts.append(trip_dict)
 
         # This prevents "N/A" on the frontend if the backfill hasn't run for new trips.
         if unit_system.startswith("imperial"):
             KM_TO_MI = 0.621371
-            for trip in trips:
-                if trip.distance_km is not None:
-                    trip.distance_mi = trip.distance_km * KM_TO_MI
-                if trip.ev_distance_km is not None:
-                    trip.ev_distance_mi = trip.ev_distance_km * KM_TO_MI
-                if trip.average_speed_kmh is not None:
-                    trip.average_speed_mph = trip.average_speed_kmh * KM_TO_MI
+            for trip in trip_dicts:
+                if trip.get("distance_km") is not None:
+                    trip["distance_mi"] = trip["distance_km"] * KM_TO_MI
+                if trip.get("ev_distance_km") is not None:
+                    trip["ev_distance_mi"] = trip["ev_distance_km"] * KM_TO_MI
+                if trip.get("average_speed_kmh") is not None:
+                    trip["average_speed_mph"] = trip["average_speed_kmh"] * KM_TO_MI
 
                 # Check for fuel consumption to avoid division by zero
-                if trip.fuel_consumption_l_100km and trip.fuel_consumption_l_100km > 0:
-                    trip.mpg = 235.214 / trip.fuel_consumption_l_100km
-                    trip.mpg_uk = 282.481 / trip.fuel_consumption_l_100km
+                if trip.get("fuel_consumption_l_100km") and trip["fuel_consumption_l_100km"] > 0:
+                    trip["mpg"] = 235.214 / trip["fuel_consumption_l_100km"]
+                    trip["mpg_uk"] = 282.481 / trip["fuel_consumption_l_100km"]
                 else:
                     # Assign a default value if no fuel was consumed
-                    trip.mpg = 0.0
-                    trip.mpg_uk = 0.0
+                    trip["mpg"] = 0.0
+                    trip["mpg_uk"] = 0.0
 
-        return trips
+        return trip_dicts
     finally:
         db.close()
 
@@ -250,73 +249,82 @@ def export_trips_to_csv(
         # --- 4. Write Data Rows ---
         for trip in trips:
             # Perform unit conversions on the fly for the export
+            distance_mi = None
+            average_speed_mph = None
+            max_speed_mph = None
+            ev_distance_mi = None
+            length_overspeed_mi = None
+            length_highway_mi = None
+            hdc_eco_distance_mi = None
+            hdc_power_distance_mi = None
+            hdc_charge_distance_mi = None
+            mpg_us = 0.0
+            mpg_uk = 0.0
+
             if is_imperial:
-                trip.distance_mi = (
+                distance_mi = (
                     trip.distance_km * 0.621371
                     if trip.distance_km is not None
                     else None
                 )
-                trip.average_speed_mph = (
+                average_speed_mph = (
                     trip.average_speed_kmh * 0.621371
                     if trip.average_speed_kmh is not None
                     else None
                 )
-                trip.max_speed_mph = (
+                max_speed_mph = (
                     trip.max_speed_kmh * 0.621371
                     if trip.max_speed_kmh is not None
                     else None
                 )
-                trip.ev_distance_mi = (
+                ev_distance_mi = (
                     trip.ev_distance_km * 0.621371
                     if trip.ev_distance_km is not None
                     else None
                 )
-                trip.length_overspeed_mi = (
+                length_overspeed_mi = (
                     trip.length_overspeed_km * 0.621371
                     if trip.length_overspeed_km is not None
                     else None
                 )
-                trip.length_highway_mi = (
+                length_highway_mi = (
                     trip.length_highway_km * 0.621371
                     if trip.length_highway_km is not None
                     else None
                 )
-                trip.hdc_eco_distance_mi = (
+                hdc_eco_distance_mi = (
                     trip.hdc_eco_distance_km * 0.621371
                     if trip.hdc_eco_distance_km is not None
                     else None
                 )
-                trip.hdc_power_distance_mi = (
+                hdc_power_distance_mi = (
                     trip.hdc_power_distance_km * 0.621371
                     if trip.hdc_power_distance_km is not None
                     else None
                 )
-                trip.hdc_charge_distance_mi = (
+                hdc_charge_distance_mi = (
                     trip.hdc_charge_distance_km * 0.621371
                     if trip.hdc_charge_distance_km is not None
                     else None
                 )
 
                 if trip.fuel_consumption_l_100km and trip.fuel_consumption_l_100km > 0:
-                    trip.mpg_us = 235.214 / trip.fuel_consumption_l_100km
-                    trip.mpg_uk = 282.481 / trip.fuel_consumption_l_100km
-                else:
-                    trip.mpg_us = 0.0
-                    trip.mpg_uk = 0.0
+                    mpg_us = 235.214 / trip.fuel_consumption_l_100km
+                    mpg_uk = 282.481 / trip.fuel_consumption_l_100km
 
             row = [
                 trip.start_timestamp,
                 trip.end_timestamp,
                 trip.start_address,
                 trip.end_address,
-                trip.distance_mi if is_imperial else trip.distance_km,
-                trip.mpg_uk
+                distance_mi if is_imperial else trip.distance_km,
+                mpg_uk
                 if is_uk
-                else (trip.mpg_us if is_imperial else trip.fuel_consumption_l_100km),
+                else (mpg_us if is_imperial else trip.fuel_consumption_l_100km),
                 trip.duration_seconds,
-                trip.average_speed_mph if is_imperial else trip.average_speed_kmh,
-                trip.max_speed_mph if is_imperial else trip.max_speed_kmh,
-                trip.ev_distance_mi if is_imperial else trip.ev_distance_km,
+                average_speed_mph if is_imperial else trip.average_speed_kmh,
+                max_speed_mph if is_imperial else trip.max_speed_kmh,
+                ev_distance_mi if is_imperial else trip.ev_distance_km,
                 trip.ev_duration_seconds,
                 trip.score_global,
                 trip.score_acceleration,
@@ -324,17 +332,17 @@ def export_trips_to_csv(
                 trip.score_constant_speed,
                 trip.night_trip,
                 ",".join(trip.countries) if trip.countries else "",
-                trip.length_overspeed_mi if is_imperial else trip.length_overspeed_km,
+                length_overspeed_mi if is_imperial else trip.length_overspeed_km,
                 trip.duration_overspeed_seconds,
-                trip.length_highway_mi if is_imperial else trip.length_highway_km,
+                length_highway_mi if is_imperial else trip.length_highway_km,
                 trip.duration_highway_seconds,
-                trip.hdc_eco_distance_mi if is_imperial else trip.hdc_eco_distance_km,
+                hdc_eco_distance_mi if is_imperial else trip.hdc_eco_distance_km,
                 trip.hdc_eco_duration_seconds,
-                trip.hdc_power_distance_mi
+                hdc_power_distance_mi
                 if is_imperial
                 else trip.hdc_power_distance_km,
                 trip.hdc_power_duration_seconds,
-                trip.hdc_charge_distance_mi
+                hdc_charge_distance_mi
                 if is_imperial
                 else trip.hdc_charge_distance_km,
                 trip.hdc_charge_duration_seconds,

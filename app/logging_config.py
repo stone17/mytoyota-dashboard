@@ -11,13 +11,19 @@ class TimezoneFormatter(logging.Formatter):
         self._cached_tz = None
         self._cached_tz_obj = None
 
-    def converter(self, timestamp):
-        dt = datetime.datetime.fromtimestamp(timestamp, tz=datetime.timezone.utc)
+    def formatTime(self, record, datefmt=None):
+        dt = datetime.datetime.fromtimestamp(record.created, tz=datetime.timezone.utc)
         tz_str = config_manager.settings.get("timezone", "UTC") if config_manager.settings else "UTC"
         if tz_str != self._cached_tz:
             self._cached_tz = tz_str
             self._cached_tz_obj = time_utils.get_timezone(config_manager)
-        return dt.astimezone(self._cached_tz_obj).timetuple()
+        
+        local_dt = dt.astimezone(self._cached_tz_obj)
+        if datefmt:
+            return local_dt.strftime(datefmt)
+        else:
+            # Default ISO8601-like format matching logging's default behavior
+            return local_dt.strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
 
 def setup_logging():
     """
