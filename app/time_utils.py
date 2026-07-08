@@ -10,11 +10,11 @@ def get_timezone(config_manager) -> ZoneInfo:
     except Exception:
         return ZoneInfo("UTC")
 
-def get_local_now(config_manager=None) -> datetime.datetime:
+def get_naive_utc_now(config_manager=None) -> datetime.datetime:
     """Returns the current UTC time as a naive datetime (for database storage)."""
-    return datetime.datetime.utcnow()
+    return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
 
-def convert_to_local_naive(dt: datetime.datetime, config_manager=None) -> datetime.datetime:
+def convert_to_naive_utc(dt: datetime.datetime, config_manager=None) -> datetime.datetime:
     """Converts an aware datetime to a naive UTC datetime (for database storage)."""
     if dt is None:
         return None

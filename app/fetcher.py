@@ -242,7 +242,7 @@ async def run_fetch_cycle():
             tmp_file = CACHE_FILE.with_suffix(".tmp")
             async with CACHE_LOCK:
                 async with aiofiles.open(tmp_file, "w") as f:
-                    aware_utcnow = time_utils.get_local_now(config_manager)
+                    aware_utcnow = time_utils.get_naive_utc_now(config_manager)
                     await f.write(json.dumps({
                         "last_updated": aware_utcnow.isoformat(),
                         "vehicles": all_vehicle_data,

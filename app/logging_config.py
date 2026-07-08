@@ -6,10 +6,18 @@ from .config import config_manager
 from . import time_utils
 
 class TimezoneFormatter(logging.Formatter):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._cached_tz = None
+        self._cached_tz_obj = None
+
     def converter(self, timestamp):
         dt = datetime.datetime.fromtimestamp(timestamp, tz=datetime.timezone.utc)
-        tz = time_utils.get_timezone(config_manager)
-        return dt.astimezone(tz).timetuple()
+        tz_str = config_manager.settings.get("timezone", "UTC") if config_manager.settings else "UTC"
+        if tz_str != self._cached_tz:
+            self._cached_tz = tz_str
+            self._cached_tz_obj = time_utils.get_timezone(config_manager)
+        return dt.astimezone(self._cached_tz_obj).timetuple()
 
 def setup_logging():
     """

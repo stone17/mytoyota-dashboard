@@ -17,7 +17,7 @@ class VehicleParser:
 
     async def build_info_dict(self):
         """Builds the main vehicle information dictionary."""
-        local_now = time_utils.get_local_now(config_manager)
+        local_now = time_utils.get_naive_utc_now(config_manager)
 
         vehicle_info = {
             "vin": self.vehicle.vin,
@@ -90,7 +90,7 @@ class VehicleParser:
                 ts = getattr(lock_status, "last_update_timestamp", getattr(lock_status, "timestamp", None))
                 if ts:
                     if isinstance(ts, datetime.datetime):
-                        ts = time_utils.convert_to_local_naive(ts, config_manager)
+                        ts = time_utils.convert_to_naive_utc(ts, config_manager)
                         last_update_timestamp = ts.isoformat()
                     else:
                         last_update_timestamp = str(ts)
