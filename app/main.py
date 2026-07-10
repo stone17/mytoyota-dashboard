@@ -108,8 +108,8 @@ async def schedule_fetch():
                 target_time_str = polling_settings.get("fixed_time", "07:00")
                 hour, minute = map(int, target_time_str.split(":"))
 
-                target_today = now.replace(
-                    hour=hour, minute=minute, second=0, microsecond=0
+                target_today = datetime.datetime(
+                    now.year, now.month, now.day, hour, minute, 0, 0, tzinfo=tz
                 )
 
                 if now >= target_today:

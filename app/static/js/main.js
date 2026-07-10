@@ -764,7 +764,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setVal('.vin span', vehicleToRender.vin);
         
         // Compare the server's last_updated with our local optimistic timestamp
-        let serverLastUpdated = (vehicleToRender.status && vehicleToRender.status.last_update_timestamp) || vehicleToRender.last_updated;
+        let serverLastUpdated = vehicleToRender.last_updated;
         const optimisticLastUpdated = localStorage.getItem(`optimistic_last_updated_${vehicleToRender.vin}`);
         
         if (optimisticLastUpdated) {

@@ -4,6 +4,7 @@ import datetime
 import logging
 import math
 from . import database
+from . import time_utils
 from .config import config_manager
 
 _LOGGER = logging.getLogger(__name__)
@@ -203,8 +204,8 @@ class TripAnalyzer:
         # 1. Safely extract timestamps 
         start_ts_raw = getattr(trip, "start_time", None) or (summary.start_ts if summary else None)
         end_ts_raw = getattr(trip, "end_time", None) or (summary.end_ts if summary else None)
-        start_timestamp = start_ts_raw.astimezone(datetime.timezone.utc).replace(tzinfo=None) if start_ts_raw else None
-        end_timestamp = end_ts_raw.astimezone(datetime.timezone.utc).replace(tzinfo=None) if end_ts_raw else None
+        start_timestamp = time_utils.convert_to_naive_utc(start_ts_raw)
+        end_timestamp = time_utils.convert_to_naive_utc(end_ts_raw)
 
         # 2. Safely extract core metrics avoiding NoneType math errors
         distance_km = getattr(trip, "distance", 0.0) or 0.0
