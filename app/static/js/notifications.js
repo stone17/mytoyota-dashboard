@@ -26,6 +26,8 @@ function renderServiceHistory(history, unit = 'km') {
     }
 }
 
+let appConfig = { timezone: 'UTC' };
+
 function renderVehicleData(vehicle) {
     const notificationsContainer = document.getElementById('notifications-container');
     const fetchBtn = document.getElementById('fetch-service-history-btn');
@@ -52,7 +54,7 @@ function renderVehicleData(vehicle) {
             if (notification.date) {
                 const timeDiv = document.createElement('div');
                 timeDiv.className = 'notification-time';
-                timeDiv.textContent = new Date(notification.date).toLocaleString();
+                timeDiv.textContent = new Date(notification.date).toLocaleString(undefined, { timeZone: appConfig.timezone || 'UTC' });
                 contentDiv.appendChild(timeDiv);
             }
             
@@ -122,6 +124,9 @@ async function loadPageData() {
     const notificationsContainer = document.getElementById('notifications-container');
     
     try {
+        const configResponse = await fetch('/api/config');
+        if (configResponse.ok) appConfig = await configResponse.json();
+
         const response = await fetch('/api/vehicles');
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         

@@ -467,7 +467,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const duration = new Date(trip.duration_seconds * 1000).toISOString().slice(11, 19);
 
         // 2. Append the stats directly to the map title
-        mapPanelTitle.innerHTML = `Trip on ${new Date(trip.start_timestamp).toLocaleDateString()} 
+        mapPanelTitle.innerHTML = `Trip on ${new Date(trip.start_timestamp).toLocaleDateString(undefined, { timeZone: appConfig.timezone || 'UTC' })} 
             <span style="font-size: 0.8em; color: var(--text-subtle); font-weight: normal; margin-left: 8px; white-space: nowrap;">
                 (${distance.toFixed(1)} ${isImperial ? 'mi' : 'km'} | ${duration} | ${consumption.toFixed(1)} ${isImperial ? 'mpg' : 'L/100km'})
             </span>`;
@@ -518,7 +518,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tripsTableBody.innerHTML = window.i18n ? `<tr><td colspan="27" style="text-align: center; padding: 20px;">${window.i18n.t('trips.no_trips_filter')}</td></tr>` : `<tr><td colspan="27" style="text-align: center; padding: 20px;">No trips found for the current filter.</td></tr>`;
             return;
         }
-        const formatTimestamp = (ts) => !ts ? 'N/A' : `${new Date(ts).toLocaleDateString()}<br><span class="unit">${new Date(ts).toLocaleTimeString()}</span>`;
+        const formatTimestamp = (ts) => !ts ? 'N/A' : `${new Date(ts).toLocaleDateString(undefined, { timeZone: appConfig.timezone || 'UTC' })}<br><span class="unit">${new Date(ts).toLocaleTimeString(undefined, { timeZone: appConfig.timezone || 'UTC' })}</span>`;
         const formatNumber = (num, digits = 2) => (num === null || num === undefined) ? 'N/A' : Number(num).toFixed(digits);
         const formatDuration = (s) => (s === null || s === undefined) ? 'N/A' : new Date(s * 1000).toISOString().slice(11, 19);
         const formatBoolean = (b) => (b === null || b === undefined) ? 'N/A' : (b ? 'Yes' : 'No');

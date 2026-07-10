@@ -272,7 +272,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- End Slicing Logic ---
 
         // Use the sliced 'chartData' for labels
-        const labels = chartData.map(d => new Date(d.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
+        const labels = chartData.map(d => new Date(d.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: appConfig.timezone || 'UTC' }));
         const datasets = [];
         const yAxes = {};
 
@@ -368,7 +368,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     tooltip: {
                         callbacks: {
                             // Use sliced 'chartData' for the tooltip title
-                            title: (tooltipItems) => new Date(chartData[tooltipItems[0].dataIndex].date).toLocaleDateString(),
+                            title: (tooltipItems) => new Date(chartData[tooltipItems[0].dataIndex].date).toLocaleDateString(undefined, { timeZone: appConfig.timezone || 'UTC' }),
                             label: (context) => {
                                 let metric = context.dataset.yAxisID === 'y' ? metric1 : metric2;
                                 let config = metricConfig[metric];
@@ -504,7 +504,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const statusTimestamp = spans.length > 1 ? spans[1] : null;
         
         if (statusTimestamp && vehicleStatus.last_update_timestamp) {
-            statusTimestamp.textContent = new Date(vehicleStatus.last_update_timestamp).toLocaleString();
+            statusTimestamp.textContent = new Date(vehicleStatus.last_update_timestamp).toLocaleString(undefined, { timeZone: appConfig.timezone || 'UTC' });
         } else if (statusTimestamp) {
             statusTimestamp.textContent = 'N/A';
         }
@@ -776,7 +776,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        const formattedDate = serverLastUpdated && serverLastUpdated !== "Never" ? new Date(serverLastUpdated).toLocaleString() : "Never";
+        const formattedDate = serverLastUpdated && serverLastUpdated !== "Never" ? new Date(serverLastUpdated).toLocaleString(undefined, { timeZone: appConfig.timezone || 'UTC' }) : "Never";
         setVal('.last-updated-time', formattedDate);
         setVal('.last_updated', formattedDate);
         setVal('.last-updated', formattedDate);
