@@ -63,7 +63,7 @@ async def get_vehicle_data():
         if last_updated != "Never":
             try:
                 dt = datetime.datetime.fromisoformat(last_updated)
-                local_dt = time_utils.convert_utc_to_local_naive(dt, config_manager)
+                local_dt = time_utils.convert_utc_to_local_aware(dt, config_manager)
                 last_updated = local_dt.isoformat()
             except ValueError:
                 pass
@@ -199,7 +199,7 @@ def get_vehicle_history(vin: str, days: int = 30):
         reading_dicts = []
         for reading in readings:
             reading_dict = {c.name: getattr(reading, c.name) for c in reading.__table__.columns}
-            reading_dict["timestamp"] = time_utils.convert_utc_to_local_naive(reading.timestamp, config_manager)
+            reading_dict["timestamp"] = time_utils.convert_utc_to_local_aware(reading.timestamp, config_manager)
             reading_dicts.append(reading_dict)
             
         return reading_dicts
@@ -281,8 +281,8 @@ def get_daily_summary(vin: str, period: str = "30"):
 
         # Create a dictionary with default zero values for every day in the date range.
         daily_data = {}
-        local_start_date_filter = time_utils.convert_utc_to_local_naive(actual_start_date_filter, config_manager)
-        local_end_date_filter = time_utils.convert_utc_to_local_naive(time_utils.get_naive_utc_now(config_manager), config_manager)
+        local_start_date_filter = time_utils.convert_utc_to_local_aware(actual_start_date_filter, config_manager)
+        local_end_date_filter = time_utils.convert_utc_to_local_aware(time_utils.get_naive_utc_now(config_manager), config_manager)
         start_date_for_range = local_start_date_filter.date()
         end_date_for_range = local_end_date_filter.date()
         num_days_in_range = (end_date_for_range - start_date_for_range).days + 1

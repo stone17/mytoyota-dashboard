@@ -119,8 +119,8 @@ def get_trips(
         trip_dicts = []
         for trip in trips:
             trip_dict = {c.name: getattr(trip, c.name) for c in trip.__table__.columns if c.name != 'route'}
-            trip_dict["start_timestamp"] = time_utils.convert_utc_to_local_naive(trip.start_timestamp, config_manager)
-            trip_dict["end_timestamp"] = time_utils.convert_utc_to_local_naive(trip.end_timestamp, config_manager)
+            trip_dict["start_timestamp"] = time_utils.convert_utc_to_local_aware(trip.start_timestamp, config_manager)
+            trip_dict["end_timestamp"] = time_utils.convert_utc_to_local_aware(trip.end_timestamp, config_manager)
             trip_dicts.append(trip_dict)
 
         # This prevents "N/A" on the frontend if the backfill hasn't run for new trips.

@@ -2,6 +2,7 @@
 import logging
 import sys
 import datetime
+import threading
 from .config import config_manager
 from . import time_utils
 
@@ -10,16 +11,20 @@ class TimezoneFormatter(logging.Formatter):
         super().__init__(*args, **kwargs)
         self._cached_tz = None
         self._cached_tz_obj = None
+        self._lock = threading.Lock()
 
     def formatTime(self, record, datefmt=None):
         dt = datetime.datetime.fromtimestamp(record.created, tz=datetime.timezone.utc)
         tz_str = config_manager.settings.get("timezone", "UTC") if config_manager.settings else "UTC"
-        if tz_str != self._cached_tz or self._cached_tz_obj is None:
-            new_tz_obj = time_utils.get_timezone(config_manager)
-            self._cached_tz_obj = new_tz_obj
-            self._cached_tz = tz_str
         
-        local_dt = dt.astimezone(self._cached_tz_obj)
+        with self._lock:
+            if tz_str != self._cached_tz or self._cached_tz_obj is None:
+                new_tz_obj = time_utils.get_timezone(config_manager)
+                self._cached_tz_obj = new_tz_obj
+                self._cached_tz = tz_str
+            tz_obj = self._cached_tz_obj
+        
+        local_dt = dt.astimezone(tz_obj)
         if datefmt:
             return local_dt.strftime(datefmt)
         else:
