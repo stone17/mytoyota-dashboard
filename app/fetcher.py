@@ -12,6 +12,7 @@ from pytoyoda.exceptions import ToyotaApiError
 from sqlalchemy import func
 
 from . import database
+from . import time_utils
 from .credentials_manager import load_credentials
 from .config import config_manager, DATA_DIR
 from .geocoder import GeocoderFactory
@@ -241,7 +242,7 @@ async def run_fetch_cycle():
             tmp_file = CACHE_FILE.with_suffix(".tmp")
             async with CACHE_LOCK:
                 async with aiofiles.open(tmp_file, "w") as f:
-                    aware_utcnow = datetime.datetime.now(datetime.timezone.utc)
+                    aware_utcnow = time_utils.get_naive_utc_now(config_manager)
                     await f.write(json.dumps({
                         "last_updated": aware_utcnow.isoformat(),
                         "vehicles": all_vehicle_data,

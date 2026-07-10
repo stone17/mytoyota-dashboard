@@ -195,6 +195,21 @@
             </section>
 
             <section class="settings-section">
+                <h2 data-i18n="settings.timezone_settings">Timezone Settings</h2>
+                <p data-i18n="settings.timezone_desc">Configure the timezone for all displayed dates and times.</p>
+                <form id="timezone-settings-form">
+                    <div class="form-group">
+                        <label for="timezone" data-i18n="settings.timezone">Timezone</label>
+                        <select id="timezone" name="timezone">
+                            <!-- Options will be populated by JS -->
+                        </select>
+                    </div>
+                    <button type="submit" data-i18n="settings.save_timezone">Save Timezone</button>
+                    <p id="timezone-status-message" class="status-message"></p>
+                </form>
+            </section>
+
+            <section class="settings-section">
                 <h2 data-i18n="settings.location_settings">Location & GPS Settings</h2>
                 <p data-i18n="settings.location_desc">Configure how trip addresses and GPS data are resolved.</p>
                 <form id="geocoding-settings-form">

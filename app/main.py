@@ -32,8 +32,9 @@ from fastapi.staticfiles import StaticFiles
 from . import fetcher
 from . import database
 from . import mqtt
+from . import time_utils
 from .config import config_manager
-from .logging_config import setup_logging
+from .logging_config import setup_logging, TimezoneFormatter
 
 # Import the new routers
 from .routers import pages, trips, vehicles, system
@@ -59,7 +60,7 @@ class WebLogHandler(logging.Handler):
 
 web_log_handler = WebLogHandler()
 web_log_handler.setFormatter(
-    logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    TimezoneFormatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 )
 logging.getLogger().addHandler(web_log_handler)
 
@@ -102,12 +103,13 @@ async def schedule_fetch():
 
         try:
             if mode == "fixed_time":
-                now = datetime.datetime.now()
+                tz = time_utils.get_timezone(config_manager)
+                now = datetime.datetime.now(tz)
                 target_time_str = polling_settings.get("fixed_time", "07:00")
                 hour, minute = map(int, target_time_str.split(":"))
 
-                target_today = now.replace(
-                    hour=hour, minute=minute, second=0, microsecond=0
+                target_today = datetime.datetime(
+                    now.year, now.month, now.day, hour, minute, 0, 0, tzinfo=tz
                 )
 
                 if now >= target_today:

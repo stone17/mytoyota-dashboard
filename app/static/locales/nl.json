@@ -109,6 +109,10 @@
     },
     "settings": {
         "title": "Instellingen",
+        "timezone_settings": "Tijdzone instellingen",
+        "timezone_desc": "Configureer de tijdzone voor alle weergegeven datums en tijden.",
+        "timezone": "Tijdzone",
+        "save_timezone": "Tijdzone opslaan",
         "language": "Taal",
         "language_desc": "Kies de weergave taal voor het overzicht.",
         "select_language": "Kies een taal",

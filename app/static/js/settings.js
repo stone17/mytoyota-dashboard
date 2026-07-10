@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const pollingSettingsForm = document.getElementById('polling-settings-form');
     const apiRetriesForm = document.getElementById('api-retries-form');
     const displaySettingsForm = document.getElementById('display-settings-form');
+    const timezoneSettingsForm = document.getElementById('timezone-settings-form');
     const geocodingSettingsForm = document.getElementById('geocoding-settings-form');
     const geocodingProviderSelect = document.getElementById('geocoding-provider');
     const opencageKeyGroup = document.getElementById('opencage-key-group');
@@ -20,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const pollingStatusMessage = document.getElementById('polling-status-message');
     const apiRetriesStatusMessage = document.getElementById('api-retries-status-message');
     const displayStatusMessage = document.getElementById('display-status-message');
+    const timezoneStatusMessage = document.getElementById('timezone-status-message');
     const geocodingStatusMessage = document.getElementById('geocoding-status-message');
     const mqttStatusMessage = document.getElementById('mqtt-status-message');
     const mqttTestBtn = document.getElementById('mqtt-test-btn');
@@ -69,6 +71,64 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+
+    // --- Populate Timezone Options ---
+    function populateTimezones() {
+        const tzSelect = document.getElementById('timezone');
+        if (!tzSelect) return;
+        
+        // This is a basic list of common timezones, Intl.supportedValuesOf('timeZone') is supported in modern browsers
+        let timezones = [];
+        if (typeof Intl !== 'undefined' && typeof Intl.supportedValuesOf === 'function') {
+            timezones = Intl.supportedValuesOf('timeZone');
+        } else {
+            timezones = ['UTC', 'Europe/London', 'Europe/Berlin', 'America/New_York', 'America/Los_Angeles']; // Fallback
+        }
+
+        timezones.forEach(tz => {
+            const option = document.createElement('option');
+            option.value = tz;
+            
+            // Calculate the offset for display
+            try {
+                const date = new Date();
+                const formatter = new Intl.DateTimeFormat('en-US', {
+                    timeZone: tz,
+                    year: 'numeric', month: 'numeric', day: 'numeric',
+                    hour: 'numeric', minute: 'numeric', second: 'numeric',
+                    hour12: false
+                });
+                const parts = formatter.formatToParts(date);
+                const getPart = (type) => {
+                    const part = parts.find(p => p.type === type);
+                    let val = parseInt(part ? part.value : '0', 10);
+                    if (type === 'hour' && val === 24) val = 0;
+                    return val;
+                };
+                
+                const tzDate = Date.UTC(
+                    getPart('year'), getPart('month') - 1, getPart('day'),
+                    getPart('hour'), getPart('minute'), getPart('second')
+                );
+                const utcDate = Date.UTC(
+                    date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(),
+                    date.getUTCHours(), date.getUTCMinutes(), date.getUTCSeconds()
+                );
+                
+                const offset = tzDate - utcDate;
+                
+                const hours = Math.floor(Math.abs(offset) / 3600000);
+                const minutes = Math.floor((Math.abs(offset) % 3600000) / 60000);
+                const sign = offset >= 0 ? '+' : '-';
+                const offsetString = `UTC${sign}${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+                
+                option.textContent = `${tz} (${offsetString})`;
+            } catch (e) {
+                option.textContent = tz;
+            }
+            tzSelect.appendChild(option);
+        });
+    }
 
     // --- Helper to display status messages ---
     function showMessage(element, message, type = 'info', duration = 5000) {
@@ -290,6 +350,20 @@ document.addEventListener('DOMContentLoaded', () => {
             const unitSystemEl = document.querySelector(`input[name="unit_system"][value="${config.unit_system || 'metric'}"]`);
             if (unitSystemEl) unitSystemEl.checked = true;
 
+            const tzInput = document.getElementById('timezone');
+            if (tzInput) {
+                const savedTz = config.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+                tzInput.value = savedTz;
+                // If the exact saved timezone isn't in the list (e.g. browser gave something weird), add it
+                if (tzInput.value !== savedTz) {
+                    const option = document.createElement('option');
+                    option.value = savedTz;
+                    option.textContent = savedTz;
+                    tzInput.appendChild(option);
+                    tzInput.value = savedTz;
+                }
+            }
+
             setCheck('reverse-geocode-enabled', config.reverse_geocode_enabled !== false);
             setCheck('fetch-full-route', config.fetch_full_trip_route || false);
             
@@ -451,9 +525,20 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             const formData = new FormData(displaySettingsForm);
             const newSettings = {
-                unit_system: formData.get('unit_system'),
+                unit_system: formData.get('unit_system')
             };
             saveConfig(newSettings, displayStatusMessage);
+        });
+    }
+
+    if (timezoneSettingsForm) {
+        timezoneSettingsForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(timezoneSettingsForm);
+            const newSettings = {
+                timezone: formData.get('timezone')
+            };
+            saveConfig(newSettings, timezoneStatusMessage);
         });
     }
 
@@ -640,6 +725,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('geocoding-map')) {
         initGeocodingMap();
     }
+    populateTimezones();
     populateCheckboxes(mqttSensorSelection, ALL_SENSORS, 'mqtt-sensor');
     loadUsername();
     loadSettings();

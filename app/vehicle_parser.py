@@ -2,6 +2,9 @@
 import datetime
 import logging
 
+from . import time_utils
+from .config import config_manager
+
 _LOGGER = logging.getLogger(__name__)
 
 class VehicleParser:
@@ -14,7 +17,7 @@ class VehicleParser:
 
     async def build_info_dict(self):
         """Builds the main vehicle information dictionary."""
-        aware_utcnow = datetime.datetime.now(datetime.timezone.utc)
+        local_now = time_utils.get_naive_utc_now(config_manager)
 
         vehicle_info = {
             "vin": self.vehicle.vin,
@@ -25,7 +28,7 @@ class VehicleParser:
             "statistics": {"overall": {}, "daily": {}},
             "status": {},
             "notifications": [],
-            "last_updated": aware_utcnow.isoformat(),
+            "last_updated": local_now.isoformat(),
         }
 
         if self.vehicle.dashboard:
@@ -56,7 +59,7 @@ class VehicleParser:
                 "address": address,
             }
 
-        self._parse_lock_status(vehicle_info, aware_utcnow)
+        self._parse_lock_status(vehicle_info, local_now)
 
         if hasattr(self.vehicle, "notifications") and self.vehicle.notifications:
             vehicle_info["notifications"] = [
@@ -65,7 +68,7 @@ class VehicleParser:
 
         return vehicle_info
 
-    def _parse_lock_status(self, vehicle_info, aware_utcnow):
+    def _parse_lock_status(self, vehicle_info, local_now):
         """Handles the complex nesting and fallback logic for vehicle doors and windows."""
         doors_status = {
             "front_left": {"closed": True, "locked": False},
@@ -78,7 +81,7 @@ class VehicleParser:
             "rear_left": {"closed": True}, "rear_right": {"closed": True},
         }
         hood_closed, trunk_closed, trunk_locked = True, True, False
-        last_update_timestamp = aware_utcnow.isoformat()
+        last_update_timestamp = local_now.isoformat()
         lock_status_error = False
 
         if hasattr(self.vehicle, "lock_status") and self.vehicle.lock_status:
@@ -87,8 +90,7 @@ class VehicleParser:
                 ts = getattr(lock_status, "last_update_timestamp", getattr(lock_status, "timestamp", None))
                 if ts:
                     if isinstance(ts, datetime.datetime):
-                        if ts.tzinfo is None:
-                            ts = ts.replace(tzinfo=datetime.timezone.utc)
+                        ts = time_utils.convert_to_naive_utc(ts, config_manager)
                         last_update_timestamp = ts.isoformat()
                     else:
                         last_update_timestamp = str(ts)
