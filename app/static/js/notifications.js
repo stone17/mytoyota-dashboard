@@ -125,7 +125,7 @@ async function loadPageData() {
     
     try {
         const configResponse = await fetch('/api/config');
-        if (configResponse.ok) window.appConfig = await configResponse.json();
+        if (configResponse.ok) Object.assign(window.appConfig, await configResponse.json());
 
         const response = await fetch('/api/vehicles');
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);

@@ -266,7 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadConfig() {
         try {
             const response = await fetch('/api/config');
-            window.appConfig = response.ok ? await response.json() : { unit_system: 'metric' };
+            if (response.ok) { Object.assign(window.appConfig, await response.json()); }
         } catch (error) { console.error("Failed to load application config, using defaults.", error); }
     }
 
