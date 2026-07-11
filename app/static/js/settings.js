@@ -182,7 +182,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     end_lon: trip.end_lon
                 });
                 let tz = document.getElementById('timezone')?.value || 'UTC';
-                let date = safeLocaleString(trip.start_timestamp, undefined, { timeZone: tz });
+                let date;
+                try {
+                    date = new Date(trip.start_timestamp).toLocaleString(undefined, { timeZone: tz });
+                } catch (e) {
+                    date = new Date(trip.start_timestamp).toLocaleString();
+                }
                 option.textContent = `${date} - ${trip.distance_km.toFixed(1)} km`;
                 testTripSelect.appendChild(option);
             });
