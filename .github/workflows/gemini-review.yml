@@ -1,0 +1,23 @@
+name: Gemini PR Review
+on:
+  pull_request:
+    types: [opened]
+  issue_comment:
+    types: [created]
+
+jobs:
+  review:
+    if: >
+      github.event_name == 'pull_request' || 
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request && startsWith(github.event.comment.body, '/gemini-review'))
+    runs-on: self-hosted
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Gemini Review Bot
+        uses: jgunnink/gemini-review-bot@main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
