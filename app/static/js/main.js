@@ -42,7 +42,9 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadConfig() {
         try {
             const response = await fetch('/api/config');
-            Object.assign(window.appConfig, await response.json());
+            if (response.ok) {
+                Object.assign(window.appConfig, await response.json());
+            }
             if (!window.appConfig.dashboard_sensors) {
                 window.appConfig.dashboard_sensors = {};
             }
