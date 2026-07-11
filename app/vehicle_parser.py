@@ -18,6 +18,7 @@ class VehicleParser:
     async def build_info_dict(self):
         """Builds the main vehicle information dictionary."""
         local_now = time_utils.get_naive_utc_now(config_manager)
+        local_now_aware = time_utils.convert_utc_to_local_aware(local_now, config_manager)
 
         vehicle_info = {
             "vin": self.vehicle.vin,
@@ -28,7 +29,7 @@ class VehicleParser:
             "statistics": {"overall": {}, "daily": {}},
             "status": {},
             "notifications": [],
-            "last_updated": local_now.isoformat(),
+            "last_updated": local_now_aware.isoformat(),
         }
 
         if self.vehicle.dashboard:
@@ -59,7 +60,7 @@ class VehicleParser:
                 "address": address,
             }
 
-        self._parse_lock_status(vehicle_info, local_now)
+        self._parse_lock_status(vehicle_info, vehicle_info["last_updated"])
 
         if hasattr(self.vehicle, "notifications") and self.vehicle.notifications:
             vehicle_info["notifications"] = [
@@ -68,7 +69,7 @@ class VehicleParser:
 
         return vehicle_info
 
-    def _parse_lock_status(self, vehicle_info, local_now):
+    def _parse_lock_status(self, vehicle_info, default_last_updated: str):
         """Handles the complex nesting and fallback logic for vehicle doors and windows."""
         doors_status = {
             "front_left": {"closed": True, "locked": False},
@@ -81,7 +82,7 @@ class VehicleParser:
             "rear_left": {"closed": True}, "rear_right": {"closed": True},
         }
         hood_closed, trunk_closed, trunk_locked = True, True, False
-        last_update_timestamp = local_now.isoformat()
+        last_update_timestamp = default_last_updated
         lock_status_error = False
 
         if hasattr(self.vehicle, "lock_status") and self.vehicle.lock_status:
@@ -90,8 +91,9 @@ class VehicleParser:
                 ts = getattr(lock_status, "last_update_timestamp", getattr(lock_status, "timestamp", None))
                 if ts:
                     if isinstance(ts, datetime.datetime):
-                        ts = time_utils.convert_to_naive_utc(ts, config_manager)
-                        last_update_timestamp = ts.isoformat()
+                        ts_utc = time_utils.convert_to_naive_utc(ts, config_manager)
+                        ts_local = time_utils.convert_utc_to_local_aware(ts_utc, config_manager)
+                        last_update_timestamp = ts_local.isoformat()
                     else:
                         last_update_timestamp = str(ts)
 

@@ -763,7 +763,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         setVal('.charging_status', chargeStatus);
 
-        setVal('.vin span', vehicleToRender.vin);
+        setVal('.vin-value', vehicleToRender.vin);
         
         // Compare the server's last_updated with our local optimistic timestamp
         let serverLastUpdated = vehicleToRender.last_updated;
