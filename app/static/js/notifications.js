@@ -1,3 +1,16 @@
+const safeLocaleDateString = (date, locales, options) => {
+    try { return new Date(date).toLocaleDateString(locales, options); }
+    catch (e) { const fallback = { ...options }; delete fallback.timeZone; return new Date(date).toLocaleDateString(locales, fallback); }
+};
+const safeLocaleString = (date, locales, options) => {
+    try { return new Date(date).toLocaleString(locales, options); }
+    catch (e) { const fallback = { ...options }; delete fallback.timeZone; return new Date(date).toLocaleString(locales, fallback); }
+};
+const safeLocaleTimeString = (date, locales, options) => {
+    try { return new Date(date).toLocaleTimeString(locales, options); }
+    catch (e) { const fallback = { ...options }; delete fallback.timeZone; return new Date(date).toLocaleTimeString(locales, fallback); }
+};
+
 document.addEventListener('DOMContentLoaded', function() {
     // This single function will now load all initial data for the page.
     loadPageData();
@@ -54,7 +67,7 @@ function renderVehicleData(vehicle) {
             if (notification.date) {
                 const timeDiv = document.createElement('div');
                 timeDiv.className = 'notification-time';
-                timeDiv.textContent = new Date(notification.date).toLocaleString(undefined, { timeZone: window.appConfig?.timezone || 'UTC' });
+                timeDiv.textContent = safeLocaleString(notification.date, undefined, { timeZone: window.appConfig?.timezone || 'UTC' });
                 contentDiv.appendChild(timeDiv);
             }
             
