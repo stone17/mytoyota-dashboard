@@ -210,7 +210,7 @@
             </section>
 
             <section class="settings-section">
-                <h2 data-i18n="settings.location_settings">Location & GPS Settings</h2>
+                <h2 data-i18n="settings.location_settings">Location &amp; GPS Settings</h2>
                 <p data-i18n="settings.location_desc">Configure how trip addresses and GPS data are resolved.</p>
                 <form id="geocoding-settings-form">
                     <div class="form-group">
@@ -285,6 +285,7 @@
         </div>
     </main>
     
+    <script src="/static/js/utils.js?v={{ cache_buster }}"></script>
     <script src="/static/js/settings.js?v={{ cache_buster }}"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {

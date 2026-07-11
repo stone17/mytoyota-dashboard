@@ -1,17 +1,4 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const safeLocaleDateString = (date, locales, options) => {
-        try { return new Date(date).toLocaleDateString(locales, options); }
-        catch (e) { const fallback = { ...options }; delete fallback.timeZone; return new Date(date).toLocaleDateString(locales, fallback); }
-    };
-    const safeLocaleString = (date, locales, options) => {
-        try { return new Date(date).toLocaleString(locales, options); }
-        catch (e) { const fallback = { ...options }; delete fallback.timeZone; return new Date(date).toLocaleString(locales, fallback); }
-    };
-    const safeLocaleTimeString = (date, locales, options) => {
-        try { return new Date(date).toLocaleTimeString(locales, options); }
-        catch (e) { const fallback = { ...options }; delete fallback.timeZone; return new Date(date).toLocaleTimeString(locales, fallback); }
-    };
-
     const vehicleContainer = document.getElementById('vehicle-container');
     const vehicleTemplate = document.getElementById('vehicle-template');
 
@@ -287,7 +274,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- End Slicing Logic ---
 
         // Use the sliced 'chartData' for labels
-        const labels = chartData.map(d => safeLocaleDateString(d.date, undefined, { month: 'short', day: 'numeric', timeZone: window.appConfig?.timezone || 'UTC' }));
+        const labels = chartData.map(d => window.safeLocaleDateString(d.date, undefined, { month: 'short', day: 'numeric', timeZone: window.appConfig?.timezone || 'UTC' }));
         const datasets = [];
         const yAxes = {};
 
@@ -383,7 +370,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     tooltip: {
                         callbacks: {
                             // Use sliced 'chartData' for the tooltip title
-                            title: (tooltipItems) => safeLocaleDateString(chartData[tooltipItems[0].dataIndex].date, undefined, { timeZone: window.appConfig?.timezone || 'UTC' }),
+                            title: (tooltipItems) => window.safeLocaleDateString(chartData[tooltipItems[0].dataIndex].date, undefined, { timeZone: window.appConfig?.timezone || 'UTC' }),
                             label: (context) => {
                                 let metric = context.dataset.yAxisID === 'y' ? metric1 : metric2;
                                 let config = metricConfig[metric];
@@ -519,7 +506,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const statusTimestamp = spans.length > 1 ? spans[1] : null;
         
         if (statusTimestamp && vehicleStatus.last_update_timestamp) {
-            statusTimestamp.textContent = safeLocaleString(vehicleStatus.last_update_timestamp, undefined, { timeZone: window.appConfig?.timezone || 'UTC' });
+            statusTimestamp.textContent = window.safeLocaleString(vehicleStatus.last_update_timestamp, undefined, { timeZone: window.appConfig?.timezone || 'UTC' });
         } else if (statusTimestamp) {
             statusTimestamp.textContent = 'N/A';
         }
@@ -791,7 +778,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        const formattedDate = serverLastUpdated && serverLastUpdated !== "Never" ? safeLocaleString(serverLastUpdated, undefined, { timeZone: window.appConfig?.timezone || 'UTC' }) : "Never";
+        const formattedDate = serverLastUpdated && serverLastUpdated !== "Never" ? window.safeLocaleString(serverLastUpdated, undefined, { timeZone: window.appConfig?.timezone || 'UTC' }) : "Never";
         setVal('.last-updated-time', formattedDate);
         setVal('.last_updated', formattedDate);
         setVal('.last-updated', formattedDate);
