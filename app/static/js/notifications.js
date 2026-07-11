@@ -26,6 +26,8 @@ function renderServiceHistory(history, unit = 'km') {
     }
 }
 
+window.appConfig = Object.assign({ timezone: 'UTC' }, window.appConfig);
+
 function renderVehicleData(vehicle) {
     const notificationsContainer = document.getElementById('notifications-container');
     const fetchBtn = document.getElementById('fetch-service-history-btn');
@@ -52,7 +54,7 @@ function renderVehicleData(vehicle) {
             if (notification.date) {
                 const timeDiv = document.createElement('div');
                 timeDiv.className = 'notification-time';
-                timeDiv.textContent = new Date(notification.date).toLocaleString();
+                timeDiv.textContent = window.safeLocaleString(notification.date, undefined, { timeZone: window.appConfig?.timezone || 'UTC' });
                 contentDiv.appendChild(timeDiv);
             }
             
@@ -121,6 +123,13 @@ function renderVehicleData(vehicle) {
 async function loadPageData() {
     const notificationsContainer = document.getElementById('notifications-container');
     
+    try {
+        const configResponse = await fetch('/api/config');
+        if (configResponse.ok) { Object.assign(window.appConfig, await configResponse.json()); }
+    } catch (e) {
+        console.error('Failed to load config, using defaults:', e);
+    }
+
     try {
         const response = await fetch('/api/vehicles');
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);

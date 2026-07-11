@@ -181,7 +181,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     end_lat: trip.end_lat,
                     end_lon: trip.end_lon
                 });
-                const date = new Date(trip.start_timestamp).toLocaleString();
+                let tz = document.getElementById('timezone')?.value || 'UTC';
+                const date = window.safeLocaleString(trip.start_timestamp, undefined, { timeZone: tz });
                 option.textContent = `${date} - ${trip.distance_km.toFixed(1)} km`;
                 testTripSelect.appendChild(option);
             });
