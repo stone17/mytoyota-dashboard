@@ -167,8 +167,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            const isImperial = window.appConfig.unit_system.startsWith('imperial');
-            const isUk = window.appConfig.unit_system === 'imperial_uk';
+            const isImperial = window.appConfig?.unit_system?.startsWith('imperial');
+            const isUk = window.appConfig?.unit_system === 'imperial_uk';
             const metricConfig = {
                 distance_km: {
                     label: window.i18n ? window.i18n.t('dashboard.metrics.distance_km') : 'Distance', unit: { metric: 'km', imperial: 'mi' }, color: '#00529b',
@@ -272,7 +272,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- End Slicing Logic ---
 
         // Use the sliced 'chartData' for labels
-        const labels = chartData.map(d => new Date(d.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: window.appConfig.timezone || 'UTC' }));
+        const labels = chartData.map(d => new Date(d.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: window.appConfig?.timezone || 'UTC' }));
         const datasets = [];
         const yAxes = {};
 
@@ -368,7 +368,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     tooltip: {
                         callbacks: {
                             // Use sliced 'chartData' for the tooltip title
-                            title: (tooltipItems) => new Date(chartData[tooltipItems[0].dataIndex].date).toLocaleDateString(undefined, { timeZone: window.appConfig.timezone || 'UTC' }),
+                            title: (tooltipItems) => new Date(chartData[tooltipItems[0].dataIndex].date).toLocaleDateString(undefined, { timeZone: window.appConfig?.timezone || 'UTC' }),
                             label: (context) => {
                                 let metric = context.dataset.yAxisID === 'y' ? metric1 : metric2;
                                 let config = metricConfig[metric];
@@ -504,7 +504,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const statusTimestamp = spans.length > 1 ? spans[1] : null;
         
         if (statusTimestamp && vehicleStatus.last_update_timestamp) {
-            statusTimestamp.textContent = new Date(vehicleStatus.last_update_timestamp).toLocaleString(undefined, { timeZone: window.appConfig.timezone || 'UTC' });
+            statusTimestamp.textContent = new Date(vehicleStatus.last_update_timestamp).toLocaleString(undefined, { timeZone: window.appConfig?.timezone || 'UTC' });
         } else if (statusTimestamp) {
             statusTimestamp.textContent = 'N/A';
         }
@@ -581,8 +581,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderVehicle(vehicleToRender, vehicles) {
-        const isImperial = window.appConfig.unit_system.startsWith('imperial');
-        const isUk = window.appConfig.unit_system === 'imperial_uk';
+        const isImperial = window.appConfig?.unit_system?.startsWith('imperial');
+        const isUk = window.appConfig?.unit_system === 'imperial_uk';
 
         vehicleContainer.innerHTML = '';
         if (!vehicleToRender) {
@@ -776,7 +776,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        const formattedDate = serverLastUpdated && serverLastUpdated !== "Never" ? new Date(serverLastUpdated).toLocaleString(undefined, { timeZone: window.appConfig.timezone || 'UTC' }) : "Never";
+        const formattedDate = serverLastUpdated && serverLastUpdated !== "Never" ? new Date(serverLastUpdated).toLocaleString(undefined, { timeZone: window.appConfig?.timezone || 'UTC' }) : "Never";
         setVal('.last-updated-time', formattedDate);
         setVal('.last_updated', formattedDate);
         setVal('.last-updated', formattedDate);
@@ -791,7 +791,7 @@ document.addEventListener('DOMContentLoaded', () => {
             mapContainer.innerHTML = '<p style="text-align: center; padding-top: 50px; color: #888;">Location data not available.</p>';
         }
 
-        const enabledSensors = window.appConfig.dashboard_sensors || {};
+        const enabledSensors = window.appConfig?.dashboard_sensors || {};
         vehicleCard.querySelectorAll('.stat[data-stat-key]').forEach(el => {
             const key = el.dataset.statKey;
             if (enabledSensors[key] === false) {
@@ -1037,7 +1037,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const statEl = statsContainer.querySelector(`.stat[data-stat-key="${key}"]`);
                     if (statEl) {
                         statEl.style.display = ''; // Make sure it's visible
-                        const isEnabled = window.appConfig.dashboard_sensors[key] !== false;
+                        const isEnabled = window.appConfig?.dashboard_sensors?.[key] !== false;
                         statEl.classList.toggle('disabled', !isEnabled);
 
                         // Add a checkbox if it doesn't exist
@@ -1047,7 +1047,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             checkbox.checked = isEnabled;
                             checkbox.addEventListener('change', (e) => {
                                 statEl.classList.toggle('disabled', !e.target.checked);
-                                window.appConfig.dashboard_sensors[key] = e.target.checked;
+                                if (window.appConfig?.dashboard_sensors) {
+                                    window.appConfig.dashboard_sensors[key] = e.target.checked;
+                                }
                             });
                             statEl.insertBefore(checkbox, statEl.firstChild);
                          }
@@ -1082,14 +1084,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (checkbox) {
                             statEl.removeChild(checkbox);
                         }
-                        if (window.appConfig.dashboard_sensors[key] === false) {
+                        if (window.appConfig?.dashboard_sensors?.[key] === false) {
                             statEl.style.display = 'none';
                         }
                     }
                 });
 
                 // Persist the enabled/disabled state to the server
-                saveDashboardSensorsConfig(window.appConfig.dashboard_sensors);
+                saveDashboardSensorsConfig(window.appConfig?.dashboard_sensors);
 
                 // Re-apply grid styling for odd numbers of items
                 const visibleStats = Array.from(statsContainer.querySelectorAll('.stat')).filter(el => el.style.display !== 'none');

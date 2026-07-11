@@ -54,7 +54,7 @@ function renderVehicleData(vehicle) {
             if (notification.date) {
                 const timeDiv = document.createElement('div');
                 timeDiv.className = 'notification-time';
-                timeDiv.textContent = new Date(notification.date).toLocaleString(undefined, { timeZone: window.appConfig.timezone || 'UTC' });
+                timeDiv.textContent = new Date(notification.date).toLocaleString(undefined, { timeZone: window.appConfig?.timezone || 'UTC' });
                 contentDiv.appendChild(timeDiv);
             }
             

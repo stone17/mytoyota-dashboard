@@ -229,8 +229,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateUnitHeaders() {
-        const isImperial = window.appConfig.unit_system.startsWith('imperial');
-        const isUk = window.appConfig.unit_system === 'imperial_uk';
+        const isImperial = window.appConfig?.unit_system?.startsWith('imperial');
+        const isUk = window.appConfig?.unit_system === 'imperial_uk';
         document.querySelectorAll('th .unit[data-unit-type="distance"]').forEach(span => { span.textContent = isImperial ? 'mi' : 'km'; });
         document.querySelectorAll('th .unit[data-unit-type="speed"]').forEach(span => { span.textContent = isImperial ? 'mph' : 'km/h'; });
         const consumptionUnit = document.querySelector('th .unit[data-unit-type="consumption"]');
@@ -346,7 +346,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const params = new URLSearchParams({
                 sort_by: currentSort.by,
                 sort_direction: currentSort.direction,
-                unit_system: window.appConfig.unit_system
+                unit_system: window.appConfig?.unit_system
             });
 
             const periodDays = periodSelect.value;
@@ -459,15 +459,15 @@ document.addEventListener('DOMContentLoaded', () => {
         currentTripContext = { tripId: trip.id, rowIndex: rowIndex };
         
         // 1. Calculate stats universally (pulled out of isMobile check)
-        const isImperial = window.appConfig.unit_system.startsWith('imperial');
-        const isUk = window.appConfig.unit_system === 'imperial_uk';
+        const isImperial = window.appConfig?.unit_system?.startsWith('imperial');
+        const isUk = window.appConfig?.unit_system === 'imperial_uk';
         const distance = isImperial ? trip.distance_mi : trip.distance_km;
         const consumption = isImperial ? (isUk ? trip.mpg_uk : trip.mpg) : trip.fuel_consumption_l_100km;
         const evRatio = (trip.distance_km > 0 && trip.ev_distance_km) ? (trip.ev_distance_km / trip.distance_km * 100) : 0;
         const duration = new Date(trip.duration_seconds * 1000).toISOString().slice(11, 19);
 
         // 2. Append the stats directly to the map title
-        mapPanelTitle.innerHTML = `Trip on ${new Date(trip.start_timestamp).toLocaleDateString(undefined, { timeZone: window.appConfig.timezone || 'UTC' })} 
+        mapPanelTitle.innerHTML = `Trip on ${new Date(trip.start_timestamp).toLocaleDateString(undefined, { timeZone: window.appConfig?.timezone || 'UTC' })} 
             <span style="font-size: 0.8em; color: var(--text-subtle); font-weight: normal; margin-left: 8px; white-space: nowrap;">
                 (${distance.toFixed(1)} ${isImperial ? 'mi' : 'km'} | ${duration} | ${consumption.toFixed(1)} ${isImperial ? 'mpg' : 'L/100km'})
             </span>`;
@@ -511,14 +511,14 @@ document.addEventListener('DOMContentLoaded', () => {
             tripCountDisplay.textContent = `(${trips.length} trips displayed)`;
         }
         displayedTrips = trips;
-        const isImperial = window.appConfig.unit_system.startsWith('imperial');
-        const isUk = window.appConfig.unit_system === 'imperial_uk';
+        const isImperial = window.appConfig?.unit_system?.startsWith('imperial');
+        const isUk = window.appConfig?.unit_system === 'imperial_uk';
         tripsTableBody.innerHTML = '';
         if (trips.length === 0) {
             tripsTableBody.innerHTML = window.i18n ? `<tr><td colspan="27" style="text-align: center; padding: 20px;">${window.i18n.t('trips.no_trips_filter')}</td></tr>` : `<tr><td colspan="27" style="text-align: center; padding: 20px;">No trips found for the current filter.</td></tr>`;
             return;
         }
-        const formatTimestamp = (ts) => !ts ? 'N/A' : `${new Date(ts).toLocaleDateString(undefined, { timeZone: window.appConfig.timezone || 'UTC' })}<br><span class="unit">${new Date(ts).toLocaleTimeString(undefined, { timeZone: window.appConfig.timezone || 'UTC' })}</span>`;
+        const formatTimestamp = (ts) => !ts ? 'N/A' : `${new Date(ts).toLocaleDateString(undefined, { timeZone: window.appConfig?.timezone || 'UTC' })}<br><span class="unit">${new Date(ts).toLocaleTimeString(undefined, { timeZone: window.appConfig?.timezone || 'UTC' })}</span>`;
         const formatNumber = (num, digits = 2) => (num === null || num === undefined) ? 'N/A' : Number(num).toFixed(digits);
         const formatDuration = (s) => (s === null || s === undefined) ? 'N/A' : new Date(s * 1000).toISOString().slice(11, 19);
         const formatBoolean = (b) => (b === null || b === undefined) ? 'N/A' : (b ? 'Yes' : 'No');
@@ -888,7 +888,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Construct the URL with the same parameters used to load the trip table
         const params = new URLSearchParams({
             vin: selectedVin,
-            unit_system: window.appConfig.unit_system
+            unit_system: window.appConfig?.unit_system
         });
 
         const periodDays = periodSelect.value;
