@@ -7,10 +7,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
-    window.appConfig = window.appConfig || {
+    window.appConfig = Object.assign({
         unit_system: 'metric',
         dashboard_sensors: {}
-    };
+    }, window.appConfig);
 
     const KM_TO_MI = 0.621371;
     const L_TO_GAL_US = 0.264172;

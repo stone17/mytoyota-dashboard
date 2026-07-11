@@ -26,7 +26,7 @@ function renderServiceHistory(history, unit = 'km') {
     }
 }
 
-window.appConfig = window.appConfig || { timezone: 'UTC' };
+window.appConfig = Object.assign({ timezone: 'UTC' }, window.appConfig);
 
 function renderVehicleData(vehicle) {
     const notificationsContainer = document.getElementById('notifications-container');

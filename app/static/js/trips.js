@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const exportCsvBtn = document.getElementById('export-csv-btn');
     
     let currentSort = { by: 'start_timestamp', direction: 'desc' };
-    window.appConfig = window.appConfig || { unit_system: 'metric' };
+    window.appConfig = Object.assign({ unit_system: 'metric' }, window.appConfig);
     let geocodeInterval;
     let originalTrips = [];
     let displayedTrips = [];
