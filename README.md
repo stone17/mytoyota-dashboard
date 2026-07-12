@@ -10,7 +10,7 @@ An independent, self-hosted dashboard for visualizing data from Toyota vehicles,
 *   **Trip History:** A sortable and filterable table of all your trips, with an integrated map view for each route.
 *   **Data Import & Backfill:** Import trip history from a CSV file exported from the Toyota app, or backfill historical data directly from the Toyota API.
 *   **MQTT Integration:** Push live vehicle data to an MQTT broker for integration with home automation systems like Home Assistant and Domoticz. Includes support for Home Assistant MQTT Auto-Discovery.
-*   **Secure Credential Management:** Securely save your MyToyota username and password via the web interface.  Credentials are encrypted on disk.
+*   **Secure Credential Management:** Securely save your connected services username and password via the web interface.  Credentials are encrypted on disk.
 *   **Configurable Polling:** Set the data refresh schedule to a fixed interval or a specific time of day.
 *   **Dynamic Control via MQTT:** Trigger data refreshes and control application settings (like polling frequency) via MQTT commands.
 *   **Docker Support:** Easy to deploy and update using Docker and Docker Compose.
@@ -54,8 +54,8 @@ Using Docker is the easiest and most reliable way to run the application.
 
 1.  **Clone the repository:** 
     ```bash
-    git clone https://github.com/stone17/vehicle-dashboard.git
-    cd vehicle-dashboard
+    git clone https://github.com/stone17/myvehicle-dashboard-for-toyota.git
+    cd myvehicle-dashboard-for-toyota
     ```
 
 2.  **Build and run the container:** 
@@ -198,7 +198,7 @@ You can create a Lua script in Domoticz to automatically adjust the dashboard's 
     -- local mqtt_pass = "mypass" -- Uncomment and set if your broker requires authentication
 
     -- The base topic configured in the dashboard's MQTT settings
-    local dashboard_base_topic = "mytoyota"
+    local dashboard_base_topic = "vehicle"
 
     -- The EXACT name of your car charger switch device in Domoticz
     local charger_device_name = "Car Charger" 
