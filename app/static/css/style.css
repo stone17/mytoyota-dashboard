@@ -182,6 +182,10 @@ body {
         gap: 10px;
     }
 
+    .header-title {
+        font-size: 1.1em;
+    }
+
     .nav-link span {
         display: none;
     }
