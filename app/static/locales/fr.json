@@ -7,7 +7,7 @@
         "settings": "Paramètres"
     },
     "dashboard": {
-        "title": "MyToyota Dashboard",
+        "title": "Tableau de bord du véhicule",
         "last_updated": "Dernière mise à jour :",
         "update_now": "Mettre à jour maintenant",
         "fetch_status": "Statut de récupération",
@@ -117,9 +117,9 @@
         "language_desc": "Sélectionnez la langue d'affichage pour le tableau de bord.",
         "select_language": "Sélectionner la langue",
         "credentials": "Gestion des identifiants",
-        "credentials_desc": "Stockez en toute sécurité votre nom d'utilisateur et mot de passe MyToyota. Ceux-ci sont cryptés et stockés localement.",
-        "username": "Nom d'utilisateur MyToyota (E-mail)",
-        "password": "Mot de passe MyToyota",
+        "credentials_desc": "Stockez en toute sécurité votre nom d'utilisateur et mot de passe des services connectés. Ceux-ci sont cryptés et stockés localement.",
+        "username": "Nom d'utilisateur des services connectés (E-mail)",
+        "password": "Mot de passe des services connectés",
         "password_ph": "Entrez le nouveau mot de passe pour mettre à jour",
         "save_credentials": "Enregistrer les identifiants",
         "mqtt": "Paramètres MQTT",

@@ -29,7 +29,7 @@ class MqttHandler:
         # Always use the latest config
         current_mqtt_config = config_manager.settings.get("mqtt", {})
         # Use a dedicated command topic to avoid conflicts with vehicle-specific base topics.
-        command_topic = current_mqtt_config.get("command_topic", "mytoyota/command")
+        command_topic = current_mqtt_config.get("command_topic", "vehicle/command")
 
         if msg.topic == command_topic:
             try:
@@ -92,7 +92,7 @@ class MqttHandler:
             # Always use the latest config
             current_mqtt_config = config_manager.settings.get("mqtt", {})
             # Use a dedicated command topic.
-            command_topic = current_mqtt_config.get("command_topic", "mytoyota/command")
+            command_topic = current_mqtt_config.get("command_topic", "vehicle/command")
             client.subscribe(command_topic)
             _LOGGER.info(f"Subscribed to MQTT command topic: {command_topic}")
         else:
@@ -106,7 +106,7 @@ class MqttHandler:
             return
         try:
             _LOGGER.info("Setting up persistent MQTT client for commands...")
-            client_id = f"mytoyota-dashboard-listener-{os.getpid()}-{uuid.uuid4().hex[:8]}"
+            client_id = f"vehicle-dashboard-listener-{os.getpid()}-{uuid.uuid4().hex[:8]}"
             self.listener_client = mqtt_client.Client(mqtt_client.CallbackAPIVersion.VERSION1, client_id=client_id)
             
             username = current_mqtt_config.get("username")
@@ -157,7 +157,7 @@ class MqttHandler:
         
         try:
             port = int(current_mqtt_config.get("port", 1883))
-            client_id = f"mytoyota-app-publisher-{os.getpid()}-{uuid.uuid4().hex[:8]}"
+            client_id = f"vehicle-app-publisher-{os.getpid()}-{uuid.uuid4().hex[:8]}"
             client = mqtt_client.Client(mqtt_client.CallbackAPIVersion.VERSION1, client_id)
             
             username = current_mqtt_config.get("username")
@@ -182,7 +182,7 @@ class MqttHandler:
         _LOGGER.info(f"Publishing MQTT auto-discovery configs for VIN {vin}...")
         current_mqtt_config = override_config if override_config is not None else config_manager.settings.get("mqtt", {})
         discovery_prefix = current_mqtt_config.get("discovery_prefix", "homeassistant")
-        base_topic = current_mqtt_config.get("base_topic", "mytoyota/{vin}").format(vin=vin)
+        base_topic = current_mqtt_config.get("base_topic", "vehicle/{vin}").format(vin=vin)
         enabled_sensors = current_mqtt_config.get("enabled_sensors", {})
         
         unit_system =  config_manager.settings.get("unit_system", "metric")
@@ -244,7 +244,7 @@ class MqttHandler:
                 _LOGGER.warning("Cannot publish MQTT data, VIN not found in vehicle data.")
                 return
             current_mqtt_config = override_config if override_config is not None else config_manager.settings.get("mqtt", {})
-            base_topic = current_mqtt_config.get("base_topic", "mytoyota/{vin}").format(vin=vin)
+            base_topic = current_mqtt_config.get("base_topic", "vehicle/{vin}").format(vin=vin)
             enabled_sensors = current_mqtt_config.get("enabled_sensors", {})
             
             unit_system =  config_manager.settings.get("unit_system", "metric")

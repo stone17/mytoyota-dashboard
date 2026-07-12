@@ -26,7 +26,7 @@ class NominatimGeocoder(BaseGeocoder):
         # Centralized rate limit: Guarantee a safe buffer before EVERY request
         await asyncio.sleep(1.5) 
 
-        headers = {"User-Agent": "MyToyota-Dashboard/1.0"}
+        headers = {"User-Agent": "Vehicle-Dashboard/1.0"}
         url = f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lon}&addressdetails=1"
 
         try:

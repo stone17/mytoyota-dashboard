@@ -55,8 +55,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let drawControl;
     let drawnItems;
 
-    const MAP_FILTERS_STORAGE_KEY = 'mytoyota_map_filters';
-    const TRIP_FILTERS_STORAGE_KEY = 'mytoyota_trip_list_filters';
+    const MAP_FILTERS_STORAGE_KEY = 'vehicle_map_filters';
+    const TRIP_FILTERS_STORAGE_KEY = 'vehicle_trip_list_filters';
 
     // --- Custom Map Icons ---
     const startIcon = new L.Icon({
@@ -566,7 +566,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (activeHeader) { activeHeader.querySelector('.sort-indicator').textContent = currentSort.direction === 'asc' ? ' ▲' : ' ▼'; }
     }
 
-    const COLUMN_PREF_KEY = 'mytoyota_trip_columns';
+    const COLUMN_PREF_KEY = 'vehicle_trip_columns';
     function updateColumnVisibility() {
         columnSelector.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
             const column = checkbox.dataset.column;
@@ -596,7 +596,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateColumnVisibility();
     }
 
-    const COLUMN_ORDER_KEY = 'mytoyota_trip_column_order';
+    const COLUMN_ORDER_KEY = 'vehicle_trip_column_order';
     function reorderTableBody(order) {
         tripsTableBody.querySelectorAll('tr').forEach(row => {
             if (row.children.length > 1) {

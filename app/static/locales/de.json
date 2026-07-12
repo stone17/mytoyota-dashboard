@@ -7,7 +7,7 @@
         "settings": "Einstellungen"
     },
     "dashboard": {
-        "title": "MyToyota Dashboard",
+        "title": "Fahrzeug-Dashboard",
         "last_updated": "Zuletzt aktualisiert:",
         "update_now": "Jetzt aktualisieren",
         "fetch_status": "Abrufstatus",
@@ -117,9 +117,9 @@
         "language_desc": "W\u00e4hlen Sie die Anzeigesprache f\u00fcr das Dashboard aus.",
         "select_language": "Sprache ausw\u00e4hlen",
         "credentials": "Anmeldedaten",
-        "credentials_desc": "Speichern Sie Ihre MyToyota-Anmeldedaten sicher. Diese werden lokal verschl\u00fcsselt.",
-        "username": "MyToyota Benutzername (E-Mail)",
-        "password": "MyToyota Passwort",
+        "credentials_desc": "Speichern Sie die Anmeldedaten für Ihre Connected Services sicher. Diese werden lokal verschl\u00fcsselt.",
+        "username": "Connected Services Benutzername (E-Mail)",
+        "password": "Connected Services Passwort",
         "password_ph": "Neues Passwort eingeben",
         "save_credentials": "Speichern",
         "mqtt": "MQTT-Einstellungen",
