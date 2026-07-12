@@ -297,7 +297,13 @@
         "history_size": "Log-Verlauf Gr\u00f6\u00dfe:",
         "save": "Speichern",
         "live_feed": "Live-Protokoll",
-        "clear": "L\u00f6schen"
+        "clear": "L\u00f6schen",
+        "save_raw_responses": "Rohe Serverantworten speichern",
+        "raw_viewer": "Rohdatenanzeige",
+        "trips_json": "Fahrten JSON",
+        "status_json": "Status JSON",
+        "refresh": "Aktualisieren",
+        "download": "Herunterladen"
     },
     "notifications": {
         "title": "Benachrichtigungen",

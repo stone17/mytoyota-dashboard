@@ -27,6 +27,22 @@ CACHE_LOCK = asyncio.Lock()
 GEOCODE_SEMAPHORE = asyncio.Semaphore(1)
 
 
+async def save_raw_response(endpoint: str, response: dict):
+    if not config_manager.settings.get("save_raw_responses", False):
+        return
+    filename = None
+    if "trips" in endpoint:
+        filename = "raw_trips_response.json"
+    elif "remote/status" in endpoint:
+        filename = "raw_status_response.json"
+    if filename:
+        try:
+            async with aiofiles.open(DATA_DIR / filename, "w") as f:
+                await f.write(json.dumps(response, indent=2))
+        except Exception as e:
+            _LOGGER.warning(f"Failed to save raw response for {endpoint}: {e}")
+
+
 async def _reverse_geocode_trip(trip_id: int, force: bool = False):
     """Performs reverse geocoding for a specific trip, respecting the semaphore."""
     async with GEOCODE_SEMAPHORE:

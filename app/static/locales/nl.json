@@ -297,7 +297,13 @@
         "history_size": "Logboek historie grootte:",
         "save": "Bewaar instellingen",
         "live_feed": "Live logboek",
-        "clear": "Wis logboek"
+        "clear": "Wis logboek",
+        "save_raw_responses": "Bewaar onbewerkte server antwoorden",
+        "raw_viewer": "Onbewerkte antwoorden",
+        "trips_json": "Ritten JSON",
+        "status_json": "Status JSON",
+        "refresh": "Verversen",
+        "download": "Downloaden"
     },
     "notifications": {
         "title": "Meldingen & Waarschuwingen",

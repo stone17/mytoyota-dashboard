@@ -297,7 +297,13 @@
         "history_size": "Log History Size:",
         "save": "Save Settings",
         "live_feed": "Live Log Feed",
-        "clear": "Clear Logs"
+        "clear": "Clear Logs",
+        "save_raw_responses": "Save Raw Server Responses",
+        "raw_viewer": "Raw Response Viewer",
+        "trips_json": "Trips JSON",
+        "status_json": "Status JSON",
+        "refresh": "Refresh",
+        "download": "Download"
     },
     "notifications": {
         "title": "Notifications & Alerts",

@@ -6,6 +6,12 @@ class PatchedController(Controller):
     async def request_json(self, method: str, endpoint: str, **kwargs) -> dict:
         response = await super().request_json(method, endpoint, **kwargs)
 
+        try:
+            from app.fetcher import save_raw_response
+            await save_raw_response(endpoint, response)
+        except Exception:
+            pass
+
         # Intercept trips endpoint to patch missing summary keys
         if "trips" in endpoint and isinstance(response, dict) and "payload" in response:
             payload = response.get("payload")

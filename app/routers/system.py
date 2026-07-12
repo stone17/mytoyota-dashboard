@@ -3,7 +3,9 @@ import logging
 import yaml
 from typing import Optional
 
+import os
 from fastapi import APIRouter, HTTPException, Request, Body
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from .. import fetcher
@@ -152,6 +154,21 @@ def update_credentials(creds: dict = Body(...)):
     except Exception as e:
         logging.error(f"Error saving credentials: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to save credentials.")
+
+@router.get("/raw_responses/{response_type}")
+async def get_raw_response(response_type: str):
+    from ..config import DATA_DIR
+    if response_type == "trips":
+        file_path = DATA_DIR / "raw_trips_response.json"
+    elif response_type == "status":
+        file_path = DATA_DIR / "raw_status_response.json"
+    else:
+        raise HTTPException(status_code=404, detail="Invalid response type.")
+        
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Raw response file not found.")
+        
+    return FileResponse(path=file_path, filename=file_path.name, media_type="application/json")
 
 @router.get("/config")
 def get_config():

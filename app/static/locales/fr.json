@@ -297,7 +297,13 @@
         "history_size": "Taille de l'historique :",
         "save": "Enregistrer les paramètres",
         "live_feed": "Flux de journal en direct",
-        "clear": "Effacer les journaux"
+        "clear": "Effacer les journaux",
+        "save_raw_responses": "Enregistrer les réponses brutes du serveur",
+        "raw_viewer": "Afficheur de réponses brutes",
+        "trips_json": "JSON des trajets",
+        "status_json": "JSON de statut",
+        "refresh": "Actualiser",
+        "download": "Télécharger"
     },
     "notifications": {
         "title": "Notifications et alertes",

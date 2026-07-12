@@ -68,6 +68,44 @@ document.addEventListener('DOMContentLoaded', () => {
     // Start the connection
     connectToLogStream();
 
+    const saveRawCheckbox = document.getElementById('save-raw-responses');
+    const rawViewerPanel = document.getElementById('raw-viewer-panel');
+    const rawSelector = document.getElementById('raw-response-selector');
+    const refreshRawBtn = document.getElementById('refresh-raw-btn');
+    const downloadRawLink = document.getElementById('download-raw-link');
+    const rawContent = document.getElementById('raw-response-content');
+
+    async function loadRawResponse() {
+        const type = rawSelector.value;
+        const url = `/api/raw_responses/${type}`;
+        downloadRawLink.href = url;
+        
+        try {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(res.status === 404 ? 'File not found.' : 'Fetch error.');
+            const data = await res.json();
+            rawContent.textContent = JSON.stringify(data, null, 2);
+        } catch (e) {
+            rawContent.textContent = e.message;
+        }
+    }
+
+    if (saveRawCheckbox) {
+        saveRawCheckbox.addEventListener('change', async () => {
+            const isChecked = saveRawCheckbox.checked;
+            rawViewerPanel.style.display = isChecked ? 'flex' : 'none';
+            if (isChecked) loadRawResponse();
+            
+            await fetch('/api/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ save_raw_responses: isChecked })
+            });
+        });
+        rawSelector.addEventListener('change', loadRawResponse);
+        refreshRawBtn.addEventListener('click', loadRawResponse);
+    }
+
     // --- Logging Settings ---
     const saveLogSettingsBtn = document.getElementById('save-log-settings-btn');
     const logSettingsStatusMessage = document.getElementById('log-settings-status-message');
@@ -82,6 +120,12 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('app-log-level').value = levels.app || 'INFO';
 
             document.getElementById('log-history-size').value = config.log_history_size || 200;
+            
+            if (saveRawCheckbox) {
+                saveRawCheckbox.checked = config.save_raw_responses === true;
+                rawViewerPanel.style.display = saveRawCheckbox.checked ? 'flex' : 'none';
+                if (saveRawCheckbox.checked) loadRawResponse();
+            }
         } catch (error) {
             console.error(`Failed to load settings: ${error.message}`);
             showMessage(logSettingsStatusMessage, `Failed to load settings: ${error.message}`, 'error');

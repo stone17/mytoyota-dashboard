@@ -67,11 +67,33 @@
             <p id="log-settings-status-message" class="status-message"></p>
         </section>
         <section class="settings-section">
-            <div class="logs-header">
-                <h2>Live Log Stream</h2>
-            </div>
-            <div id="log-content" class="logs-container">
-                Connecting to log stream...
+            <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 300px; display: flex; flex-direction: column;">
+                    <div class="logs-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h2>Live Log Stream</h2>
+                        <label style="font-size: 0.9em; font-weight: normal; margin: 0; display: flex; align-items: center; gap: 5px;">
+                            <input type="checkbox" id="save-raw-responses">
+                            <span data-i18n="logs.save_raw_responses">Save Raw Server Responses</span>
+                        </label>
+                    </div>
+                    <div id="log-content" class="logs-container" style="flex-grow: 1;">
+                        Connecting to log stream...
+                    </div>
+                </div>
+                <div id="raw-viewer-panel" style="flex: 1; min-width: 300px; display: none; flex-direction: column;">
+                    <div class="logs-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h2 data-i18n="logs.raw_viewer">Raw Response Viewer</h2>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <select id="raw-response-selector" style="margin: 0; padding: 4px;">
+                                <option value="trips" data-i18n="logs.trips_json">Trips JSON</option>
+                                <option value="status" data-i18n="logs.status_json">Status JSON</option>
+                            </select>
+                            <button id="refresh-raw-btn" data-i18n="logs.refresh" style="padding: 4px 8px; margin: 0;">Refresh</button>
+                            <a id="download-raw-link" href="#" download data-i18n="logs.download">Download</a>
+                        </div>
+                    </div>
+                    <pre id="raw-response-content" class="logs-container" style="white-space: pre-wrap; overflow-y: auto; margin: 0; flex-grow: 1;"></pre>
+                </div>
             </div>
         </section>
     </main>
