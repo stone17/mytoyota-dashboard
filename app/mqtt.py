@@ -29,7 +29,7 @@ class MqttHandler:
         # Always use the latest config
         current_mqtt_config = config_manager.settings.get("mqtt", {})
         # Use a dedicated command topic to avoid conflicts with vehicle-specific base topics.
-        command_topic = current_mqtt_config.get("command_topic", "vehicle/command")
+        command_topic = current_mqtt_config.get("command_topic", current_mqtt_config.get("base_topic", "vehicle").split("/{")[0] + "/command")
 
         if msg.topic == command_topic:
             try:
@@ -92,7 +92,7 @@ class MqttHandler:
             # Always use the latest config
             current_mqtt_config = config_manager.settings.get("mqtt", {})
             # Use a dedicated command topic.
-            command_topic = current_mqtt_config.get("command_topic", "vehicle/command")
+            command_topic = current_mqtt_config.get("command_topic", current_mqtt_config.get("base_topic", "vehicle").split("/{")[0] + "/command")
             client.subscribe(command_topic)
             _LOGGER.info(f"Subscribed to MQTT command topic: {command_topic}")
         else:

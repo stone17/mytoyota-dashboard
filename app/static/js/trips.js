@@ -57,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const MAP_FILTERS_STORAGE_KEY = 'vehicle_map_filters';
     const TRIP_FILTERS_STORAGE_KEY = 'vehicle_trip_list_filters';
+    const getStorageItem = (key, fallbackKey) => localStorage.getItem(key) || localStorage.getItem(fallbackKey);
 
     // --- Custom Map Icons ---
     const startIcon = new L.Icon({
@@ -181,7 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function loadAndApplyTripFilters() {
-        const savedFilters = JSON.parse(localStorage.getItem(TRIP_FILTERS_STORAGE_KEY));
+        const savedFilters = JSON.parse(getStorageItem(TRIP_FILTERS_STORAGE_KEY, 'mytoyota_trip_list_filters'));
         if (savedFilters) {
             if (savedFilters.period) {
                 periodSelect.value = savedFilters.period;
@@ -191,7 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function loadMapFiltersFromLocalStorage() {
-        const savedFilters = JSON.parse(localStorage.getItem(MAP_FILTERS_STORAGE_KEY));
+        const savedFilters = JSON.parse(getStorageItem(MAP_FILTERS_STORAGE_KEY, 'mytoyota_map_filters'));
         if (!savedFilters) return;
 
         drawnItems.clearLayers();
@@ -582,7 +583,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function loadColumnPreferences() {
-        const preferences = JSON.parse(localStorage.getItem(COLUMN_PREF_KEY));
+        const preferences = JSON.parse(getStorageItem(COLUMN_PREF_KEY, 'mytoyota_trip_columns'));
         if (preferences) {
             columnSelector.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                 // If a column is new (not in saved prefs), default it to checked.
@@ -640,7 +641,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function loadAndApplyColumnOrder() {
-        const savedOrder = localStorage.getItem(COLUMN_ORDER_KEY);
+        const savedOrder = getStorageItem(COLUMN_ORDER_KEY, 'mytoyota_trip_column_order');
         if (savedOrder) { try { applyColumnOrder(JSON.parse(savedOrder)); } catch (e) { console.error("Failed to apply saved column order.", e); } }
     }
 
