@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trip History - MyToyota Dashboard</title>
+    <title>Trip History - MyVehicle Dashboard</title>
     <link rel="stylesheet" href="/static/css/style.css?v={{ cache_buster }}">
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
@@ -124,7 +124,10 @@
 </head>
 <body>
     <header class="main-header">
-        <div class="header-title" data-i18n="dashboard.title">MyToyota Dashboard</div>
+        <div class="header-title">
+            <span data-i18n="dashboard.title_main">MyVehicle Dashboard</span>
+            <span class="header-subtitle" data-i18n="dashboard.title_sub">for Toyota</span>
+        </div>
         <nav class="main-nav">
             <a href="/" class="nav-link">
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"></path></svg>

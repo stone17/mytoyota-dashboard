@@ -7,7 +7,9 @@
         "settings": "Ajustes"
     },
     "dashboard": {
-        "title": "MyToyota Dashboard",
+        "title": "Panel del Vehículo",
+        "title_main": "MyVehicle Dashboard",
+        "title_sub": "para Toyota",
         "last_updated": "\u00daltima actualizaci\u00f3n:",
         "update_now": "Actualizar ahora",
         "fetch_status": "Estado de conexi\u00f3n",
@@ -117,9 +119,9 @@
         "language_desc": "Seleccione el idioma de visualizaci\u00f3n para el panel.",
         "select_language": "Seleccionar Idioma",
         "credentials": "Gesti\u00f3n de Credenciales",
-        "credentials_desc": "Guarde de forma segura su nombre de usuario y contrase\u00f1a de MyToyota. Estos se cifran y almacenan localmente.",
-        "username": "Nombre de usuario de MyToyota (Correo electr\u00f3nico)",
-        "password": "Contrase\u00f1a de MyToyota",
+        "credentials_desc": "Guarde de forma segura su nombre de usuario y contrase\u00f1a de los servicios conectados. Estos se cifran y almacenan localmente.",
+        "username": "Nombre de usuario de los servicios conectados (Correo electr\u00f3nico)",
+        "password": "Contrase\u00f1a de los servicios conectados",
         "password_ph": "Ingrese nueva contrase\u00f1a para actualizar",
         "save_credentials": "Guardar Credenciales",
         "mqtt": "Ajustes MQTT",

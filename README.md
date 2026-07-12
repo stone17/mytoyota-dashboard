@@ -1,6 +1,6 @@
-# MyToyota Dashboard
+# Dashboard for Toyota Vehicles
 
-A self-hosted web dashboard to visualize your Toyota vehicle's data, including live status, trip history, and performance statistics.
+An independent, self-hosted dashboard for visualizing data from Toyota vehicles, including live status, trip history, and performance statistics.
 
 ## Features
 
@@ -10,15 +10,15 @@ A self-hosted web dashboard to visualize your Toyota vehicle's data, including l
 *   **Trip History:** A sortable and filterable table of all your trips, with an integrated map view for each route.
 *   **Data Import & Backfill:** Import trip history from a CSV file exported from the Toyota app, or backfill historical data directly from the Toyota API.
 *   **MQTT Integration:** Push live vehicle data to an MQTT broker for integration with home automation systems like Home Assistant and Domoticz. Includes support for Home Assistant MQTT Auto-Discovery.
-*   **Secure Credential Management:** Securely save your MyToyota username and password via the web interface.  Credentials are encrypted on disk.
+*   **Secure Credential Management:** Securely save your connected services username and password via the web interface.  Credentials are encrypted on disk.
 *   **Configurable Polling:** Set the data refresh schedule to a fixed interval or a specific time of day.
 *   **Dynamic Control via MQTT:** Trigger data refreshes and control application settings (like polling frequency) via MQTT commands.
 *   **Docker Support:** Easy to deploy and update using Docker and Docker Compose.
 
 ## Screenshot
 
-![Dashboard Screenshot](interface1.png "MyToyota Dashboard Interface")
-![Trip History Screenshot](interface2.png "MyToyota Dashboard Interface")
+![Dashboard Screenshot](interface1.png "Vehicle Dashboard Interface")
+![Trip History Screenshot](interface2.png "Vehicle Dashboard Interface")
 ---
 
 ## How It Works
@@ -30,7 +30,7 @@ The application is built with a Python backend and a vanilla JavaScript frontend
 *   **Data Storage:**
     *   **`data/mytoyota.db`**: An SQLite database that stores all historical trip and vehicle reading data.
     *   **`data/vehicle_data.json`**: A cache file holding the latest live data polled from the vehicle to ensure the dashboard loads quickly.
-    *   **`data/credentials.json`**: An encrypted file containing your MyToyota credentials.
+    *   **`data/credentials.json`**: An encrypted file containing your connected services credentials.
     *   **`data/secrets.key`**: The encryption key for `credentials.json`.
     *   **`data/mytoyota_config.yaml`**: The base configuration file for the application, including polling schedules and MQTT broker settings.
     *   **`data/user_config.yaml`**: The user-specific configuration file for the application.
@@ -54,8 +54,8 @@ Using Docker is the easiest and most reliable way to run the application.
 
 1.  **Clone the repository:** 
     ```bash
-    git clone https://github.com/stone17/mytoyota-dashboard.git
-    cd mytoyota-dashboard
+    git clone https://github.com/stone17/myvehicle-dashboard-for-toyota.git
+    cd myvehicle-dashboard-for-toyota
     ```
 
 2.  **Build and run the container:** 
@@ -72,7 +72,7 @@ Using Docker is the easiest and most reliable way to run the application.
 
 4.  **First-Time Setup:**
     * Go to the **Settings** page. 
-    * Enter your MyToyota username and password in the "Credentials Management" section and click "Save Credentials". 
+    * Enter your connected services credentials in the "Credentials Management" section and click "Save Credentials". 
     * The application will now be able to fetch your vehicle data. 
     * Configure the polling interval. 
     * Optionally, configure the MQTT integration on the Settings page to connect to your home automation system.
@@ -184,7 +184,7 @@ You can create a Lua script in Domoticz to automatically adjust the dashboard's 
 
     ```lua
     -- script_device_dashboard_polling.lua
-    -- This script dynamically changes the mytoyota-dashboard polling rate via MQTT
+    -- This script dynamically changes the vehicle-dashboard polling rate via MQTT
     -- based on the status of a car charger device.
 
     -- =========================================================================
@@ -198,7 +198,7 @@ You can create a Lua script in Domoticz to automatically adjust the dashboard's 
     -- local mqtt_pass = "mypass" -- Uncomment and set if your broker requires authentication
 
     -- The base topic configured in the dashboard's MQTT settings
-    local dashboard_base_topic = "mytoyota"
+    local dashboard_base_topic = "vehicle"
 
     -- The EXACT name of your car charger switch device in Domoticz
     local charger_device_name = "Car Charger" 
@@ -274,7 +274,7 @@ Here’s how to get your vehicle’s sensors to appear automatically in Domoticz
 
 ### Step 2: Configure the Dashboard
 
-1.  In the MyToyota Dashboard, navigate to the Settings page.
+1.  In the Vehicle Dashboard, navigate to the Settings page.
 2.  Fill out the MQTT Settings section, making sure the details exactly match what you entered in Domoticz.
 3.  Ensure Enable MQTT is checked.
 4.  Set the Auto Discovery Prefix to homeassistant.
@@ -282,9 +282,13 @@ Here’s how to get your vehicle’s sensors to appear automatically in Domoticz
 
 ### Step 3: See Your Devices
 
-1.  Restart the MyToyota Dashboard application or trigger a manual data fetch from the main dashboard page. This will send the discovery messages to Domoticz.
+1.  Restart the Vehicle Dashboard application or trigger a manual data fetch from the main dashboard page. This will send the discovery messages to Domoticz.
 2.  In Domoticz, navigate to Setup -> Devices.
 3.  Your new vehicle sensors (Odometer, Fuel Level, etc.) will appear in the list.
 4.  Click the green circular arrow next to each new device to add it. Once added, the device can be used in your floorplans, notifications, and scripts.
 
 <a href="https://www.buymeacoffee.com/mxpwr" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>
+
+---
+
+**Disclaimer:** This project is an independent, community-created tool. It is not affiliated with, endorsed by, or in any way officially connected to Toyota Motor Corporation. All product names, logos, and brands are property of their respective owners.

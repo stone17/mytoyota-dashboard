@@ -7,7 +7,9 @@
         "settings": "Instellingen"
     },
     "dashboard": {
-        "title": "MyToyota Dashboard",
+        "title": "Voertuig Dashboard",
+        "title_main": "MyVehicle Dashboard",
+        "title_sub": "voor Toyota",
         "last_updated": "Laatst bijgewerkt:",
         "update_now": "Nu bijwerken",
         "fetch_status": "Status ophalen",
@@ -117,9 +119,9 @@
         "language_desc": "Kies de weergave taal voor het overzicht.",
         "select_language": "Kies een taal",
         "credentials": "Beheer toegangsgegevens",
-        "credentials_desc": "Jouw MyToyota gebruikersnaam en wachtwoord. Deze worden versleuteld en lokaal opgeslagen. En dus veilig bewaard.",
-        "username": "MyToyota gebruikersnaam (email)",
-        "password": "MyToyota wachtwoord",
+        "credentials_desc": "Jouw gebruikersnaam en wachtwoord voor de connected services. Deze worden versleuteld en lokaal opgeslagen. En dus veilig bewaard.",
+        "username": "Connected services gebruikersnaam (email)",
+        "password": "Connected services wachtwoord",
         "password_ph": "Jouw (gewijzigde) wachtwoord",
         "save_credentials": "Toegangsgegevens opslaan",
         "mqtt": "MQTT Instellingen",

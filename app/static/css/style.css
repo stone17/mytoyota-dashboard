@@ -113,17 +113,27 @@ body {
     align-items: center;
     background-color: var(--header-bg);
     color: var(--header-text);
-    padding: 0 30px;
+    padding: 10px 30px;
     box-shadow: var(--card-shadow);
     position: sticky;
     top: 0;
     z-index: 1000;
-    height: 65px;
+    min-height: 65px;
+    box-sizing: border-box;
 }
 
 .header-title {
     font-size: 1.5em;
     font-weight: bold;
+    line-height: 1.1;
+}
+
+.header-subtitle {
+    font-size: 0.55em;
+    font-weight: normal;
+    display: block;
+    margin-top: 2px;
+    opacity: 0.9;
 }
 
 .main-nav {
@@ -169,9 +179,13 @@ body {
 /* --- Responsive Design for Mobile --- */
 @media (max-width: 768px) {
     .main-header {
-        padding: 0 10px;
+        padding: 10px;
         justify-content: flex-start;
         gap: 10px;
+    }
+
+    .header-title {
+        font-size: 1.1em;
     }
 
     .nav-link span {
