@@ -8,6 +8,8 @@
     },
     "dashboard": {
         "title": "Voertuig Dashboard",
+        "title_main": "MyVehicle Dashboard",
+        "title_sub": "voor Toyota",
         "last_updated": "Laatst bijgewerkt:",
         "update_now": "Nu bijwerken",
         "fetch_status": "Status ophalen",

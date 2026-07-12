@@ -8,6 +8,8 @@
     },
     "dashboard": {
         "title": "Tableau de bord du véhicule",
+        "title_main": "MyVehicle Dashboard",
+        "title_sub": "pour Toyota",
         "last_updated": "Dernière mise à jour :",
         "update_now": "Mettre à jour maintenant",
         "fetch_status": "Statut de récupération",

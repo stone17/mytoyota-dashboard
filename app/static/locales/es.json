@@ -8,6 +8,8 @@
     },
     "dashboard": {
         "title": "Panel del Vehículo",
+        "title_main": "MyVehicle Dashboard",
+        "title_sub": "para Toyota",
         "last_updated": "\u00daltima actualizaci\u00f3n:",
         "update_now": "Actualizar ahora",
         "fetch_status": "Estado de conexi\u00f3n",

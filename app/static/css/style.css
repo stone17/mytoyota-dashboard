@@ -126,6 +126,14 @@ body {
     font-weight: bold;
 }
 
+.header-subtitle {
+    font-size: 0.55em;
+    font-weight: normal;
+    display: block;
+    margin-top: -2px;
+    opacity: 0.9;
+}
+
 .main-nav {
     display: flex;
     justify-content: center;
