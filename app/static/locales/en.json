@@ -303,7 +303,13 @@
         "trips_json": "Trips JSON",
         "status_json": "Status JSON",
         "refresh": "Refresh",
-        "download": "Download"
+        "download": "Download",
+        "retention": "Raw Response Retention",
+        "retention_1_day": "1 Day",
+        "retention_1_week": "1 Week",
+        "retention_1_month": "1 Month",
+        "retention_1_year": "1 Year",
+        "retention_always": "Always"
     },
     "notifications": {
         "title": "Notifications & Alerts",

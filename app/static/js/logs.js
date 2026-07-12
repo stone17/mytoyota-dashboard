@@ -69,16 +69,49 @@ document.addEventListener('DOMContentLoaded', () => {
     connectToLogStream();
 
     const saveRawCheckbox = document.getElementById('save-raw-responses');
+    const rawRetentionGroup = document.getElementById('raw-retention-group');
+    const rawRetentionSelect = document.getElementById('raw-responses-retention');
     const rawViewerPanel = document.getElementById('raw-viewer-panel');
     const rawSelector = document.getElementById('raw-response-selector');
     const refreshRawBtn = document.getElementById('refresh-raw-btn');
     const downloadRawLink = document.getElementById('download-raw-link');
     const rawContent = document.getElementById('raw-response-content');
 
+    async function fetchRawFilesList() {
+        try {
+            const res = await fetch('/api/raw_responses');
+            if (!res.ok) throw new Error('Failed to fetch file list');
+            const files = await res.json();
+            
+            // Keep the default option
+            const defaultOption = rawSelector.querySelector('option[disabled]');
+            rawSelector.innerHTML = '';
+            if (defaultOption) rawSelector.appendChild(defaultOption);
+            
+            files.forEach(file => {
+                const opt = document.createElement('option');
+                opt.value = file.filename;
+                // Format YYYYMMDD_HHMMSS_endpoint.json to YYYY-MM-DD HH:MM:SS - endpoint
+                const match = file.filename.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})_(.+)\.json$/);
+                if (match) {
+                    opt.textContent = `${match[1]}-${match[2]}-${match[3]} ${match[4]}:${match[5]}:${match[6]} - ${match[7]}`;
+                } else {
+                    opt.textContent = file.filename;
+                }
+                rawSelector.appendChild(opt);
+            });
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
     async function loadRawResponse() {
-        const type = rawSelector.value;
-        const url = `/api/raw_responses/${type}`;
+        const filename = rawSelector.value;
+        if (!filename) return;
+        
+        const url = `/api/raw_responses/${encodeURIComponent(filename)}`;
         downloadRawLink.href = url;
+        downloadRawLink.download = filename;
         
         try {
             const res = await fetch(url);
@@ -91,19 +124,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (saveRawCheckbox) {
-        saveRawCheckbox.addEventListener('change', async () => {
+        saveRawCheckbox.addEventListener('change', () => {
             const isChecked = saveRawCheckbox.checked;
+            rawRetentionGroup.style.display = isChecked ? 'block' : 'none';
             rawViewerPanel.style.display = isChecked ? 'flex' : 'none';
-            if (isChecked) loadRawResponse();
-            
-            await fetch('/api/config', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ save_raw_responses: isChecked })
-            });
+            if (isChecked) fetchRawFilesList();
         });
         rawSelector.addEventListener('change', loadRawResponse);
-        refreshRawBtn.addEventListener('click', loadRawResponse);
+        refreshRawBtn.addEventListener('click', () => {
+            fetchRawFilesList().then(() => loadRawResponse());
+        });
     }
 
     // --- Logging Settings ---
@@ -123,8 +153,12 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (saveRawCheckbox) {
                 saveRawCheckbox.checked = config.save_raw_responses === true;
+                rawRetentionGroup.style.display = saveRawCheckbox.checked ? 'block' : 'none';
                 rawViewerPanel.style.display = saveRawCheckbox.checked ? 'flex' : 'none';
-                if (saveRawCheckbox.checked) loadRawResponse();
+                if (rawRetentionSelect) {
+                    rawRetentionSelect.value = config.raw_responses_retention || 'always';
+                }
+                if (saveRawCheckbox.checked) fetchRawFilesList();
             }
         } catch (error) {
             console.error(`Failed to load settings: ${error.message}`);
@@ -143,6 +177,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             log_history_size: logHistorySize,
+            save_raw_responses: saveRawCheckbox ? saveRawCheckbox.checked : false,
+            raw_responses_retention: rawRetentionSelect ? rawRetentionSelect.value : 'always'
         };
         saveConfig(newSettings, logSettingsStatusMessage);
     });

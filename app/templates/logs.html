@@ -63,6 +63,20 @@
                 <label for="log-history-size">Log History Size</label>
                 <input type="number" id="log-history-size" name="log_history_size" min="10" max="5000" title="Number of recent log lines to keep in memory for the Logs page. A restart is required for this change to take effect.">
             </div>
+            <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+                <input type="checkbox" id="save-raw-responses" style="margin: 0;">
+                <label for="save-raw-responses" data-i18n="logs.save_raw_responses" style="margin: 0;">Save Raw Server Responses</label>
+            </div>
+            <div class="form-group" id="raw-retention-group" style="display: none;">
+                <label for="raw-responses-retention" data-i18n="logs.retention">Raw Response Retention</label>
+                <select id="raw-responses-retention" name="raw_responses_retention">
+                    <option value="1_day" data-i18n="logs.retention_1_day">1 Day</option>
+                    <option value="1_week" data-i18n="logs.retention_1_week">1 Week</option>
+                    <option value="1_month" data-i18n="logs.retention_1_month">1 Month</option>
+                    <option value="1_year" data-i18n="logs.retention_1_year">1 Year</option>
+                    <option value="always" data-i18n="logs.retention_always">Always</option>
+                </select>
+            </div>
             <button type="button" id="save-log-settings-btn" data-i18n="logs.save">Save Settings</button>
             <p id="log-settings-status-message" class="status-message"></p>
         </section>
@@ -71,10 +85,6 @@
                 <div style="flex: 1; min-width: 300px; display: flex; flex-direction: column;">
                     <div class="logs-header" style="display: flex; justify-content: space-between; align-items: center;">
                         <h2>Live Log Stream</h2>
-                        <label style="font-size: 0.9em; font-weight: normal; margin: 0; display: flex; align-items: center; gap: 5px;">
-                            <input type="checkbox" id="save-raw-responses">
-                            <span data-i18n="logs.save_raw_responses">Save Raw Server Responses</span>
-                        </label>
                     </div>
                     <div id="log-content" class="logs-container" style="flex-grow: 1;">
                         Connecting to log stream...
@@ -84,9 +94,8 @@
                     <div class="logs-header" style="display: flex; justify-content: space-between; align-items: center;">
                         <h2 data-i18n="logs.raw_viewer">Raw Response Viewer</h2>
                         <div style="display: flex; gap: 10px; align-items: center;">
-                            <select id="raw-response-selector" style="margin: 0; padding: 4px;">
-                                <option value="trips" data-i18n="logs.trips_json">Trips JSON</option>
-                                <option value="status" data-i18n="logs.status_json">Status JSON</option>
+                            <select id="raw-response-selector" style="margin: 0; padding: 4px; max-width: 200px;">
+                                <option value="" disabled selected>Select a file...</option>
                             </select>
                             <button id="refresh-raw-btn" data-i18n="logs.refresh" style="padding: 4px 8px; margin: 0;">Refresh</button>
                             <a id="download-raw-link" href="#" download data-i18n="logs.download">Download</a>

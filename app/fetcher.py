@@ -30,17 +30,39 @@ GEOCODE_SEMAPHORE = asyncio.Semaphore(1)
 async def save_raw_response(endpoint: str, response: dict):
     if not config_manager.settings.get("save_raw_responses", False):
         return
-    filename = None
-    if "trips" in endpoint:
-        filename = "raw_trips_response.json"
-    elif "remote/status" in endpoint:
-        filename = "raw_status_response.json"
-    if filename:
-        try:
-            async with aiofiles.open(DATA_DIR / filename, "w") as f:
-                await f.write(json.dumps(response, indent=2))
-        except Exception as e:
-            _LOGGER.warning(f"Failed to save raw response for {endpoint}: {e}")
+        
+    import time
+    raw_dir = DATA_DIR / "raw_responses"
+    if not raw_dir.exists():
+        raw_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_endpoint = "".join(c if c.isalnum() else "_" for c in endpoint).strip("_")
+    filename = f"{timestamp}_{safe_endpoint}.json"
+    
+    try:
+        async with aiofiles.open(raw_dir / filename, "w") as f:
+            await f.write(json.dumps(response, indent=2))
+    except Exception as e:
+        _LOGGER.warning(f"Failed to save raw response for {endpoint}: {e}")
+
+    retention = config_manager.settings.get("raw_responses_retention", "always")
+    if retention != "always":
+        retention_map = {
+            "1_day": 86400,
+            "1_week": 604800,
+            "1_month": 2592000,
+            "1_year": 31536000
+        }
+        max_age = retention_map.get(retention)
+        if max_age:
+            now = time.time()
+            for p in raw_dir.glob("*.json"):
+                if p.is_file() and now - p.stat().st_mtime > max_age:
+                    try:
+                        p.unlink()
+                    except Exception as e:
+                        _LOGGER.warning(f"Failed to delete old raw response {p}: {e}")
 
 
 async def _reverse_geocode_trip(trip_id: int, force: bool = False):

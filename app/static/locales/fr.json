@@ -303,7 +303,13 @@
         "trips_json": "JSON des trajets",
         "status_json": "JSON de statut",
         "refresh": "Actualiser",
-        "download": "Télécharger"
+        "download": "Télécharger",
+        "retention": "Conservation des réponses brutes",
+        "retention_1_day": "1 Jour",
+        "retention_1_week": "1 Semaine",
+        "retention_1_month": "1 Mois",
+        "retention_1_year": "1 An",
+        "retention_always": "Toujours"
     },
     "notifications": {
         "title": "Notifications et alertes",

@@ -303,7 +303,13 @@
         "trips_json": "JSON de viajes",
         "status_json": "JSON de estado",
         "refresh": "Actualizar",
-        "download": "Descargar"
+        "download": "Descargar",
+        "retention": "Retención de respuestas sin procesar",
+        "retention_1_day": "1 Día",
+        "retention_1_week": "1 Semana",
+        "retention_1_month": "1 Mes",
+        "retention_1_year": "1 Año",
+        "retention_always": "Siempre"
     },
     "notifications": {
         "title": "Notificaciones y Alertas",

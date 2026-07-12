@@ -303,7 +303,13 @@
         "trips_json": "Ritten JSON",
         "status_json": "Status JSON",
         "refresh": "Verversen",
-        "download": "Downloaden"
+        "download": "Downloaden",
+        "retention": "Onbewerkte antwoorden bewaren",
+        "retention_1_day": "1 Dag",
+        "retention_1_week": "1 Week",
+        "retention_1_month": "1 Maand",
+        "retention_1_year": "1 Jaar",
+        "retention_always": "Altijd"
     },
     "notifications": {
         "title": "Meldingen & Waarschuwingen",

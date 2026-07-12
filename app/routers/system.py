@@ -155,20 +155,35 @@ def update_credentials(creds: dict = Body(...)):
         logging.error(f"Error saving credentials: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to save credentials.")
 
-@router.get("/raw_responses/{response_type}")
-async def get_raw_response(response_type: str):
+@router.get("/raw_responses")
+async def list_raw_responses():
     from ..config import DATA_DIR
-    if response_type == "trips":
-        file_path = DATA_DIR / "raw_trips_response.json"
-    elif response_type == "status":
-        file_path = DATA_DIR / "raw_status_response.json"
-    else:
-        raise HTTPException(status_code=404, detail="Invalid response type.")
-        
-    if not os.path.exists(file_path):
+    raw_dir = DATA_DIR / "raw_responses"
+    if not raw_dir.exists():
+        return []
+    
+    files = []
+    for p in raw_dir.glob("*.json"):
+        if p.is_file():
+            stat = p.stat()
+            files.append({
+                "filename": p.name,
+                "size": stat.st_size,
+                "mtime": stat.st_mtime
+            })
+    files.sort(key=lambda x: x["filename"], reverse=True)
+    return files
+
+@router.get("/raw_responses/{filename}")
+async def get_raw_response(filename: str):
+    from ..config import DATA_DIR
+    safe_filename = "".join(c for c in filename if c.isalnum() or c in "._-")
+    file_path = DATA_DIR / "raw_responses" / safe_filename
+    
+    if not file_path.exists() or not file_path.is_file():
         raise HTTPException(status_code=404, detail="Raw response file not found.")
         
-    return FileResponse(path=file_path, filename=file_path.name, media_type="application/json")
+    return FileResponse(path=file_path, filename=safe_filename, media_type="application/json")
 
 @router.get("/config")
 def get_config():
