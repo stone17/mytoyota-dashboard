@@ -72,46 +72,51 @@ document.addEventListener('DOMContentLoaded', () => {
     const rawRetentionGroup = document.getElementById('raw-retention-group');
     const rawRetentionSelect = document.getElementById('raw-responses-retention');
     const rawViewerPanel = document.getElementById('raw-viewer-panel');
-    const rawSelector = document.getElementById('raw-response-selector');
+    const rawPollSelector = document.getElementById('raw-poll-selector');
     const refreshRawBtn = document.getElementById('refresh-raw-btn');
-    const downloadRawLink = document.getElementById('download-raw-link');
+    const downloadPollLink = document.getElementById('download-poll-link');
+    const rawFilesContainer = document.getElementById('raw-files-container');
     const rawContent = document.getElementById('raw-response-content');
 
-    async function fetchRawFilesList() {
+    let allPolls = [];
+
+    async function fetchRawPollsList() {
         try {
             const res = await fetch('/api/raw_responses');
-            if (!res.ok) throw new Error('Failed to fetch file list');
-            const files = await res.json();
+            if (!res.ok) throw new Error('Failed to fetch polls list');
+            allPolls = await res.json();
             
             // Keep the default option
-            const defaultOption = rawSelector.querySelector('option[disabled]');
-            rawSelector.innerHTML = '';
-            if (defaultOption) rawSelector.appendChild(defaultOption);
+            const defaultOption = rawPollSelector.querySelector('option[disabled]');
+            rawPollSelector.innerHTML = '';
+            if (defaultOption) rawPollSelector.appendChild(defaultOption);
             
-            files.forEach(file => {
+            allPolls.forEach(poll => {
                 const opt = document.createElement('option');
-                opt.value = file.filename;
-                // Format YYYYMMDD_HHMMSS_endpoint.json to YYYY-MM-DD HH:MM:SS - endpoint
-                const match = file.filename.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})_(.+)\.json$/);
+                opt.value = poll.poll_id;
+                
+                const match = poll.poll_id.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})_(.+)$/);
                 if (match) {
-                    opt.textContent = `${match[1]}-${match[2]}-${match[3]} ${match[4]}:${match[5]}:${match[6]} - ${match[7]}`;
+                    let typeStr = match[7].replace(/_/g, ' ');
+                    typeStr = typeStr.charAt(0).toUpperCase() + typeStr.slice(1);
+                    opt.textContent = `${match[1]}-${match[2]}-${match[3]} ${match[4]}:${match[5]}:${match[6]} (${typeStr})`;
                 } else {
-                    opt.textContent = file.filename;
+                    opt.textContent = poll.poll_id;
                 }
-                rawSelector.appendChild(opt);
+                rawPollSelector.appendChild(opt);
             });
         } catch (e) {
             console.error(e);
         }
     }
 
-    async function loadRawResponse() {
-        const filename = rawSelector.value;
-        if (!filename) return;
+    async function loadRawFile(pollId, filename, itemEl) {
+        if (itemEl) {
+            document.querySelectorAll('.raw-file-item').forEach(el => el.classList.remove('active'));
+            itemEl.classList.add('active');
+        }
         
-        const url = `/api/raw_responses/${encodeURIComponent(filename)}`;
-        downloadRawLink.href = url;
-        downloadRawLink.download = filename;
+        const url = `/api/raw_responses/${encodeURIComponent(pollId)}/${encodeURIComponent(filename)}`;
         
         try {
             const res = await fetch(url);
@@ -128,11 +133,40 @@ document.addEventListener('DOMContentLoaded', () => {
             const isChecked = saveRawCheckbox.checked;
             rawRetentionGroup.style.display = isChecked ? 'block' : 'none';
             rawViewerPanel.style.display = isChecked ? 'flex' : 'none';
-            if (isChecked) fetchRawFilesList();
+            if (isChecked) fetchRawPollsList();
         });
-        rawSelector.addEventListener('change', loadRawResponse);
+        rawPollSelector.addEventListener('change', () => {
+            const pollId = rawPollSelector.value;
+            rawFilesContainer.innerHTML = '';
+            rawContent.textContent = '';
+            
+            const poll = allPolls.find(p => p.poll_id === pollId);
+            if (poll && poll.files.length > 0) {
+                downloadPollLink.style.display = 'inline-block';
+                downloadPollLink.href = `/api/raw_responses/${encodeURIComponent(pollId)}/download`;
+                
+                poll.files.forEach((file, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'raw-file-item';
+                    item.textContent = file.filename;
+                    item.title = file.filename;
+                    item.addEventListener('click', () => loadRawFile(pollId, file.filename, item));
+                    rawFilesContainer.appendChild(item);
+                    
+                    if (index === 0) {
+                        loadRawFile(pollId, file.filename, item);
+                    }
+                });
+            } else {
+                downloadPollLink.style.display = 'none';
+            }
+        });
         refreshRawBtn.addEventListener('click', () => {
-            fetchRawFilesList().then(() => loadRawResponse());
+            fetchRawPollsList().then(() => {
+                if (rawPollSelector.value) {
+                    rawPollSelector.dispatchEvent(new Event('change'));
+                }
+            });
         });
     }
 
@@ -158,7 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (rawRetentionSelect) {
                     rawRetentionSelect.value = config.raw_responses_retention || 'always';
                 }
-                if (saveRawCheckbox.checked) fetchRawFilesList();
+                if (saveRawCheckbox.checked) fetchRawPollsList();
             }
         } catch (error) {
             console.error(`Failed to load settings: ${error.message}`);

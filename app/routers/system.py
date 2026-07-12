@@ -1,11 +1,13 @@
 # app/routers/system.py
 import logging
 import yaml
+import io
+import zipfile
 from typing import Optional
 
 import os
 from fastapi import APIRouter, HTTPException, Request, Body
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from .. import fetcher
@@ -162,28 +164,60 @@ async def list_raw_responses():
     if not raw_dir.exists():
         return []
     
-    files = []
-    for p in raw_dir.glob("*.json"):
-        if p.is_file():
-            stat = p.stat()
-            files.append({
-                "filename": p.name,
-                "size": stat.st_size,
-                "mtime": stat.st_mtime
+    polls = []
+    for p in raw_dir.iterdir():
+        if p.is_dir():
+            files = []
+            for f in p.glob("*.json"):
+                if f.is_file():
+                    stat = f.stat()
+                    files.append({
+                        "filename": f.name,
+                        "size": stat.st_size,
+                        "mtime": stat.st_mtime
+                    })
+            files.sort(key=lambda x: x["filename"])
+            polls.append({
+                "poll_id": p.name,
+                "mtime": p.stat().st_mtime,
+                "files": files
             })
-    files.sort(key=lambda x: x["filename"], reverse=True)
-    return files
+    polls.sort(key=lambda x: x["poll_id"], reverse=True)
+    return polls
 
-@router.get("/raw_responses/{filename}")
-async def get_raw_response(filename: str):
+@router.get("/raw_responses/{poll_id}/{filename}")
+async def get_raw_response(poll_id: str, filename: str):
     from ..config import DATA_DIR
+    safe_poll_id = "".join(c for c in poll_id if c.isalnum() or c in "._-")
     safe_filename = "".join(c for c in filename if c.isalnum() or c in "._-")
-    file_path = DATA_DIR / "raw_responses" / safe_filename
+    file_path = DATA_DIR / "raw_responses" / safe_poll_id / safe_filename
     
     if not file_path.exists() or not file_path.is_file():
         raise HTTPException(status_code=404, detail="Raw response file not found.")
         
     return FileResponse(path=file_path, filename=safe_filename, media_type="application/json")
+
+@router.get("/raw_responses/{poll_id}/download")
+async def download_poll_zip(poll_id: str):
+    from ..config import DATA_DIR
+    safe_poll_id = "".join(c for c in poll_id if c.isalnum() or c in "._-")
+    poll_dir = DATA_DIR / "raw_responses" / safe_poll_id
+    
+    if not poll_dir.exists() or not poll_dir.is_dir():
+        raise HTTPException(status_code=404, detail="Poll directory not found.")
+        
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for f in poll_dir.glob("*.json"):
+            if f.is_file():
+                zip_file.write(f, f.name)
+    
+    zip_buffer.seek(0)
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={safe_poll_id}.zip"}
+    )
 
 @router.get("/config")
 def get_config():

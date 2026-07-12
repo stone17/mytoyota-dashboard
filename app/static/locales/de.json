@@ -309,7 +309,8 @@
         "retention_1_week": "1 Woche",
         "retention_1_month": "1 Monat",
         "retention_1_year": "1 Jahr",
-        "retention_always": "Immer"
+        "retention_always": "Immer",
+        "download_poll": "Poll herunterladen (ZIP)"
     },
     "notifications": {
         "title": "Benachrichtigungen",

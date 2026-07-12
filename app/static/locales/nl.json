@@ -309,7 +309,8 @@
         "retention_1_week": "1 Week",
         "retention_1_month": "1 Maand",
         "retention_1_year": "1 Jaar",
-        "retention_always": "Altijd"
+        "retention_always": "Altijd",
+        "download_poll": "Download Poll (ZIP)"
     },
     "notifications": {
         "title": "Meldingen & Waarschuwingen",

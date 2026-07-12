@@ -309,7 +309,8 @@
         "retention_1_week": "1 Semana",
         "retention_1_month": "1 Mes",
         "retention_1_year": "1 Año",
-        "retention_always": "Siempre"
+        "retention_always": "Siempre",
+        "download_poll": "Descargar sondeo (ZIP)"
     },
     "notifications": {
         "title": "Notificaciones y Alertas",
