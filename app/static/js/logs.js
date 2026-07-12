@@ -76,6 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const refreshRawBtn = document.getElementById('refresh-raw-btn');
     const downloadPollLink = document.getElementById('download-poll-link');
     const rawFilesContainer = document.getElementById('raw-files-container');
+    const rawFilesDescriptor = document.getElementById('raw-files-descriptor');
     const rawContent = document.getElementById('raw-response-content');
 
     let allPolls = [];
@@ -116,6 +117,16 @@ document.addEventListener('DOMContentLoaded', () => {
             itemEl.classList.add('active');
         }
         
+        if (rawFilesDescriptor) {
+            const match = filename.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})_/);
+            if (match) {
+                rawFilesDescriptor.textContent = `${match[1]}-${match[2]}-${match[3]} ${match[4]}:${match[5]}:${match[6]}`;
+                rawFilesDescriptor.style.display = 'block';
+            } else {
+                rawFilesDescriptor.style.display = 'none';
+            }
+        }
+        
         const url = `/api/raw_responses/${encodeURIComponent(pollId)}/${encodeURIComponent(filename)}`;
         
         try {
@@ -148,7 +159,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 poll.files.forEach((file, index) => {
                     const item = document.createElement('div');
                     item.className = 'raw-file-item';
-                    item.textContent = file.filename;
+                    
+                    let displayName = file.filename;
+                    const nameMatch = file.filename.match(/^\d{8}_\d{6}_(.+?)(?:\.json)?$/);
+                    if (nameMatch) {
+                        displayName = nameMatch[1];
+                    }
+                    item.textContent = displayName;
+                    
                     item.title = file.filename;
                     item.addEventListener('click', () => loadRawFile(pollId, file.filename, item));
                     rawFilesContainer.appendChild(item);
