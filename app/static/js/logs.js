@@ -111,6 +111,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function truncateJsonData(data) {
+        if (Array.isArray(data)) {
+            if (data.length > 5) {
+                const truncated = data.slice(0, 5).map(truncateJsonData);
+                truncated.push(`... and ${data.length - 5} more items truncated ...`);
+                return truncated;
+            }
+            return data.map(truncateJsonData);
+        } else if (data !== null && typeof data === 'object') {
+            const result = {};
+            for (const key in data) {
+                result[key] = truncateJsonData(data[key]);
+            }
+            return result;
+        }
+        return data;
+    }
+
     async function loadRawFile(pollId, filename, itemEl) {
         if (itemEl) {
             document.querySelectorAll('.raw-file-item').forEach(el => el.classList.remove('active'));
@@ -129,13 +147,61 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const url = `/api/raw_responses/${encodeURIComponent(pollId)}/${encodeURIComponent(filename)}`;
         
-        try {
-            const res = await fetch(url);
-            if (!res.ok) throw new Error(res.status === 404 ? 'File not found.' : 'Fetch error.');
-            const data = await res.json();
-            rawContent.textContent = JSON.stringify(data, null, 2);
-        } catch (e) {
-            rawContent.textContent = e.message;
+        let fileSize = 0;
+        const poll = allPolls.find(p => p.poll_id === pollId);
+        if (poll) {
+            const fileObj = poll.files.find(f => f.filename === filename);
+            if (fileObj && fileObj.size) {
+                fileSize = fileObj.size;
+            }
+        }
+
+        if (fileSize > 150 * 1024) {
+            const kbSize = (fileSize / 1024).toFixed(1);
+            rawContent.innerHTML = `
+                <div style="background: var(--card-bg); border: 1px solid var(--border-color); padding: 20px; border-radius: 8px; max-width: 600px; margin: 20px auto; text-align: center; font-family: sans-serif;">
+                    <h3 style="color: #ff9800; margin-top: 0;">Large File Warning</h3>
+                    <p style="margin-bottom: 20px;">This file is very large (${kbSize} KB). Rendering the full JSON may freeze your browser.</p>
+                    <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                        <button id="btn-render-truncated" class="btn" style="padding: 8px 16px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px;">Render Truncated (Fast)</button>
+                        <button id="btn-render-full" class="btn" style="padding: 8px 16px; cursor: pointer; background: var(--border-color); color: var(--text-color); border: none; border-radius: 4px;">Render Full (Slow)</button>
+                        <a href="${url}" download="${filename}" class="btn" style="padding: 8px 16px; text-decoration: none; background: var(--border-color); color: var(--text-color); border-radius: 4px;">Download File</a>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('btn-render-truncated').addEventListener('click', async () => {
+                rawContent.textContent = 'Loading...';
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error('Fetch error.');
+                    const data = await res.json();
+                    rawContent.textContent = JSON.stringify(truncateJsonData(data), null, 2);
+                } catch (e) {
+                    rawContent.textContent = e.message;
+                }
+            });
+
+            document.getElementById('btn-render-full').addEventListener('click', async () => {
+                rawContent.textContent = 'Loading...';
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error('Fetch error.');
+                    const data = await res.json();
+                    rawContent.textContent = JSON.stringify(data, null, 2);
+                } catch (e) {
+                    rawContent.textContent = e.message;
+                }
+            });
+        } else {
+            try {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error(res.status === 404 ? 'File not found.' : 'Fetch error.');
+                const data = await res.json();
+                rawContent.textContent = JSON.stringify(data, null, 2);
+            } catch (e) {
+                rawContent.textContent = e.message;
+            }
         }
     }
 
