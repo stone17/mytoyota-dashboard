@@ -159,6 +159,7 @@ def update_credentials(creds: dict = Body(...)):
 
 @router.get("/raw_responses")
 async def list_raw_responses():
+    import json
     from ..config import DATA_DIR
     raw_dir = DATA_DIR / "raw_responses"
     if not raw_dir.exists():
@@ -168,6 +169,7 @@ async def list_raw_responses():
     for p in raw_dir.iterdir():
         if p.is_dir():
             files = []
+            trip_count = None
             for f in p.glob("*.json"):
                 if f.is_file():
                     stat = f.stat()
@@ -176,11 +178,24 @@ async def list_raw_responses():
                         "size": stat.st_size,
                         "mtime": stat.st_mtime
                     })
+                    if "trips" in f.name.lower() and trip_count is None:
+                        try:
+                            with open(f, "r", encoding="utf-8") as jf:
+                                data = json.load(jf)
+                                if isinstance(data, dict):
+                                    trips_data = data.get("payload", {}).get("trips")
+                                    if trips_data is not None:
+                                        trip_count = len(trips_data)
+                                elif isinstance(data, list):
+                                    trip_count = len(data)
+                        except Exception:
+                            pass
             files.sort(key=lambda x: x["filename"])
             polls.append({
                 "poll_id": p.name,
                 "mtime": p.stat().st_mtime,
-                "files": files
+                "files": files,
+                "trip_count": trip_count
             })
     polls.sort(key=lambda x: x["poll_id"], reverse=True)
     return polls

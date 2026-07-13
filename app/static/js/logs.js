@@ -96,13 +96,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 const opt = document.createElement('option');
                 opt.value = poll.poll_id;
                 
-                const match = poll.poll_id.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})_(.+)$/);
-                if (match) {
-                    let typeStr = match[7].replace(/_/g, ' ');
-                    typeStr = typeStr.charAt(0).toUpperCase() + typeStr.slice(1);
-                    opt.textContent = `${match[1]}-${match[2]}-${match[3]} ${match[4]}:${match[5]}:${match[6]} (${typeStr})`;
+                const d = new Date(poll.mtime * 1000);
+                const yy = String(d.getFullYear()).slice(2);
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                const hh = String(d.getHours()).padStart(2, '0');
+                const mins = String(d.getMinutes()).padStart(2, '0');
+                const dateStr = `${yy}/${mm}/${dd}-${hh}:${mins}`;
+                
+                if (poll.trip_count !== null && poll.trip_count !== undefined) {
+                    opt.textContent = `${dateStr} (${poll.trip_count} trips)`;
                 } else {
-                    opt.textContent = poll.poll_id;
+                    const match = poll.poll_id.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})_(.+)$/);
+                    if (match) {
+                        let typeStr = match[7].replace(/_/g, ' ');
+                        typeStr = typeStr.charAt(0).toUpperCase() + typeStr.slice(1);
+                        opt.textContent = `${dateStr} (${typeStr})`;
+                    } else {
+                        opt.textContent = `${dateStr} (${poll.poll_id})`;
+                    }
                 }
                 rawPollSelector.appendChild(opt);
             });
@@ -135,24 +147,20 @@ document.addEventListener('DOMContentLoaded', () => {
             itemEl.classList.add('active');
         }
         
-        if (rawFilesDescriptor) {
-            const match = filename.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})_/);
-            if (match) {
-                rawFilesDescriptor.textContent = `${match[1]}-${match[2]}-${match[3]} ${match[4]}:${match[5]}:${match[6]}`;
-                rawFilesDescriptor.style.display = 'block';
-            } else {
-                rawFilesDescriptor.style.display = 'none';
-            }
-        }
-        
         const url = `/api/raw_responses/${encodeURIComponent(pollId)}/${encodeURIComponent(filename)}`;
         
         let fileSize = 0;
         const poll = allPolls.find(p => p.poll_id === pollId);
         if (poll) {
             const fileObj = poll.files.find(f => f.filename === filename);
-            if (fileObj && fileObj.size) {
-                fileSize = fileObj.size;
+            if (fileObj) {
+                if (fileObj.size) fileSize = fileObj.size;
+                if (rawFilesDescriptor && fileObj.mtime) {
+                    rawFilesDescriptor.textContent = window.safeLocaleString(new Date(fileObj.mtime * 1000));
+                    rawFilesDescriptor.style.display = 'block';
+                } else if (rawFilesDescriptor) {
+                    rawFilesDescriptor.style.display = 'none';
+                }
             }
         }
 
