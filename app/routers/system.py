@@ -178,16 +178,20 @@ async def list_raw_responses():
                         "size": stat.st_size,
                         "mtime": stat.st_mtime
                     })
-                    if "trips" in f.name.lower() and trip_count is None:
+                    if "trips" in f.name.lower():
+                        if trip_count is None:
+                            trip_count = 0
                         try:
                             with open(f, "r", encoding="utf-8") as jf:
                                 data = json.load(jf)
                                 if isinstance(data, dict):
                                     trips_data = data.get("payload", {}).get("trips")
-                                    if trips_data is not None:
-                                        trip_count = len(trips_data)
+                                    if isinstance(trips_data, list):
+                                        valid_trips = [t for t in trips_data if isinstance(t, dict) and "route" in t]
+                                        trip_count += len(valid_trips)
                                 elif isinstance(data, list):
-                                    trip_count = len(data)
+                                    valid_trips = [t for t in data if isinstance(t, dict) and "route" in t]
+                                    trip_count += len(valid_trips)
                         except Exception:
                             pass
             files.sort(key=lambda x: x["filename"])

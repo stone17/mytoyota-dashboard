@@ -80,6 +80,34 @@ document.addEventListener('DOMContentLoaded', () => {
     const rawContent = document.getElementById('raw-response-content');
 
     let allPolls = [];
+    let appConfig = {};
+
+    function formatTZDate(dateObj) {
+        const tz = appConfig?.timezone || 'UTC';
+        const options = {
+            timeZone: tz,
+            year: '2-digit',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        };
+        try {
+            const formatter = new Intl.DateTimeFormat('en-GB', options);
+            const parts = formatter.formatToParts(dateObj);
+            const p = {};
+            parts.forEach(part => p[part.type] = part.value);
+            return `${p.year}/${p.month}/${p.day}-${p.hour}:${p.minute}`;
+        } catch (e) {
+            const yy = String(dateObj.getFullYear()).slice(2);
+            const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const dd = String(dateObj.getDate()).padStart(2, '0');
+            const hh = String(dateObj.getHours()).padStart(2, '0');
+            const mins = String(dateObj.getMinutes()).padStart(2, '0');
+            return `${yy}/${mm}/${dd}-${hh}:${mins}`;
+        }
+    }
 
     async function fetchRawPollsList() {
         try {
@@ -97,19 +125,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 opt.value = poll.poll_id;
                 
                 const d = new Date(poll.mtime * 1000);
-                const yy = String(d.getFullYear()).slice(2);
-                const mm = String(d.getMonth() + 1).padStart(2, '0');
-                const dd = String(d.getDate()).padStart(2, '0');
-                const hh = String(d.getHours()).padStart(2, '0');
-                const mins = String(d.getMinutes()).padStart(2, '0');
-                const dateStr = `${yy}/${mm}/${dd}-${hh}:${mins}`;
+                const dateStr = formatTZDate(d);
                 
-                if (poll.trip_count !== null && poll.trip_count !== undefined) {
-                    opt.textContent = `${dateStr} (${poll.trip_count} trips)`;
+                const match = poll.poll_id.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})_(.+)$/);
+                let typeStr = match ? match[7] : poll.poll_id;
+                
+                if (typeStr === 'fetch' || typeStr === 'backfill_trips') {
+                    const count = poll.trip_count || 0;
+                    opt.textContent = `${dateStr} (${count} trips)`;
                 } else {
-                    const match = poll.poll_id.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})_(.+)$/);
                     if (match) {
-                        let typeStr = match[7].replace(/_/g, ' ');
+                        typeStr = typeStr.replace(/_/g, ' ');
                         typeStr = typeStr.charAt(0).toUpperCase() + typeStr.slice(1);
                         opt.textContent = `${dateStr} (${typeStr})`;
                     } else {
@@ -156,7 +182,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (fileObj) {
                 if (fileObj.size) fileSize = fileObj.size;
                 if (rawFilesDescriptor && fileObj.mtime) {
-                    rawFilesDescriptor.textContent = window.safeLocaleString(new Date(fileObj.mtime * 1000));
+                    const d = new Date(fileObj.mtime * 1000);
+                    const tz = appConfig?.timezone || 'UTC';
+                    rawFilesDescriptor.textContent = window.safeLocaleString(d, undefined, { timeZone: tz });
                     rawFilesDescriptor.style.display = 'block';
                 } else if (rawFilesDescriptor) {
                     rawFilesDescriptor.style.display = 'none';
@@ -270,6 +298,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch('/api/config');
             const config = await response.json();
+            appConfig = config;
 
             const logging = config.logging || {};
             const levels = logging.levels || {};
