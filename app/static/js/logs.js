@@ -81,6 +81,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let allPolls = [];
     let appConfig = {};
+    let modalMap = null;
+    let mapLayers = [];
 
     function formatTZDate(dateObj) {
         const tz = appConfig?.timezone || 'UTC';
@@ -149,6 +151,74 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function extractTripsFromRawJson(data) {
+        if (data && data.payload && Array.isArray(data.payload.trips)) {
+            return data.payload.trips;
+        } else if (Array.isArray(data)) {
+            return data.filter(item => item && (item.start_time || item.summary || item.route));
+        }
+        return [];
+    }
+
+    function getTripStartTimestamp(trip) {
+        return trip.start_time || (trip.summary && (trip.summary.start_ts || trip.summary.start_timestamp));
+    }
+
+    function initMapModal() {
+        const mapModal = document.getElementById('map-modal');
+        const closeMapModal = document.getElementById('close-map-modal');
+        
+        closeMapModal.addEventListener('click', () => {
+            mapModal.style.display = 'none';
+        });
+
+        window.showTripsOnMap = function(trips) {
+            mapModal.style.display = 'flex';
+            
+            if (!modalMap) {
+                modalMap = L.map('modal-map').setView([0, 0], 2);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(modalMap);
+            }
+            
+            // Clear existing layers
+            mapLayers.forEach(layer => modalMap.removeLayer(layer));
+            mapLayers = [];
+            
+            const bounds = L.latLngBounds();
+            const colors = ['#007bff', '#28a745', '#dc3545', '#fd7e14', '#6f42c1'];
+            
+            trips.forEach((trip, index) => {
+                const route = trip.route || (trip._trip && trip._trip.route);
+                if (!route || !Array.isArray(route) || route.length === 0) return;
+                
+                const latLngs = route.map(pt => [pt.lat, pt.lon]).filter(pt => pt[0] !== undefined && pt[1] !== undefined);
+                if (latLngs.length === 0) return;
+                
+                const color = colors[index % colors.length];
+                const polyline = L.polyline(latLngs, { color: color, weight: 4, opacity: 0.8 }).addTo(modalMap);
+                mapLayers.push(polyline);
+                
+                latLngs.forEach(ll => bounds.extend(ll));
+                
+                // Markers
+                const startMarker = L.circleMarker(latLngs[0], { radius: 6, fillColor: 'green', color: 'white', weight: 2, fillOpacity: 1 }).addTo(modalMap);
+                const endMarker = L.circleMarker(latLngs[latLngs.length - 1], { radius: 6, fillColor: 'red', color: 'white', weight: 2, fillOpacity: 1 }).addTo(modalMap);
+                mapLayers.push(startMarker, endMarker);
+            });
+            
+            if (bounds.isValid()) {
+                // setTimeout needed because map container size might not be computed yet
+                setTimeout(() => {
+                    modalMap.invalidateSize();
+                    modalMap.fitBounds(bounds, { padding: [30, 30] });
+                }, 100);
+            }
+        };
+    }
+    initMapModal();
+
     function truncateJsonData(data) {
         if (Array.isArray(data)) {
             if (data.length > 5) {
@@ -192,6 +262,107 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
+        const tripsSummaryPanel = document.getElementById('trips-summary-panel');
+        const tripsSummaryBody = document.getElementById('trips-summary-body');
+        const showAllMapBtn = document.getElementById('show-all-map-btn');
+        
+        async function processAndRenderTrips(data) {
+            const trips = extractTripsFromRawJson(data);
+            if (!trips || trips.length === 0) {
+                if (tripsSummaryPanel) tripsSummaryPanel.style.display = 'none';
+                return;
+            }
+            
+            if (tripsSummaryPanel) tripsSummaryPanel.style.display = 'block';
+            if (tripsSummaryBody) tripsSummaryBody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 10px;">Checking database...</td></tr>';
+            
+            const checkItems = trips.map(t => ({
+                id: t.id || null,
+                start_timestamp: getTripStartTimestamp(t) || null
+            }));
+            
+            let dbStatus = {};
+            try {
+                const res = await fetch('/api/raw_responses/check_trips', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items: checkItems })
+                });
+                if (res.ok) {
+                    dbStatus = await res.json();
+                }
+            } catch (e) {
+                console.error("Failed to check trips against DB:", e);
+            }
+            
+            if (tripsSummaryBody) tripsSummaryBody.innerHTML = '';
+            let mapableTrips = [];
+            
+            const isImperial = appConfig?.unit_system?.startsWith('imperial');
+            
+            trips.forEach(trip => {
+                const id = trip.id;
+                const startTs = getTripStartTimestamp(trip);
+                const key = id || startTs;
+                const exists = dbStatus[key];
+                
+                const tr = document.createElement('tr');
+                tr.style.borderBottom = '1px solid var(--border-color)';
+                
+                // Time
+                const timeTd = document.createElement('td');
+                timeTd.style.padding = '8px';
+                timeTd.textContent = startTs ? formatTZDate(new Date(startTs)) : 'Unknown';
+                tr.appendChild(timeTd);
+                
+                // Distance
+                const distTd = document.createElement('td');
+                distTd.style.padding = '8px';
+                const distKm = trip.distance || (trip.summary && trip.summary.distance) || 0;
+                if (isImperial) {
+                    distTd.textContent = (distKm * 0.621371).toFixed(1) + ' mi';
+                } else {
+                    distTd.textContent = distKm.toFixed(1) + ' km';
+                }
+                tr.appendChild(distTd);
+                
+                // Status
+                const statusTd = document.createElement('td');
+                statusTd.style.padding = '8px';
+                if (exists) {
+                    statusTd.innerHTML = '<span style="color: #28a745;">✔ In Database</span>';
+                } else {
+                    statusTd.innerHTML = '<span style="color: #dc3545;">❌ Missing</span>';
+                }
+                tr.appendChild(statusTd);
+                
+                // Action
+                const actionTd = document.createElement('td');
+                actionTd.style.padding = '8px';
+                const mapBtn = document.createElement('button');
+                mapBtn.className = 'btn secondary-btn';
+                mapBtn.style.padding = '2px 8px';
+                mapBtn.textContent = 'Map';
+                
+                const route = trip.route || (trip._trip && trip._trip.route);
+                if (route && Array.isArray(route) && route.length > 0) {
+                    mapableTrips.push(trip);
+                    mapBtn.onclick = () => window.showTripsOnMap([trip]);
+                } else {
+                    mapBtn.disabled = true;
+                }
+                actionTd.appendChild(mapBtn);
+                tr.appendChild(actionTd);
+                
+                if (tripsSummaryBody) tripsSummaryBody.appendChild(tr);
+            });
+            
+            if (showAllMapBtn) {
+                showAllMapBtn.disabled = mapableTrips.length === 0;
+                showAllMapBtn.onclick = () => window.showTripsOnMap(mapableTrips);
+            }
+        }
+
         if (fileSize > 150 * 1024) {
             const kbSize = (fileSize / 1024).toFixed(1);
             rawContent.innerHTML = `
@@ -225,6 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!res.ok) throw new Error('Fetch error.');
                     const data = await res.json();
                     rawContent.textContent = JSON.stringify(data, null, 2);
+                    processAndRenderTrips(data);
                 } catch (e) {
                     rawContent.textContent = e.message;
                 }
@@ -235,6 +407,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!res.ok) throw new Error(res.status === 404 ? 'File not found.' : 'Fetch error.');
                 const data = await res.json();
                 rawContent.textContent = JSON.stringify(data, null, 2);
+                processAndRenderTrips(data);
             } catch (e) {
                 rawContent.textContent = e.message;
             }

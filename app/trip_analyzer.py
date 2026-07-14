@@ -201,6 +201,8 @@ class TripAnalyzer:
         scores = trip._trip.scores if hasattr(trip, "_trip") and hasattr(trip._trip, "scores") else None
         hdc = trip._trip.hdc if hasattr(trip, "_trip") and hasattr(trip._trip, "hdc") else None
 
+        api_id = getattr(trip, "id", None) or (trip.get("id") if isinstance(trip, dict) else None)
+
         # 1. Safely extract timestamps 
         start_ts_raw = getattr(trip, "start_time", None) or (summary.start_ts if summary else None)
         end_ts_raw = getattr(trip, "end_time", None) or (summary.end_ts if summary else None)
@@ -252,6 +254,7 @@ class TripAnalyzer:
             )
             
         return {
+            "api_id": api_id,
             "start_timestamp": start_timestamp,
             "end_timestamp": end_timestamp,
             "start_lat": coords.start_lat,
@@ -292,9 +295,18 @@ class TripAnalyzer:
 
     def _upsert_trip(self, new_data, counts):
         """Inserts or updates the trip in the database and triggers geocoding."""
-        existing_trip = self.db_session.query(database.Trip).filter_by(
-            vin=self.vehicle.vin, start_timestamp=new_data["start_timestamp"]
-        ).first()
+        existing_trip = None
+        api_id = new_data.get("api_id")
+        
+        if api_id:
+            existing_trip = self.db_session.query(database.Trip).filter_by(
+                vin=self.vehicle.vin, api_id=api_id
+            ).first()
+            
+        if not existing_trip:
+            existing_trip = self.db_session.query(database.Trip).filter_by(
+                vin=self.vehicle.vin, start_timestamp=new_data["start_timestamp"]
+            ).first()
 
         start_ts_utc = new_data.pop("start_timestamp")
 

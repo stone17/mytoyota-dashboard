@@ -79,6 +79,7 @@ class Trip(Base):
     score_acceleration = Column(Integer, nullable=True)
     score_braking = Column(Integer, nullable=True)
     score_global = Column(Integer, nullable=True)
+    api_id = Column(String, index=True, nullable=True)
 
     # --- New columns added ---
     countries = Column(SafeJSON, nullable=True)

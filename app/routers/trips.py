@@ -3,10 +3,11 @@ import datetime
 import csv
 import io
 import logging
-from typing import Optional
+from typing import Optional, List
 
 from fastapi import APIRouter, HTTPException, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from sqlalchemy import func, or_
 from sqlalchemy.orm import defer
 
@@ -144,6 +145,65 @@ def get_trips(
                     trip["mpg_uk"] = 0.0
 
         return trip_dicts
+    finally:
+        db.close()
+
+class TripCheckItem(BaseModel):
+    id: Optional[str] = None
+    start_timestamp: Optional[str] = None
+
+class CheckTripsRequest(BaseModel):
+    items: List[TripCheckItem]
+
+@router.post("/raw_responses/check_trips")
+def check_trips_exist(request: CheckTripsRequest):
+    db = database.SessionLocal()
+    try:
+        ids_to_check = [item.id for item in request.items if item.id]
+        timestamps_to_check = []
+        
+        for item in request.items:
+            if item.start_timestamp:
+                ts_str = item.start_timestamp
+                if ts_str.endswith("Z"):
+                    ts_str = ts_str[:-1]
+                try:
+                    dt = datetime.datetime.fromisoformat(ts_str)
+                    timestamps_to_check.append(dt)
+                except ValueError:
+                    pass
+                    
+        existing_ids = set()
+        if ids_to_check:
+            results = db.query(database.Trip.api_id).filter(database.Trip.api_id.in_(ids_to_check)).all()
+            existing_ids = {r[0] for r in results if r[0]}
+            
+        existing_timestamps = set()
+        if timestamps_to_check:
+            results = db.query(database.Trip.start_timestamp).filter(database.Trip.start_timestamp.in_(timestamps_to_check)).all()
+            existing_timestamps = {r[0] for r in results if r[0]}
+            
+        response_map = {}
+        for item in request.items:
+            exists = False
+            if item.id and item.id in existing_ids:
+                exists = True
+            elif item.start_timestamp:
+                ts_str = item.start_timestamp
+                if ts_str.endswith("Z"):
+                    ts_str = ts_str[:-1]
+                try:
+                    dt = datetime.datetime.fromisoformat(ts_str)
+                    if dt in existing_timestamps:
+                        exists = True
+                except ValueError:
+                    pass
+                    
+            key = item.id if item.id else item.start_timestamp
+            if key:
+                response_map[key] = exists
+                
+        return response_map
     finally:
         db.close()
 
