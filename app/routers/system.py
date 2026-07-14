@@ -157,6 +157,22 @@ def update_credentials(creds: dict = Body(...)):
         logging.error(f"Error saving credentials: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to save credentials.")
 
+def _extract_trips_from_json(data) -> list:
+    if not isinstance(data, (dict, list)):
+        return []
+    if isinstance(data, dict):
+        if "payload" in data and isinstance(data["payload"], dict):
+            payload = data["payload"]
+            if "trips" in payload and isinstance(payload["trips"], list):
+                return payload["trips"]
+            if any(k in payload for k in ("id", "start_time", "summary", "route")):
+                return [payload]
+        if any(k in data for k in ("id", "start_time", "summary", "route")):
+            return [data]
+    elif isinstance(data, list):
+        return [t for t in data if isinstance(t, dict) and any(k in t for k in ("id", "start_time", "summary", "route"))]
+    return []
+
 @router.get("/raw_responses")
 async def list_raw_responses():
     import json
@@ -170,6 +186,7 @@ async def list_raw_responses():
         if p.is_dir():
             files = []
             trip_count = None
+            unique_trips = {}
             for f in p.glob("*.json"):
                 if f.is_file():
                     stat = f.stat()
@@ -178,22 +195,25 @@ async def list_raw_responses():
                         "size": stat.st_size,
                         "mtime": stat.st_mtime
                     })
-                    if "trips" in f.name.lower():
+                    if "trip" in f.name.lower():
                         if trip_count is None:
                             trip_count = 0
                         try:
                             with open(f, "r", encoding="utf-8") as jf:
                                 data = json.load(jf)
-                                if isinstance(data, dict):
-                                    trips_data = data.get("payload", {}).get("trips")
-                                    if isinstance(trips_data, list):
-                                        valid_trips = [t for t in trips_data if isinstance(t, dict) and "route" in t]
-                                        trip_count += len(valid_trips)
-                                elif isinstance(data, list):
-                                    valid_trips = [t for t in data if isinstance(t, dict) and "route" in t]
-                                    trip_count += len(valid_trips)
+                                extracted_trips = _extract_trips_from_json(data)
+                                for t in extracted_trips:
+                                    tid = t.get("id")
+                                    if not tid:
+                                        tid = t.get("start_time") or t.get("start_timestamp")
+                                        if not tid and t.get("summary"):
+                                            tid = t["summary"].get("startTs") or t["summary"].get("start_ts") or t["summary"].get("start_timestamp")
+                                    if tid:
+                                        unique_trips[tid] = t
                         except Exception:
                             pass
+            if trip_count is not None:
+                trip_count = len(unique_trips)
             files.sort(key=lambda x: x["filename"])
             polls.append({
                 "poll_id": p.name,

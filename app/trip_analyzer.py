@@ -196,6 +196,11 @@ class TripAnalyzer:
 
     def _extract_trip_data(self, trip, coords, fetch_full_route):
         """Extracts and normalizes data points from the API trip object."""
+        try:
+            from .fetcher import current_poll_id
+            poll_id = current_poll_id.get()
+        except ImportError:
+            poll_id = None
         
         summary = trip._trip.summary if hasattr(trip, "_trip") and hasattr(trip._trip, "summary") else None
         scores = trip._trip.scores if hasattr(trip, "_trip") and hasattr(trip._trip, "scores") else None
@@ -291,6 +296,7 @@ class TripAnalyzer:
             "average_speed_mph": average_speed_kmh * self.KM_TO_MI,
             "ev_distance_mi": (ev_distance_km or 0.0) * self.KM_TO_MI,
             "route": route_data,
+            "poll_id": poll_id,
         }
 
     def _upsert_trip(self, new_data, counts):

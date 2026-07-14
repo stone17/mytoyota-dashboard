@@ -152,10 +152,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function extractTripsFromRawJson(data) {
-        if (data && data.payload && Array.isArray(data.payload.trips)) {
+        if (!data) return [];
+        if (data.payload && Array.isArray(data.payload.trips)) {
             return data.payload.trips;
-        } else if (Array.isArray(data)) {
-            return data.filter(item => item && (item.start_time || item.summary || item.route));
+        }
+        if (data.payload && (data.payload.id || data.payload.start_time || data.payload.summary || data.payload.route)) {
+            return [data.payload];
+        }
+        if (Array.isArray(data)) {
+            return data.filter(item => item && (item.id || item.start_time || item.summary || item.route));
+        }
+        if (data.id || data.start_time || data.summary || data.route) {
+            return [data];
         }
         return [];
     }
@@ -192,14 +200,29 @@ document.addEventListener('DOMContentLoaded', () => {
             const colors = ['#007bff', '#28a745', '#dc3545', '#fd7e14', '#6f42c1'];
             
             trips.forEach((trip, index) => {
-                const route = trip.route || (trip._trip && trip._trip.route);
+                let route = trip.route || (trip._trip && trip._trip.route);
+                let isFallback = false;
+                if (!route || !Array.isArray(route) || route.length === 0) {
+                    const start = (trip.start_lat && trip.start_lon) ? { lat: trip.start_lat, lon: trip.start_lon } : 
+                                  (trip.locations && trip.locations.start ? { lat: trip.locations.start.lat, lon: trip.locations.start.lon } : null);
+                    const end = (trip.end_lat && trip.end_lon) ? { lat: trip.end_lat, lon: trip.end_lon } : 
+                                (trip.locations && trip.locations.end ? { lat: trip.locations.end.lat, lon: trip.locations.end.lon } : null);
+                    if (start && end && start.lat !== undefined && start.lon !== undefined && end.lat !== undefined && end.lon !== undefined) {
+                        route = [start, end];
+                        isFallback = true;
+                    }
+                }
                 if (!route || !Array.isArray(route) || route.length === 0) return;
                 
                 const latLngs = route.map(pt => [pt.lat, pt.lon]).filter(pt => pt[0] !== undefined && pt[1] !== undefined);
                 if (latLngs.length === 0) return;
                 
                 const color = colors[index % colors.length];
-                const polyline = L.polyline(latLngs, { color: color, weight: 4, opacity: 0.8 }).addTo(modalMap);
+                const polylineOptions = { color: color, weight: 4, opacity: 0.8 };
+                if (isFallback) {
+                    polylineOptions.dashArray = '5, 10';
+                }
+                const polyline = L.polyline(latLngs, polylineOptions).addTo(modalMap);
                 mapLayers.push(polyline);
                 
                 latLngs.forEach(ll => bounds.extend(ll));
@@ -350,7 +373,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 mapBtn.style.padding = '2px 8px';
                 mapBtn.textContent = 'Map';
                 
-                const route = trip.route || (trip._trip && trip._trip.route);
+                let route = trip.route || (trip._trip && trip._trip.route);
+                if (!route || !Array.isArray(route) || route.length === 0) {
+                    const start = (trip.start_lat && trip.start_lon) ? { lat: trip.start_lat, lon: trip.start_lon } : 
+                                  (trip.locations && trip.locations.start ? { lat: trip.locations.start.lat, lon: trip.locations.start.lon } : null);
+                    const end = (trip.end_lat && trip.end_lon) ? { lat: trip.end_lat, lon: trip.end_lon } : 
+                                (trip.locations && trip.locations.end ? { lat: trip.locations.end.lat, lon: trip.locations.end.lon } : null);
+                    if (start && end && start.lat !== undefined && start.lon !== undefined && end.lat !== undefined && end.lon !== undefined) {
+                        route = [start, end];
+                    }
+                }
                 if (route && Array.isArray(route) && route.length > 0) {
                     mapableTrips.push(trip);
                     mapBtn.onclick = () => window.showTripsOnMap([trip]);
