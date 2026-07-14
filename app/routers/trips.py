@@ -15,6 +15,8 @@ from .. import database
 from .. import time_utils
 from ..config import config_manager
 
+_LOGGER = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api", tags=["trips"])
 
 @router.get("/trips")
@@ -155,8 +157,22 @@ class TripCheckItem(BaseModel):
 class CheckTripsRequest(BaseModel):
     items: List[TripCheckItem]
 
+def parse_to_naive_utc(ts_str: str) -> Optional[datetime.datetime]:
+    if not ts_str:
+        return None
+    if ts_str.endswith("Z"):
+        ts_str = ts_str[:-1] + "+00:00"
+    try:
+        dt = datetime.datetime.fromisoformat(ts_str)
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+        return dt
+    except ValueError:
+        return None
+
 @router.post("/raw_responses/check_trips")
 def check_trips_exist(request: CheckTripsRequest):
+    _LOGGER.info(f"check_trips_exist called with {len(request.items)} items: {request.items}")
     db = database.SessionLocal()
     try:
         ids_to_check = [item.id for item in request.items if item.id]
@@ -164,15 +180,13 @@ def check_trips_exist(request: CheckTripsRequest):
         
         for item in request.items:
             if item.start_timestamp:
-                ts_str = item.start_timestamp
-                if ts_str.endswith("Z"):
-                    ts_str = ts_str[:-1]
-                try:
-                    dt = datetime.datetime.fromisoformat(ts_str)
+                dt = parse_to_naive_utc(item.start_timestamp)
+                if dt:
                     timestamps_to_check.append(dt)
-                except ValueError:
-                    pass
                     
+        _LOGGER.info(f"ids_to_check: {ids_to_check}")
+        _LOGGER.info(f"timestamps_to_check: {timestamps_to_check}")
+        
         existing_ids = set()
         if ids_to_check:
             results = db.query(database.Trip.api_id).filter(database.Trip.api_id.in_(ids_to_check)).all()
@@ -183,26 +197,24 @@ def check_trips_exist(request: CheckTripsRequest):
             results = db.query(database.Trip.start_timestamp).filter(database.Trip.start_timestamp.in_(timestamps_to_check)).all()
             existing_timestamps = {r[0] for r in results if r[0]}
             
+        _LOGGER.info(f"Found existing IDs in DB: {existing_ids}")
+        _LOGGER.info(f"Found existing timestamps in DB: {existing_timestamps}")
+        
         response_map = {}
         for item in request.items:
             exists = False
             if item.id and item.id in existing_ids:
                 exists = True
             elif item.start_timestamp:
-                ts_str = item.start_timestamp
-                if ts_str.endswith("Z"):
-                    ts_str = ts_str[:-1]
-                try:
-                    dt = datetime.datetime.fromisoformat(ts_str)
-                    if dt in existing_timestamps:
-                        exists = True
-                except ValueError:
-                    pass
+                dt = parse_to_naive_utc(item.start_timestamp)
+                if dt and dt in existing_timestamps:
+                    exists = True
                     
             key = item.id if item.id else item.start_timestamp
             if key:
                 response_map[key] = exists
                 
+        _LOGGER.info(f"Returning match results: {response_map}")
         return response_map
     finally:
         db.close()

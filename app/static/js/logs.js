@@ -161,7 +161,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getTripStartTimestamp(trip) {
-        return trip.start_time || (trip.summary && (trip.summary.start_ts || trip.summary.start_timestamp));
+        return trip.start_time || 
+               trip.start_timestamp || 
+               (trip.summary && (trip.summary.startTs || trip.summary.start_ts || trip.summary.start_timestamp));
     }
 
     function initMapModal() {
@@ -318,7 +320,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Distance
                 const distTd = document.createElement('td');
                 distTd.style.padding = '8px';
-                const distKm = trip.distance || (trip.summary && trip.summary.distance) || 0;
+                let distKm = trip.distance || (trip.summary && trip.summary.distance);
+                if (distKm === undefined && trip.summary && trip.summary.length !== undefined) {
+                    distKm = trip.summary.length / 1000;
+                }
+                distKm = distKm || 0;
                 if (isImperial) {
                     distTd.textContent = (distKm * 0.621371).toFixed(1) + ' mi';
                 } else {
