@@ -51,6 +51,7 @@ def test_mqtt_publish_data(MockMqttClient):
     test_mqtt_config = {
         "enabled": True,
         "broker": "localhost",
+        "base_topic": "mytoyota/{vin}",
         "enabled_sensors": {
             "odometer": True,
             "fuel_level": True,
@@ -81,15 +82,18 @@ def test_mqtt_publish_data(MockMqttClient):
     # Assert that specific data points were published with the correct topic and payload
     mock_client_instance.publish.assert_any_call(
         "mytoyota/TESTVIN123/odometer",
-        json.dumps({"value": 12345})
+        json.dumps({"value": 12345}),
+        retain=True
     )
     mock_client_instance.publish.assert_any_call(
         "mytoyota/TESTVIN123/fuel_level",
-        json.dumps({"value": 75})
+        json.dumps({"value": 75}),
+        retain=True
     )
     mock_client_instance.publish.assert_any_call(
         "mytoyota/TESTVIN123/lock_status",
-        json.dumps({"value": "Locked"})
+        json.dumps({"value": "Locked"}),
+        retain=True
     )
 
     # Assert that the client was cleaned up
@@ -109,12 +113,12 @@ def test_publish_method_logic():
 
         # Test with autodiscovery enabled
         handler.publish(vehicle_data, autodiscovery=True)
-        mock_autodiscovery.assert_called_once_with(mock_client, vehicle_data)
-        mock_publish_data.assert_called_once_with(mock_client, vehicle_data)
+        mock_autodiscovery.assert_called_once_with(mock_client, vehicle_data, None)
+        mock_publish_data.assert_called_once_with(mock_client, vehicle_data, None)
 
         # Reset mocks and test with autodiscovery disabled
         mock_autodiscovery.reset_mock()
         mock_publish_data.reset_mock()
         handler.publish(vehicle_data, autodiscovery=False)
         mock_autodiscovery.assert_not_called()
-        mock_publish_data.assert_called_once_with(mock_client, vehicle_data)
+        mock_publish_data.assert_called_once_with(mock_client, vehicle_data, None)

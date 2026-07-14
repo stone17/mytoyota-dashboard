@@ -104,7 +104,6 @@ class Trip(Base):
     average_speed_mph = Column(Float, nullable=True)
     ev_distance_mi = Column(Float, nullable=True)
     route = Column(SafeJSON, nullable=True)
-    poll_id = Column(String, index=True, nullable=True)
 
 class ServiceHistory(Base):
     __tablename__ = "service_history"

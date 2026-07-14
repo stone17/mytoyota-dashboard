@@ -151,18 +151,72 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function extractCoordinates(trip) {
+        const start = (trip.start_lat && trip.start_lon) ? { lat: trip.start_lat, lon: trip.start_lon } : 
+                      (trip.summary && trip.summary.startLat && trip.summary.startLon ? { lat: trip.summary.startLat, lon: trip.summary.startLon } : 
+                      (trip.summary && trip.summary.start_lat && trip.summary.start_lon ? { lat: trip.summary.start_lat, lon: trip.summary.start_lon } :
+                      (trip.locations && trip.locations.start ? { lat: trip.locations.start.lat, lon: trip.locations.start.lon } : null)));
+        const end = (trip.end_lat && trip.end_lon) ? { lat: trip.end_lat, lon: trip.end_lon } : 
+                    (trip.summary && trip.summary.endLat && trip.summary.endLon ? { lat: trip.summary.endLat, lon: trip.summary.endLon } : 
+                    (trip.summary && trip.summary.end_lat && trip.summary.end_lon ? { lat: trip.summary.end_lat, lon: trip.summary.end_lon } :
+                    (trip.locations && trip.locations.end ? { lat: trip.locations.end.lat, lon: trip.locations.end.lon } : null)));
+        return { start, end };
+    }
+
     function extractTripsFromRawJson(data) {
         if (!data) return [];
+        
+        // Detect route-only files
+        if (data.payload && data.payload.route && Array.isArray(data.payload.route)) {
+            const routeArray = data.payload.route;
+            const startPt = routeArray[0];
+            const endPt = routeArray[routeArray.length - 1];
+            return [{
+                id: "Route File",
+                start_time: startPt ? startPt.ts : null,
+                route: routeArray,
+                summary: {
+                    startLat: startPt ? startPt.lat : null,
+                    startLon: startPt ? startPt.lon : null,
+                    endLat: endPt ? endPt.lat : null,
+                    endLon: endPt ? endPt.lon : null,
+                    distance: 0
+                }
+            }];
+        } else if (Array.isArray(data) && data.length > 0 && data[0].lat !== undefined && data[0].lon !== undefined) {
+            const startPt = data[0];
+            const endPt = data[data.length - 1];
+            return [{
+                id: "Route File",
+                start_time: startPt ? startPt.ts : null,
+                route: data,
+                summary: {
+                    startLat: startPt ? startPt.lat : null,
+                    startLon: startPt ? startPt.lon : null,
+                    endLat: endPt ? endPt.lat : null,
+                    endLon: endPt ? endPt.lon : null,
+                    distance: 0
+                }
+            }];
+        }
+
+        const isTrip = (obj) => {
+            if (!obj || typeof obj !== 'object') return false;
+            if (obj.start_time || obj.start_timestamp) return true;
+            if (obj.summary && (obj.summary.startTs || obj.summary.start_ts || obj.summary.start_time || obj.summary.start_timestamp)) return true;
+            return false;
+        };
+
         if (data.payload && Array.isArray(data.payload.trips)) {
             return data.payload.trips;
         }
-        if (data.payload && (data.payload.id || data.payload.start_time || data.payload.summary || data.payload.route)) {
+        if (data.payload && isTrip(data.payload)) {
             return [data.payload];
         }
         if (Array.isArray(data)) {
-            return data.filter(item => item && (item.id || item.start_time || item.summary || item.route));
+            return data.filter(isTrip);
         }
-        if (data.id || data.start_time || data.summary || data.route) {
+        if (isTrip(data)) {
             return [data];
         }
         return [];
@@ -203,10 +257,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 let route = trip.route || (trip._trip && trip._trip.route);
                 let isFallback = false;
                 if (!route || !Array.isArray(route) || route.length === 0) {
-                    const start = (trip.start_lat && trip.start_lon) ? { lat: trip.start_lat, lon: trip.start_lon } : 
-                                  (trip.locations && trip.locations.start ? { lat: trip.locations.start.lat, lon: trip.locations.start.lon } : null);
-                    const end = (trip.end_lat && trip.end_lon) ? { lat: trip.end_lat, lon: trip.end_lon } : 
-                                (trip.locations && trip.locations.end ? { lat: trip.locations.end.lat, lon: trip.locations.end.lon } : null);
+                    const coords = extractCoordinates(trip);
+                    const start = coords.start;
+                    const end = coords.end;
                     if (start && end && start.lat !== undefined && start.lon !== undefined && end.lat !== undefined && end.lon !== undefined) {
                         route = [start, end];
                         isFallback = true;
@@ -375,12 +428,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 let route = trip.route || (trip._trip && trip._trip.route);
                 if (!route || !Array.isArray(route) || route.length === 0) {
-                    const start = (trip.start_lat && trip.start_lon) ? { lat: trip.start_lat, lon: trip.start_lon } : 
-                                  (trip.locations && trip.locations.start ? { lat: trip.locations.start.lat, lon: trip.locations.start.lon } : null);
-                    const end = (trip.end_lat && trip.end_lon) ? { lat: trip.end_lat, lon: trip.end_lon } : 
-                                (trip.locations && trip.locations.end ? { lat: trip.locations.end.lat, lon: trip.locations.end.lon } : null);
+                    const coords = extractCoordinates(trip);
+                    const start = coords.start;
+                    const end = coords.end;
                     if (start && end && start.lat !== undefined && start.lon !== undefined && end.lat !== undefined && end.lon !== undefined) {
                         route = [start, end];
+                        trip.route = route; // Assign back so map rendering works
                     }
                 }
                 if (route && Array.isArray(route) && route.length > 0) {

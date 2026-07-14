@@ -160,17 +160,28 @@ def update_credentials(creds: dict = Body(...)):
 def _extract_trips_from_json(data) -> list:
     if not isinstance(data, (dict, list)):
         return []
+    
+    def is_trip(obj):
+        if not isinstance(obj, dict):
+            return False
+        if any(k in obj for k in ("start_time", "start_timestamp")):
+            return True
+        summary = obj.get("summary")
+        if isinstance(summary, dict) and any(k in summary for k in ("start_ts", "startTs", "start_time", "start_timestamp")):
+            return True
+        return False
+
     if isinstance(data, dict):
         if "payload" in data and isinstance(data["payload"], dict):
             payload = data["payload"]
             if "trips" in payload and isinstance(payload["trips"], list):
                 return payload["trips"]
-            if any(k in payload for k in ("id", "start_time", "summary", "route")):
+            if is_trip(payload):
                 return [payload]
-        if any(k in data for k in ("id", "start_time", "summary", "route")):
+        if is_trip(data):
             return [data]
     elif isinstance(data, list):
-        return [t for t in data if isinstance(t, dict) and any(k in t for k in ("id", "start_time", "summary", "route"))]
+        return [t for t in data if is_trip(t)]
     return []
 
 @router.get("/raw_responses")
@@ -187,6 +198,19 @@ async def list_raw_responses():
             files = []
             trip_count = None
             unique_trips = {}
+            metadata_obj = None
+            
+            # Check for metadata.json first
+            meta_path = p / "metadata.json"
+            if meta_path.exists():
+                try:
+                    with open(meta_path, "r", encoding="utf-8") as mf:
+                        metadata_obj = json.load(mf)
+                        if "updates" in metadata_obj and "trips" in metadata_obj["updates"]:
+                            trip_count = len(metadata_obj["updates"]["trips"])
+                except Exception:
+                    pass
+
             for f in p.glob("*.json"):
                 if f.is_file():
                     stat = f.stat()
@@ -195,7 +219,7 @@ async def list_raw_responses():
                         "size": stat.st_size,
                         "mtime": stat.st_mtime
                     })
-                    if "trip" in f.name.lower():
+                    if metadata_obj is None and "trip" in f.name.lower() and "route" not in f.name.lower():
                         if trip_count is None:
                             trip_count = 0
                         try:
@@ -212,14 +236,15 @@ async def list_raw_responses():
                                         unique_trips[tid] = t
                         except Exception:
                             pass
-            if trip_count is not None:
+            if metadata_obj is None and trip_count is not None:
                 trip_count = len(unique_trips)
             files.sort(key=lambda x: x["filename"])
             polls.append({
                 "poll_id": p.name,
                 "mtime": p.stat().st_mtime,
                 "files": files,
-                "trip_count": trip_count
+                "trip_count": trip_count,
+                "metadata": metadata_obj
             })
     polls.sort(key=lambda x: x["poll_id"], reverse=True)
     return polls

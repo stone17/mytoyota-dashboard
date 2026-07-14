@@ -185,7 +185,21 @@ class TripAnalyzer:
                     continue
 
                 new_data = self._extract_trip_data(trip, coords, fetch_full_route)
-                self._upsert_trip(new_data, counts)
+                api_id = new_data.get("api_id")
+                start_ts = new_data.get("start_timestamp")
+                db_id = self._upsert_trip(new_data, counts)
+
+                try:
+                    from .fetcher import current_poll_updates
+                    updates = current_poll_updates.get()
+                    if updates is not None:
+                        updates["trips"].append({
+                            "id": api_id,
+                            "start_timestamp": start_ts.isoformat() if start_ts else None,
+                            "database_id": db_id
+                        })
+                except Exception:
+                    pass
 
             except Exception as e:
                 _LOGGER.warning(f"Could not process a trip summary due to an error: {e}. Skipping.", exc_info=True)
@@ -196,12 +210,6 @@ class TripAnalyzer:
 
     def _extract_trip_data(self, trip, coords, fetch_full_route):
         """Extracts and normalizes data points from the API trip object."""
-        try:
-            from .fetcher import current_poll_id
-            poll_id = current_poll_id.get()
-        except ImportError:
-            poll_id = None
-        
         summary = trip._trip.summary if hasattr(trip, "_trip") and hasattr(trip._trip, "summary") else None
         scores = trip._trip.scores if hasattr(trip, "_trip") and hasattr(trip._trip, "scores") else None
         hdc = trip._trip.hdc if hasattr(trip, "_trip") and hasattr(trip._trip, "hdc") else None
@@ -296,7 +304,6 @@ class TripAnalyzer:
             "average_speed_mph": average_speed_kmh * self.KM_TO_MI,
             "ev_distance_mi": (ev_distance_km or 0.0) * self.KM_TO_MI,
             "route": route_data,
-            "poll_id": poll_id,
         }
 
     def _upsert_trip(self, new_data, counts):
@@ -330,6 +337,7 @@ class TripAnalyzer:
 
             if not existing_trip.countries and self.geocode_callback:
                 asyncio.create_task(self.geocode_callback(existing_trip.id))
+            return existing_trip.id
         else:
             new_trip = database.Trip(
                 vin=self.vehicle.vin,
@@ -344,3 +352,4 @@ class TripAnalyzer:
             counts["new"] += 1
             if self.geocode_callback:
                 asyncio.create_task(self.geocode_callback(new_trip.id))
+            return new_trip.id

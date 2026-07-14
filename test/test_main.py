@@ -8,7 +8,7 @@ async def test_read_root(client):
     """Tests if the main page loads successfully."""
     response = await client.get("/")
     assert response.status_code == 200
-    assert "MyToyota Dashboard" in response.text
+    assert "MyVehicle Dashboard" in response.text
 
 @pytest.mark.asyncio
 async def test_get_config(client):

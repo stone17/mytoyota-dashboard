@@ -28,6 +28,31 @@ CACHE_FILE = DATA_DIR / "vehicle_data.json"
 CACHE_LOCK = asyncio.Lock()
 GEOCODE_SEMAPHORE = asyncio.Semaphore(1)
 current_poll_id = contextvars.ContextVar("current_poll_id", default=None)
+current_poll_updates = contextvars.ContextVar("current_poll_updates", default=None)
+
+
+async def save_poll_metadata():
+    if not config_manager.settings.get("save_raw_responses", False):
+        return
+    poll_id = current_poll_id.get()
+    updates = current_poll_updates.get()
+    if not poll_id or not updates:
+        return
+    raw_dir = DATA_DIR / "raw_responses"
+    poll_dir = raw_dir / poll_id
+    if not poll_dir.exists():
+        poll_dir.mkdir(parents=True, exist_ok=True)
+    filename = "metadata.json"
+    metadata = {
+        "poll_id": poll_id,
+        "timestamp": datetime.datetime.now().isoformat(),
+        "updates": updates
+    }
+    try:
+        async with aiofiles.open(poll_dir / filename, "w") as f:
+            await f.write(json.dumps(metadata, indent=2))
+    except Exception as e:
+        _LOGGER.warning(f"Failed to save poll metadata: {e}")
 
 
 async def save_raw_response(endpoint: str, response: dict):
@@ -177,6 +202,14 @@ async def _process_vehicle(vehicle):
     try:
         # 2. Check Odometer & Fetch Trips
         new_odometer = vehicle_info.get("dashboard", {}).get("odometer")
+        try:
+            updates = current_poll_updates.get()
+            if updates is not None:
+                updates["odometer"] = new_odometer
+                updates["status_updated"] = True
+        except Exception:
+            pass
+
         if new_odometer is None:
             _LOGGER.warning(f"Odometer data not available for {vin}. Skipping database entry and trip fetch.")
             return vehicle_info
@@ -247,6 +280,7 @@ async def _process_vehicle(vehicle):
 async def run_fetch_cycle():
     """The main entrypoint for scheduled data fetching."""
     current_poll_id.set(f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_fetch")
+    current_poll_updates.set({"trips": [], "status_updated": False, "odometer": None, "warnings": []})
     _LOGGER.info("Starting scheduled data fetch cycle...")
     username, password = load_credentials()
     if not username or not password:
@@ -304,6 +338,7 @@ async def run_fetch_cycle():
         _LOGGER.error(f"An unexpected error occurred in the fetch cycle: {e}", exc_info=True)
         return None
     finally:
+        await save_poll_metadata()
         if hasattr(client, "_session") and client._session and not client._session.is_closed:
             await client._session.aclose()
 
@@ -313,6 +348,7 @@ async def run_fetch_cycle():
 async def backfill_trips(vin: str, period: str):
     """Manually fetches historical trips for a specific vehicle and period."""
     current_poll_id.set(f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_backfill_trips")
+    current_poll_updates.set({"trips": [], "status_updated": False, "odometer": None, "warnings": []})
     _LOGGER.info(f"Starting manual trip backfill for VIN {vin}, period: {period}")
     username, password = load_credentials()
     if not username or not password:
@@ -342,6 +378,7 @@ async def backfill_trips(vin: str, period: str):
         _LOGGER.error(f"Error during trip backfill: {e}", exc_info=True)
         return {"error": "An internal error occurred during the fetch."}
     finally:
+        await save_poll_metadata()
         if hasattr(client, "_session") and client._session and not client._session.is_closed:
             await client._session.aclose()
 
@@ -370,6 +407,7 @@ async def backfill_geocoding(force_all: bool = False):
 async def fetch_service_history(vin: str):
     """Fetches the full service history for a given vehicle."""
     current_poll_id.set(f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_service_history")
+    current_poll_updates.set({"trips": [], "status_updated": False, "odometer": None, "warnings": []})
     _LOGGER.info(f"Fetching service history for VIN {vin}...")
     username, password = load_credentials()
     if not username or not password:
@@ -387,5 +425,6 @@ async def fetch_service_history(vin: str):
         _LOGGER.error(f"Error fetching service history for VIN {vin}: {e}", exc_info=True)
         return {"error": "An error occurred during the service history fetch."}
     finally:
+        await save_poll_metadata()
         if hasattr(client, "_session") and client._session and not client._session.is_closed:
             await client._session.aclose()
