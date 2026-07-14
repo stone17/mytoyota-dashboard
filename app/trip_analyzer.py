@@ -295,18 +295,9 @@ class TripAnalyzer:
 
     def _upsert_trip(self, new_data, counts):
         """Inserts or updates the trip in the database and triggers geocoding."""
-        existing_trip = None
-        api_id = new_data.get("api_id")
-        
-        if api_id:
-            existing_trip = self.db_session.query(database.Trip).filter_by(
-                vin=self.vehicle.vin, api_id=api_id
-            ).first()
-            
-        if not existing_trip:
-            existing_trip = self.db_session.query(database.Trip).filter_by(
-                vin=self.vehicle.vin, start_timestamp=new_data["start_timestamp"]
-            ).first()
+        existing_trip = self.db_session.query(database.Trip).filter_by(
+            vin=self.vehicle.vin, start_timestamp=new_data["start_timestamp"]
+        ).first()
 
         start_ts_utc = new_data.pop("start_timestamp")
 
