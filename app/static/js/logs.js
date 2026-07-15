@@ -490,10 +490,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
                         <button id="btn-render-truncated" class="btn" style="padding: 8px 16px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px;">Render Truncated (Fast)</button>
                         <button id="btn-render-full" class="btn" style="padding: 8px 16px; cursor: pointer; background: var(--border-color); color: var(--text-color); border: none; border-radius: 4px;">Render Full (Slow)</button>
-                        <a href="${url}" download="${filename}" class="btn" style="padding: 8px 16px; text-decoration: none; background: var(--border-color); color: var(--text-color); border-radius: 4px;">Download File</a>
+                        <a id="btn-download-raw" class="btn" style="padding: 8px 16px; text-decoration: none; background: var(--border-color); color: var(--text-color); border-radius: 4px;">Download File</a>
                     </div>
                 </div>
             `;
+
+            const downloadLink = document.getElementById('btn-download-raw');
+            if (downloadLink) {
+                downloadLink.href = url;
+                downloadLink.download = filename;
+            }
 
             document.getElementById('btn-render-truncated').addEventListener('click', async () => {
                 rawContent.textContent = 'Loading...';
