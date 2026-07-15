@@ -55,3 +55,20 @@ async def test_save_raw_response_and_metadata(tmp_path):
         app.fetcher.DATA_DIR = original_data_dir
         app.config.DATA_DIR = original_data_dir
         config_manager.settings["save_raw_responses"] = False
+
+@pytest.mark.asyncio
+async def test_get_raw_response_endpoint(client, test_data_dir):
+    config_manager.settings["save_raw_responses"] = True
+    
+    poll_id = "20260714_120000_test"
+    filename = "20260714_120000_v1_trips.json"
+    poll_dir = test_data_dir / "raw_responses" / poll_id
+    poll_dir.mkdir(parents=True, exist_ok=True)
+    
+    test_data = {"payload": {"trips": [{"id": "trip1"}]}}
+    with open(poll_dir / filename, "w") as f:
+        json.dump(test_data, f)
+        
+    response = await client.get(f"/api/raw_responses/{poll_id}/{filename}")
+    assert response.status_code == 200
+    assert response.json() == test_data

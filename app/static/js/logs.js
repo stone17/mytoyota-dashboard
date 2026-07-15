@@ -183,6 +183,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     distance: 0
                 }
             }];
+        } else if (data.route && Array.isArray(data.route)) {
+            const routeArray = data.route;
+            const startPt = routeArray[0];
+            const endPt = routeArray[routeArray.length - 1];
+            return [{
+                id: "Route File",
+                start_time: startPt ? startPt.ts : null,
+                route: routeArray,
+                summary: {
+                    startLat: startPt ? startPt.lat : null,
+                    startLon: startPt ? startPt.lon : null,
+                    endLat: endPt ? endPt.lat : null,
+                    endLon: endPt ? endPt.lon : null,
+                    distance: 0
+                }
+            }];
         } else if (Array.isArray(data) && data.length > 0 && data[0].lat !== undefined && data[0].lon !== undefined) {
             const startPt = data[0];
             const endPt = data[data.length - 1];
@@ -345,6 +361,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const showAllMapBtn = document.getElementById('show-all-map-btn');
         
         async function processAndRenderTrips(data) {
+            if (poll && poll.metadata && poll.metadata.updates && (!poll.metadata.updates.trips || poll.metadata.updates.trips.length === 0)) {
+                if (tripsSummaryPanel) tripsSummaryPanel.style.display = 'none';
+                return;
+            }
+            
+            const lowerFilename = filename.toLowerCase();
+            if (!lowerFilename.includes('trip') && !lowerFilename.includes('route') && !lowerFilename.includes('data')) {
+                if (tripsSummaryPanel) tripsSummaryPanel.style.display = 'none';
+                return;
+            }
+
             const trips = extractTripsFromRawJson(data);
             if (!trips || trips.length === 0) {
                 if (tripsSummaryPanel) tripsSummaryPanel.style.display = 'none';
