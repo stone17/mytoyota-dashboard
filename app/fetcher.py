@@ -31,6 +31,18 @@ current_poll_id = contextvars.ContextVar("current_poll_id", default=None)
 current_poll_updates = contextvars.ContextVar("current_poll_updates", default=None)
 
 
+def _cleanup_old_responses(raw_dir, max_age):
+    import time
+    if not raw_dir.exists():
+        return
+    now = time.time()
+    for p in raw_dir.iterdir():
+        if p.is_dir() and now - p.stat().st_mtime > max_age:
+            try:
+                shutil.rmtree(p)
+            except Exception as e:
+                _LOGGER.warning(f"Failed to delete old raw response directory {p}: {e}")
+
 async def save_poll_metadata():
     if not config_manager.settings.get("save_raw_responses", False):
         return
@@ -54,12 +66,24 @@ async def save_poll_metadata():
     except Exception as e:
         _LOGGER.warning(f"Failed to save poll metadata: {e}")
 
+    retention = config_manager.settings.get("raw_responses_retention", "always")
+    if retention != "always":
+        retention_map = {
+            "1_day": 86400,
+            "1_week": 604800,
+            "1_month": 2592000,
+            "1_year": 31536000
+        }
+        max_age = retention_map.get(retention)
+        if max_age:
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, _cleanup_old_responses, raw_dir, max_age)
+
 
 async def save_raw_response(endpoint: str, response: dict):
     if not config_manager.settings.get("save_raw_responses", False):
         return
         
-    import time
     raw_dir = DATA_DIR / "raw_responses"
     
     poll_id = current_poll_id.get()
@@ -80,25 +104,6 @@ async def save_raw_response(endpoint: str, response: dict):
             await f.write(json.dumps(response, indent=2))
     except Exception as e:
         _LOGGER.warning(f"Failed to save raw response for {endpoint}: {e}")
-
-    retention = config_manager.settings.get("raw_responses_retention", "always")
-    if retention != "always":
-        retention_map = {
-            "1_day": 86400,
-            "1_week": 604800,
-            "1_month": 2592000,
-            "1_year": 31536000
-        }
-        max_age = retention_map.get(retention)
-        if max_age:
-            now = time.time()
-            loop = asyncio.get_running_loop()
-            for p in raw_dir.iterdir():
-                if p.is_dir() and now - p.stat().st_mtime > max_age:
-                    try:
-                        await loop.run_in_executor(None, shutil.rmtree, p)
-                    except Exception as e:
-                        _LOGGER.warning(f"Failed to delete old raw response directory {p}: {e}")
 
 
 async def _reverse_geocode_trip(trip_id: int, force: bool = False):

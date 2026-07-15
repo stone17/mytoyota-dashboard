@@ -157,33 +157,6 @@ def update_credentials(creds: dict = Body(...)):
         logging.error(f"Error saving credentials: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to save credentials.")
 
-def _extract_trips_from_json(data) -> list:
-    if not isinstance(data, (dict, list)):
-        return []
-    
-    def is_trip(obj):
-        if not isinstance(obj, dict):
-            return False
-        if any(k in obj for k in ("start_time", "start_timestamp")):
-            return True
-        summary = obj.get("summary")
-        if isinstance(summary, dict) and any(k in summary for k in ("start_ts", "startTs", "start_time", "start_timestamp")):
-            return True
-        return False
-
-    if isinstance(data, dict):
-        if "payload" in data and isinstance(data["payload"], dict):
-            payload = data["payload"]
-            if "trips" in payload and isinstance(payload["trips"], list):
-                return payload["trips"]
-            if is_trip(payload):
-                return [payload]
-        if is_trip(data):
-            return [data]
-    elif isinstance(data, list):
-        return [t for t in data if is_trip(t)]
-    return []
-
 @router.get("/raw_responses")
 def list_raw_responses():
     import json
@@ -197,7 +170,6 @@ def list_raw_responses():
         if p.is_dir():
             files = []
             trip_count = None
-            unique_trips = {}
             metadata_obj = None
             
             # Check for metadata.json first
@@ -219,25 +191,6 @@ def list_raw_responses():
                         "size": stat.st_size,
                         "mtime": stat.st_mtime
                     })
-                    if metadata_obj is None and "trip" in f.name.lower() and "route" not in f.name.lower():
-                        if trip_count is None:
-                            trip_count = 0
-                        try:
-                            with open(f, "r", encoding="utf-8") as jf:
-                                data = json.load(jf)
-                                extracted_trips = _extract_trips_from_json(data)
-                                for t in extracted_trips:
-                                    tid = t.get("id")
-                                    if not tid:
-                                        tid = t.get("start_time") or t.get("start_timestamp")
-                                        if not tid and t.get("summary"):
-                                            tid = t["summary"].get("startTs") or t["summary"].get("start_ts") or t["summary"].get("start_timestamp")
-                                    if tid:
-                                        unique_trips[tid] = t
-                        except Exception:
-                            pass
-            if metadata_obj is None and trip_count is not None:
-                trip_count = len(unique_trips)
             files.sort(key=lambda x: x["filename"])
             polls.append({
                 "poll_id": p.name,
