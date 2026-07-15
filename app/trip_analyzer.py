@@ -185,7 +185,21 @@ class TripAnalyzer:
                     continue
 
                 new_data = self._extract_trip_data(trip, coords, fetch_full_route)
-                self._upsert_trip(new_data, counts)
+                api_id = new_data.get("api_id")
+                start_ts = new_data.get("start_timestamp")
+                db_id = self._upsert_trip(new_data, counts)
+
+                try:
+                    from .fetcher import current_poll_updates
+                    updates = current_poll_updates.get()
+                    if updates is not None:
+                        updates["trips"].append({
+                            "id": api_id,
+                            "start_timestamp": start_ts.isoformat() if start_ts else None,
+                            "database_id": db_id
+                        })
+                except Exception:
+                    pass
 
             except Exception as e:
                 _LOGGER.warning(f"Could not process a trip summary due to an error: {e}. Skipping.", exc_info=True)
@@ -196,10 +210,11 @@ class TripAnalyzer:
 
     def _extract_trip_data(self, trip, coords, fetch_full_route):
         """Extracts and normalizes data points from the API trip object."""
-        
         summary = trip._trip.summary if hasattr(trip, "_trip") and hasattr(trip._trip, "summary") else None
         scores = trip._trip.scores if hasattr(trip, "_trip") and hasattr(trip._trip, "scores") else None
         hdc = trip._trip.hdc if hasattr(trip, "_trip") and hasattr(trip._trip, "hdc") else None
+
+        api_id = getattr(trip, "id", None) or (trip.get("id") if isinstance(trip, dict) else None)
 
         # 1. Safely extract timestamps 
         start_ts_raw = getattr(trip, "start_time", None) or (summary.start_ts if summary else None)
@@ -252,6 +267,7 @@ class TripAnalyzer:
             )
             
         return {
+            "api_id": api_id,
             "start_timestamp": start_timestamp,
             "end_timestamp": end_timestamp,
             "start_lat": coords.start_lat,
@@ -321,6 +337,7 @@ class TripAnalyzer:
 
             if not existing_trip.countries and self.geocode_callback:
                 asyncio.create_task(self.geocode_callback(existing_trip.id))
+            return existing_trip.id
         else:
             new_trip = database.Trip(
                 vin=self.vehicle.vin,
@@ -335,3 +352,4 @@ class TripAnalyzer:
             counts["new"] += 1
             if self.geocode_callback:
                 asyncio.create_task(self.geocode_callback(new_trip.id))
+            return new_trip.id

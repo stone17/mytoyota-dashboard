@@ -1,9 +1,14 @@
 # app/routers/system.py
 import logging
 import yaml
+import io
+import zipfile
+import tempfile
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Request, Body
+import os
+from fastapi import APIRouter, HTTPException, Request, Body, BackgroundTasks
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from .. import fetcher
@@ -152,6 +157,114 @@ def update_credentials(creds: dict = Body(...)):
     except Exception as e:
         logging.error(f"Error saving credentials: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to save credentials.")
+
+@router.get("/raw_responses")
+def list_raw_responses():
+    import json
+    from ..config import DATA_DIR
+    raw_dir = DATA_DIR / "raw_responses"
+    if not raw_dir.exists():
+        return []
+    
+    polls = []
+    for p in raw_dir.iterdir():
+        if p.is_dir():
+            files = []
+            trip_count = None
+            metadata_obj = None
+            
+            # Check for metadata.json first
+            meta_path = p / "metadata.json"
+            if meta_path.exists():
+                try:
+                    with open(meta_path, "r", encoding="utf-8") as mf:
+                        metadata_obj = json.load(mf)
+                        if "updates" in metadata_obj and "trips" in metadata_obj["updates"]:
+                            trip_count = len(metadata_obj["updates"]["trips"])
+                except Exception:
+                    pass
+
+            for f in p.glob("*.json"):
+                if f.is_file():
+                    stat = f.stat()
+                    files.append({
+                        "filename": f.name,
+                        "size": stat.st_size,
+                        "mtime": stat.st_mtime
+                    })
+            files.sort(key=lambda x: x["filename"])
+            polls.append({
+                "poll_id": p.name,
+                "mtime": p.stat().st_mtime,
+                "files": files,
+                "trip_count": trip_count,
+                "metadata": metadata_obj
+            })
+    polls.sort(key=lambda x: x["poll_id"], reverse=True)
+    return polls
+
+@router.get("/raw_responses/{poll_id}/download")
+def download_poll_zip(poll_id: str, background_tasks: BackgroundTasks):
+    from ..config import DATA_DIR
+    safe_poll_id = "".join(c for c in poll_id if c.isalnum() or c in "._-")
+    base_dir = (DATA_DIR / "raw_responses").resolve()
+    poll_dir = (base_dir / safe_poll_id).resolve()
+    
+    try:
+        poll_dir.relative_to(base_dir)
+        if poll_dir == base_dir:
+            raise ValueError()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid path.")
+    
+    if not poll_dir.exists() or not poll_dir.is_dir():
+        raise HTTPException(status_code=404, detail="Poll directory not found.")
+        
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
+    temp_file.close()
+    
+    try:
+        with zipfile.ZipFile(temp_file.name, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            for f in poll_dir.glob("*.json"):
+                if f.is_file():
+                    zip_file.write(f, f.name)
+    except Exception:
+        os.unlink(temp_file.name)
+        raise HTTPException(status_code=500, detail="Failed to create zip file.")
+    
+    background_tasks.add_task(os.unlink, temp_file.name)
+    return FileResponse(
+        path=temp_file.name,
+        media_type="application/zip",
+        filename=f"{safe_poll_id}.zip"
+    )
+
+@router.get("/raw_responses/{poll_id}/{filename}")
+def get_raw_response(poll_id: str, filename: str):
+    from ..config import DATA_DIR
+    _LOGGER.info(f"Requested raw response: poll_id='{poll_id}', filename='{filename}'")
+    
+    safe_poll_id = "".join(c for c in poll_id if c.isalnum() or c in "._-")
+    safe_filename = "".join(c for c in filename if c.isalnum() or c in "._-")
+    
+    base_dir = (DATA_DIR / "raw_responses").resolve()
+    poll_dir = (base_dir / safe_poll_id).resolve()
+    file_path = (poll_dir / safe_filename).resolve()
+    
+    try:
+        file_path.relative_to(base_dir)
+        file_path.relative_to(poll_dir)
+        if file_path == poll_dir or file_path == base_dir or poll_dir == base_dir:
+            raise ValueError()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid path.")
+    
+    _LOGGER.info(f"Resolved file_path: '{file_path}', exists: {file_path.exists()}, is_file: {file_path.is_file() if file_path.exists() else False}")
+    
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="Raw response file not found.")
+        
+    return FileResponse(path=file_path, filename=file_path.name, media_type="application/json")
 
 @router.get("/config")
 def get_config():

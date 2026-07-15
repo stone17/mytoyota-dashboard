@@ -297,7 +297,20 @@
         "history_size": "Tama\u00f1o del Historial:",
         "save": "Guardar Ajustes",
         "live_feed": "Feed en Vivo",
-        "clear": "Borrar Registros"
+        "clear": "Borrar Registros",
+        "save_raw_responses": "Guardar respuestas sin procesar del servidor",
+        "raw_viewer": "Visor de respuestas sin procesar",
+        "trips_json": "JSON de viajes",
+        "status_json": "JSON de estado",
+        "refresh": "Actualizar",
+        "download": "Descargar",
+        "retention": "Retención de respuestas sin procesar",
+        "retention_1_day": "1 Día",
+        "retention_1_week": "1 Semana",
+        "retention_1_month": "1 Mes",
+        "retention_1_year": "1 Año",
+        "retention_always": "Siempre",
+        "download_poll": "Descargar sondeo (ZIP)"
     },
     "notifications": {
         "title": "Notificaciones y Alertas",

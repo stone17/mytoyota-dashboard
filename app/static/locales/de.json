@@ -297,7 +297,20 @@
         "history_size": "Log-Verlauf Gr\u00f6\u00dfe:",
         "save": "Speichern",
         "live_feed": "Live-Protokoll",
-        "clear": "L\u00f6schen"
+        "clear": "L\u00f6schen",
+        "save_raw_responses": "Rohe Serverantworten speichern",
+        "raw_viewer": "Rohdatenanzeige",
+        "trips_json": "Fahrten JSON",
+        "status_json": "Status JSON",
+        "refresh": "Aktualisieren",
+        "download": "Herunterladen",
+        "retention": "Rohdatenaufbewahrung",
+        "retention_1_day": "1 Tag",
+        "retention_1_week": "1 Woche",
+        "retention_1_month": "1 Monat",
+        "retention_1_year": "1 Jahr",
+        "retention_always": "Immer",
+        "download_poll": "Poll herunterladen (ZIP)"
     },
     "notifications": {
         "title": "Benachrichtigungen",

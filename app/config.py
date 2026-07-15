@@ -6,7 +6,7 @@ from pathlib import Path
 _LOGGER = logging.getLogger(__name__)
 
 # Centralize the data directory definition and ensure it exists.
-DATA_DIR = Path(__file__).parent.parent / "data"
+DATA_DIR = (Path(__file__).parent.parent / "data").resolve()
 DATA_DIR.mkdir(exist_ok=True)
 
 DEFAULT_CONFIG_PATH = DATA_DIR / "mytoyota_config.yaml"

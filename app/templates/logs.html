@@ -5,11 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Logs - MyVehicle Dashboard</title>
     <link rel="stylesheet" href="/static/css/style.css?v={{ cache_buster }}">
+    <style>
+        .raw-file-item {
+            padding: 6px 8px;
+            font-size: 0.85em;
+            border-radius: 4px;
+            cursor: pointer;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: all 0.2s ease;
+        }
+        .raw-file-item:hover {
+            background: var(--border-color);
+        }
+        .raw-file-item.active {
+            background: #007bff;
+            color: #fff;
+            border-color: #007bff;
+        }
+    </style>
     <script>
         const savedTheme = localStorage.getItem('theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
     </script>
     <script src="/static/js/i18n.js?v={{ cache_buster }}"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 </head>
 <body>
     <header class="main-header">
@@ -63,18 +88,81 @@
                 <label for="log-history-size">Log History Size</label>
                 <input type="number" id="log-history-size" name="log_history_size" min="10" max="5000" title="Number of recent log lines to keep in memory for the Logs page. A restart is required for this change to take effect.">
             </div>
+            <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+                <input type="checkbox" id="save-raw-responses" style="margin: 0;">
+                <label for="save-raw-responses" data-i18n="logs.save_raw_responses" style="margin: 0;">Save Raw Server Responses</label>
+            </div>
+            <div class="form-group" id="raw-retention-group" style="display: none;">
+                <label for="raw-responses-retention" data-i18n="logs.retention">Raw Response Retention</label>
+                <select id="raw-responses-retention" name="raw_responses_retention">
+                    <option value="1_day" data-i18n="logs.retention_1_day">1 Day</option>
+                    <option value="1_week" data-i18n="logs.retention_1_week">1 Week</option>
+                    <option value="1_month" data-i18n="logs.retention_1_month">1 Month</option>
+                    <option value="1_year" data-i18n="logs.retention_1_year">1 Year</option>
+                    <option value="always" data-i18n="logs.retention_always">Always</option>
+                </select>
+            </div>
             <button type="button" id="save-log-settings-btn" data-i18n="logs.save">Save Settings</button>
             <p id="log-settings-status-message" class="status-message"></p>
         </section>
-        <section class="settings-section">
-            <div class="logs-header">
+        <div class="logs-panels-container">
+            <section class="settings-section" style="flex: 1; min-width: 300px; display: flex; flex-direction: column;">
                 <h2>Live Log Stream</h2>
+                <div id="log-content" class="logs-container" style="flex-grow: 1;">
+                    Connecting to log stream...
+                </div>
+            </section>
+            <section class="settings-section" id="raw-viewer-panel" style="flex: 1; min-width: 300px; display: none; flex-direction: column;">
+                <div class="logs-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px;">
+                    <h2 data-i18n="logs.raw_viewer" style="margin: 0; border: none; padding: 0;">Raw Response Viewer</h2>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button id="refresh-raw-btn" data-i18n="logs.refresh" style="padding: 4px 8px; margin: 0;">Refresh</button>
+                        <a id="download-poll-link" href="#" class="btn" style="padding: 4px 8px; margin: 0; text-decoration: none; display: none;" data-i18n="logs.download_poll">Download Poll (ZIP)</a>
+                    </div>
+                </div>
+            <div style="display: flex; flex: 1; height: 70vh; max-height: 70vh; gap: 10px;">
+                <div id="raw-file-list" style="width: 200px; min-width: 150px; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 5px; overflow-y: auto;">
+                    <h3 id="raw-files-header" style="margin-top: 0; font-size: 1em; margin-bottom: 2px;">Poll Files</h3>
+                    <div id="raw-files-descriptor" style="font-size: 0.8em; color: var(--text-subtle); margin-bottom: 8px; display: none;"></div>
+                    <select id="raw-poll-selector" style="width: 100%; margin: 0 0 10px 0; padding: 4px;">
+                        <option value="" disabled selected>Select a poll...</option>
+                    </select>
+                    <div id="raw-files-container" style="display: flex; flex-direction: column; gap: 5px;"></div>
+                </div>
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 10px; height: 100%;">
+                    <div id="trips-summary-panel" style="display: none; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 15px; overflow-y: auto; max-height: 40%;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <h3 style="margin: 0;">Trips in Response</h3>
+                            <button id="show-all-map-btn" class="btn secondary-btn" disabled>Show All on Map</button>
+                        </div>
+                        <table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
+                            <thead>
+                                <tr style="border-bottom: 2px solid var(--border-color); text-align: left;">
+                                    <th style="padding: 8px;">Start Time</th>
+                                    <th style="padding: 8px;">Distance</th>
+                                    <th style="padding: 8px;">Database Status</th>
+                                    <th style="padding: 8px;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="trips-summary-body"></tbody>
+                        </table>
+                    </div>
+                    <pre id="raw-response-content" class="logs-container" style="flex: 1; white-space: pre-wrap; overflow-y: auto; margin: 0;"></pre>
+                </div>
             </div>
-            <div id="log-content" class="logs-container">
-                Connecting to log stream...
-            </div>
-        </section>
+            </section>
+        </div>
     </main>
+
+    <div id="map-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; align-items: center; justify-content: center;">
+        <div style="background: var(--card-bg); width: 90%; height: 90%; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden;">
+            <div style="padding: 15px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+                <h2 style="margin: 0; color: var(--text-color);">Trip Map</h2>
+                <button id="close-map-modal" style="background: none; border: none; font-size: 1.5em; color: var(--text-color); cursor: pointer; padding: 0 10px;">&times;</button>
+            </div>
+            <div id="modal-map" style="flex: 1; width: 100%;"></div>
+        </div>
+    </div>
 
     <script src="/static/js/utils.js?v={{ cache_buster }}"></script>
     <script src="/static/js/logs.js?v={{ cache_buster }}"></script>
