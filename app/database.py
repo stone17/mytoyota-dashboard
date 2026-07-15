@@ -152,6 +152,11 @@ def _add_missing_columns(engine):
                     # Use a transaction to ensure the operation is atomic
                     with connection.begin():
                         connection.execute(text(f'ALTER TABLE trips ADD COLUMN {col_name} {col_type}'))
+                    
+                    if getattr(model_column, "index", False):
+                        _LOGGER.info(f"Adding index for column '{col_name}'.")
+                        with connection.begin():
+                            connection.execute(text(f'CREATE INDEX IF NOT EXISTS ix_trips_{col_name} ON trips ({col_name})'))
                 except Exception as e:
                     _LOGGER.error(f"Failed to add column '{col_name}': {e}")
             connection.commit()
