@@ -249,22 +249,6 @@ async def list_raw_responses():
     polls.sort(key=lambda x: x["poll_id"], reverse=True)
     return polls
 
-@router.get("/raw_responses/{poll_id}/{filename}")
-async def get_raw_response(poll_id: str, filename: str):
-    from ..config import DATA_DIR
-    _LOGGER.info(f"Requested raw response: poll_id='{poll_id}', filename='{filename}'")
-    safe_poll_id = "".join(c for c in poll_id if c.isalnum() or c in "._-")
-    safe_filename = "".join(c for c in filename if c.isalnum() or c in "._-")
-    _LOGGER.info(f"Computed safe paths: safe_poll_id='{safe_poll_id}', safe_filename='{safe_filename}'")
-    
-    file_path = DATA_DIR / "raw_responses" / safe_poll_id / safe_filename
-    _LOGGER.info(f"Resolved file_path: '{file_path}', exists: {file_path.exists()}, is_file: {file_path.is_file() if file_path.exists() else False}")
-    
-    if not file_path.exists() or not file_path.is_file():
-        raise HTTPException(status_code=404, detail="Raw response file not found.")
-        
-    return FileResponse(path=file_path, filename=safe_filename, media_type="application/json")
-
 @router.get("/raw_responses/{poll_id}/download")
 async def download_poll_zip(poll_id: str):
     from ..config import DATA_DIR
@@ -286,6 +270,22 @@ async def download_poll_zip(poll_id: str):
         media_type="application/zip",
         headers={"Content-Disposition": f"attachment; filename={safe_poll_id}.zip"}
     )
+
+@router.get("/raw_responses/{poll_id}/{filename}")
+async def get_raw_response(poll_id: str, filename: str):
+    from ..config import DATA_DIR
+    _LOGGER.info(f"Requested raw response: poll_id='{poll_id}', filename='{filename}'")
+    safe_poll_id = "".join(c for c in poll_id if c.isalnum() or c in "._-")
+    safe_filename = "".join(c for c in filename if c.isalnum() or c in "._-")
+    _LOGGER.info(f"Computed safe paths: safe_poll_id='{safe_poll_id}', safe_filename='{safe_filename}'")
+    
+    file_path = DATA_DIR / "raw_responses" / safe_poll_id / safe_filename
+    _LOGGER.info(f"Resolved file_path: '{file_path}', exists: {file_path.exists()}, is_file: {file_path.is_file() if file_path.exists() else False}")
+    
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="Raw response file not found.")
+        
+    return FileResponse(path=file_path, filename=safe_filename, media_type="application/json")
 
 @router.get("/config")
 def get_config():
