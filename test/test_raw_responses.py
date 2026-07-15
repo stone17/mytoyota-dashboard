@@ -72,3 +72,17 @@ async def test_get_raw_response_endpoint(client, test_data_dir):
     response = await client.get(f"/api/raw_responses/{poll_id}/{filename}")
     assert response.status_code == 200
     assert response.json() == test_data
+
+@pytest.mark.asyncio
+async def test_raw_responses_path_traversal_protection(client, test_data_dir):
+    # Test poll_id traversal
+    response1 = await client.get("/api/raw_responses/../download")
+    assert response1.status_code in (400, 404)
+    
+    response2 = await client.get("/api/raw_responses/..%2F..%2F/download")
+    assert response2.status_code in (400, 404)
+    
+    # Test filename traversal
+    poll_id = "20260714_120000_test"
+    response3 = await client.get(f"/api/raw_responses/{poll_id}/..%2F..%2Fconfig.yaml")
+    assert response3.status_code in (400, 404)

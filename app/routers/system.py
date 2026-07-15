@@ -185,7 +185,7 @@ def _extract_trips_from_json(data) -> list:
     return []
 
 @router.get("/raw_responses")
-async def list_raw_responses():
+def list_raw_responses():
     import json
     from ..config import DATA_DIR
     raw_dir = DATA_DIR / "raw_responses"
@@ -250,10 +250,18 @@ async def list_raw_responses():
     return polls
 
 @router.get("/raw_responses/{poll_id}/download")
-async def download_poll_zip(poll_id: str):
+def download_poll_zip(poll_id: str):
     from ..config import DATA_DIR
     safe_poll_id = "".join(c for c in poll_id if c.isalnum() or c in "._-")
-    poll_dir = DATA_DIR / "raw_responses" / safe_poll_id
+    base_dir = (DATA_DIR / "raw_responses").resolve()
+    poll_dir = (base_dir / safe_poll_id).resolve()
+    
+    try:
+        poll_dir.relative_to(base_dir)
+        if poll_dir == base_dir:
+            raise ValueError()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid path.")
     
     if not poll_dir.exists() or not poll_dir.is_dir():
         raise HTTPException(status_code=404, detail="Poll directory not found.")
@@ -272,20 +280,31 @@ async def download_poll_zip(poll_id: str):
     )
 
 @router.get("/raw_responses/{poll_id}/{filename}")
-async def get_raw_response(poll_id: str, filename: str):
+def get_raw_response(poll_id: str, filename: str):
     from ..config import DATA_DIR
     _LOGGER.info(f"Requested raw response: poll_id='{poll_id}', filename='{filename}'")
+    
     safe_poll_id = "".join(c for c in poll_id if c.isalnum() or c in "._-")
     safe_filename = "".join(c for c in filename if c.isalnum() or c in "._-")
-    _LOGGER.info(f"Computed safe paths: safe_poll_id='{safe_poll_id}', safe_filename='{safe_filename}'")
     
-    file_path = DATA_DIR / "raw_responses" / safe_poll_id / safe_filename
+    base_dir = (DATA_DIR / "raw_responses").resolve()
+    poll_dir = (base_dir / safe_poll_id).resolve()
+    file_path = (poll_dir / safe_filename).resolve()
+    
+    try:
+        file_path.relative_to(base_dir)
+        file_path.relative_to(poll_dir)
+        if file_path == poll_dir or file_path == base_dir or poll_dir == base_dir:
+            raise ValueError()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid path.")
+    
     _LOGGER.info(f"Resolved file_path: '{file_path}', exists: {file_path.exists()}, is_file: {file_path.is_file() if file_path.exists() else False}")
     
     if not file_path.exists() or not file_path.is_file():
         raise HTTPException(status_code=404, detail="Raw response file not found.")
         
-    return FileResponse(path=file_path, filename=safe_filename, media_type="application/json")
+    return FileResponse(path=file_path, filename=file_path.name, media_type="application/json")
 
 @router.get("/config")
 def get_config():
