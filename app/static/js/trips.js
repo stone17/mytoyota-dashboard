@@ -17,6 +17,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const geocodeProgressBar = document.getElementById('geocode-progress-bar');
     const geocodeProgressText = document.getElementById('geocode-progress-text');
     const periodSelect = document.getElementById('period-select');
+    const fromDateInput = document.getElementById('from-date-input');
+    const toDateInput = document.getElementById('to-date-input');
     const countrySelect = document.getElementById('country-select');
     const filterAreaBtn = document.getElementById('filter-area-btn');
     const filterStartAreaBtn = document.getElementById('filter-start-area-btn');
@@ -176,7 +178,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedCountries = Array.from(countrySelect.selectedOptions).map(opt => opt.value);
         const filters = {
             period: periodSelect.value,
-            countries: selectedCountries
+            countries: selectedCountries,
+            fromDate: fromDateInput.value,
+            toDate: toDateInput.value
         };
         localStorage.setItem(TRIP_FILTERS_STORAGE_KEY, JSON.stringify(filters));
     }
@@ -186,6 +190,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (savedFilters) {
             if (savedFilters.period) {
                 periodSelect.value = savedFilters.period;
+            }
+            if (savedFilters.fromDate) {
+                fromDateInput.value = savedFilters.fromDate;
+            }
+            if (savedFilters.toDate) {
+                toDateInput.value = savedFilters.toDate;
             }
         }
         return savedFilters || {};
@@ -351,10 +361,20 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             const periodDays = periodSelect.value;
-            if (periodDays !== 'all') {
+            if (periodDays === 'custom') {
+                if (fromDateInput.value) {
+                    params.append('start_date', fromDateInput.value);
+                }
+                if (toDateInput.value) {
+                    params.append('end_date', toDateInput.value);
+                }
+            } else if (periodDays !== 'all') {
                 const date = new Date();
                 date.setDate(date.getDate() - parseInt(periodDays, 10));
-                params.append('start_date', date.toISOString().split('T')[0]);
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                params.append('start_date', `${year}-${month}-${day}`);
             }
             
             const selectedCountries = Array.from(countrySelect.selectedOptions).map(opt => opt.value);
@@ -386,6 +406,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function applyFilters() {
         let filteredTrips = originalTrips;
+
+        if (periodSelect.value === 'custom') {
+            const fromDate = fromDateInput.value;
+            const toDate = toDateInput.value;
+
+            if (fromDate) {
+                filteredTrips = filteredTrips.filter(trip => {
+                    if (!trip.start_timestamp) return false;
+                    const tripDate = trip.start_timestamp.split('T')[0];
+                    return tripDate >= fromDate;
+                });
+            }
+            if (toDate) {
+                filteredTrips = filteredTrips.filter(trip => {
+                    if (!trip.start_timestamp) return false;
+                    const tripDate = trip.start_timestamp.split('T')[0];
+                    return tripDate <= toDate;
+                });
+            }
+        }
 
         if (activeFilters.area.bounds) {
             filteredTrips = filteredTrips.filter(trip => 
@@ -525,6 +565,87 @@ document.addEventListener('DOMContentLoaded', () => {
         const formatBoolean = (b) => (b === null || b === undefined) ? 'N/A' : (b ? 'Yes' : 'No');
         const formatArray = (arr) => (arr && arr.length > 0) ? arr.join(', ') : 'N/A';
         
+        // --- CALCULATE SUMMARY ---
+        let totalDistKm = 0, totalDurS = 0, totalEvDistKm = 0, totalEvDurS = 0, totalFuelLiters = 0;
+        let maxSpeedKmh = 0;
+        let totalOverspeedDistKm = 0, totalOverspeedDurS = 0;
+        let totalHighwayDistKm = 0, totalHighwayDurS = 0;
+        let totalHdcEcoDistKm = 0, totalHdcEcoDurS = 0;
+        let totalHdcPwrDistKm = 0, totalHdcPwrDurS = 0;
+        let totalHdcChgDistKm = 0, totalHdcChgDurS = 0;
+        let validFuelTripsDistKm = 0;
+
+        trips.forEach(trip => {
+            if (trip.distance_km) totalDistKm += trip.distance_km;
+            if (trip.duration_seconds) totalDurS += trip.duration_seconds;
+            if (trip.ev_distance_km) totalEvDistKm += trip.ev_distance_km;
+            if (trip.ev_duration_seconds) totalEvDurS += trip.ev_duration_seconds;
+            if (trip.max_speed_kmh && trip.max_speed_kmh > maxSpeedKmh) maxSpeedKmh = trip.max_speed_kmh;
+            
+            if (trip.distance_km && trip.fuel_consumption_l_100km) {
+                totalFuelLiters += (trip.distance_km * trip.fuel_consumption_l_100km) / 100;
+                validFuelTripsDistKm += trip.distance_km;
+            }
+
+            if (trip.length_overspeed_km) totalOverspeedDistKm += trip.length_overspeed_km;
+            if (trip.duration_overspeed_seconds) totalOverspeedDurS += trip.duration_overspeed_seconds;
+            if (trip.length_highway_km) totalHighwayDistKm += trip.length_highway_km;
+            if (trip.duration_highway_seconds) totalHighwayDurS += trip.duration_highway_seconds;
+            if (trip.hdc_eco_distance_km) totalHdcEcoDistKm += trip.hdc_eco_distance_km;
+            if (trip.hdc_eco_duration_seconds) totalHdcEcoDurS += trip.hdc_eco_duration_seconds;
+            if (trip.hdc_power_distance_km) totalHdcPwrDistKm += trip.hdc_power_distance_km;
+            if (trip.hdc_power_duration_seconds) totalHdcPwrDurS += trip.hdc_power_duration_seconds;
+            if (trip.hdc_charge_distance_km) totalHdcChgDistKm += trip.hdc_charge_distance_km;
+            if (trip.hdc_charge_duration_seconds) totalHdcChgDurS += trip.hdc_charge_duration_seconds;
+        });
+
+        const avgFuelL100km = validFuelTripsDistKm > 0 ? (totalFuelLiters / validFuelTripsDistKm) * 100 : 0;
+        const avgMpgUs = avgFuelL100km > 0 ? 235.214 / avgFuelL100km : 0;
+        const avgMpgUk = avgFuelL100km > 0 ? 282.481 / avgFuelL100km : 0;
+        const avgSpeedKmh = totalDurS > 0 ? totalDistKm / (totalDurS / 3600) : 0;
+
+        const formatTotalDuration = (s) => {
+            if (s === null || s === undefined) return 'N/A';
+            const hours = Math.floor(s / 3600);
+            const minutes = Math.floor((s % 3600) / 60);
+            const seconds = Math.floor(s % 60);
+            return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        };
+
+        const summaryRow = tripsTableBody.insertRow();
+        summaryRow.className = 'summary-row';
+        summaryRow.style.fontWeight = 'bold';
+        summaryRow.style.backgroundColor = 'var(--bg-panel)';
+        
+        summaryRow.innerHTML = `
+            <td data-column="start-time">Totals / Averages</td>
+            <td data-column="end-time"></td>
+            <td data-column="distance">${formatNumber(isImperial ? totalDistKm * 0.621371 : totalDistKm)}</td>
+            <td data-column="consumption">${formatNumber(isImperial ? (isUk ? avgMpgUk : avgMpgUs) : avgFuelL100km)}</td>
+            <td data-column="start-address"></td>
+            <td data-column="end-address"></td>
+            <td data-column="duration">${formatTotalDuration(totalDurS)}</td>
+            <td data-column="avg-speed">${formatNumber(isImperial ? avgSpeedKmh * 0.621371 : avgSpeedKmh)}</td>
+            <td data-column="max-speed">${formatNumber(isImperial ? maxSpeedKmh * 0.621371 : maxSpeedKmh, 0)}</td>
+            <td data-column="score-global"></td>
+            <td data-column="night-trip"></td>
+            <td data-column="countries"></td>
+            <td data-column="overspeed-dist">${formatNumber(isImperial ? totalOverspeedDistKm * 0.621371 : totalOverspeedDistKm)}</td>
+            <td data-column="overspeed-dur">${formatTotalDuration(totalOverspeedDurS)}</td>
+            <td data-column="highway-dist">${formatNumber(isImperial ? totalHighwayDistKm * 0.621371 : totalHighwayDistKm)}</td>
+            <td data-column="highway-dur">${formatTotalDuration(totalHighwayDurS)}</td>
+            <td data-column="score-accel"></td>
+            <td data-column="score-brake"></td>
+            <td data-column="score-const"></td>
+            <td data-column="ev-dist">${formatNumber(isImperial ? totalEvDistKm * 0.621371 : totalEvDistKm)}</td>
+            <td data-column="ev-dur">${formatTotalDuration(totalEvDurS)}</td>
+            <td data-column="hdc-eco-dist">${formatNumber(isImperial ? totalHdcEcoDistKm * 0.621371 : totalHdcEcoDistKm)}</td>
+            <td data-column="hdc-eco-dur">${formatTotalDuration(totalHdcEcoDurS)}</td>
+            <td data-column="hdc-pwr-dist">${formatNumber(isImperial ? totalHdcPwrDistKm * 0.621371 : totalHdcPwrDistKm)}</td>
+            <td data-column="hdc-pwr-dur">${formatTotalDuration(totalHdcPwrDurS)}</td>
+            <td data-column="hdc-chg-dist">${formatNumber(isImperial ? totalHdcChgDistKm * 0.621371 : totalHdcChgDistKm)}</td>
+            <td data-column="hdc-chg-dur">${formatTotalDuration(totalHdcChgDurS)}</td>`;
+
         trips.forEach((trip, index) => {
             const row = tripsTableBody.insertRow();
             row.innerHTML = `
@@ -816,6 +937,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     periodSelect.addEventListener('change', () => {
+        if (periodSelect.value !== 'custom') {
+            fromDateInput.value = '';
+            toDateInput.value = '';
+        }
+        saveTripFilters();
+        loadTrips(true);
+    });
+
+    fromDateInput.addEventListener('change', () => {
+        if (fromDateInput.value) {
+            periodSelect.value = 'custom';
+        }
+        saveTripFilters();
+        loadTrips(true);
+    });
+
+    toDateInput.addEventListener('change', () => {
+        if (toDateInput.value) {
+            periodSelect.value = 'custom';
+        }
         saveTripFilters();
         loadTrips(true);
     });
@@ -893,10 +1034,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         const periodDays = periodSelect.value;
-        if (periodDays !== 'all') {
+        if (periodDays === 'custom') {
+            if (fromDateInput.value) params.append('start_date', fromDateInput.value);
+            if (toDateInput.value) params.append('end_date', toDateInput.value);
+        } else if (periodDays !== 'all') {
             const date = new Date();
             date.setDate(date.getDate() - parseInt(periodDays, 10));
-            params.append('start_date', date.toISOString().split('T')[0]);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            params.append('start_date', `${year}-${month}-${day}`);
         }
         
         const selectedCountries = Array.from(countrySelect.selectedOptions).map(opt => opt.value);

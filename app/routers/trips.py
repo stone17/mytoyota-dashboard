@@ -87,20 +87,24 @@ def get_trips(
         # Apply date filters if provided
         if start_date:
             try:
-                start_dt = datetime.datetime.fromisoformat(start_date).replace(
+                start_dt = datetime.datetime.fromisoformat(start_date[:10]).replace(
                     hour=0, minute=0, second=0
                 )
-                query = query.filter(database.Trip.start_timestamp >= start_dt)
+                start_dt_aware = time_utils.convert_from_local_naive(start_dt, config_manager)
+                start_dt_utc = time_utils.convert_to_naive_utc(start_dt_aware)
+                query = query.filter(database.Trip.start_timestamp >= start_dt_utc)
             except ValueError:
                 raise HTTPException(
                     status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD."
                 )
         if end_date:
             try:
-                end_dt = datetime.datetime.fromisoformat(end_date).replace(
+                end_dt = datetime.datetime.fromisoformat(end_date[:10]).replace(
                     hour=23, minute=59, second=59
                 )
-                query = query.filter(database.Trip.start_timestamp <= end_dt)
+                end_dt_aware = time_utils.convert_from_local_naive(end_dt, config_manager)
+                end_dt_utc = time_utils.convert_to_naive_utc(end_dt_aware)
+                query = query.filter(database.Trip.start_timestamp <= end_dt_utc)
             except ValueError:
                 raise HTTPException(
                     status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD."
@@ -253,15 +257,19 @@ def export_trips_to_csv(
             query = query.filter(database.Trip.vin == vin)
 
         if start_date:
-            start_dt = datetime.datetime.fromisoformat(start_date).replace(
+            start_dt = datetime.datetime.fromisoformat(start_date[:10]).replace(
                 hour=0, minute=0, second=0
             )
-            query = query.filter(database.Trip.start_timestamp >= start_dt)
+            start_dt_aware = time_utils.convert_from_local_naive(start_dt, config_manager)
+            start_dt_utc = time_utils.convert_to_naive_utc(start_dt_aware)
+            query = query.filter(database.Trip.start_timestamp >= start_dt_utc)
         if end_date:
-            end_dt = datetime.datetime.fromisoformat(end_date).replace(
+            end_dt = datetime.datetime.fromisoformat(end_date[:10]).replace(
                 hour=23, minute=59, second=59
             )
-            query = query.filter(database.Trip.start_timestamp <= end_dt)
+            end_dt_aware = time_utils.convert_from_local_naive(end_dt, config_manager)
+            end_dt_utc = time_utils.convert_to_naive_utc(end_dt_aware)
+            query = query.filter(database.Trip.start_timestamp <= end_dt_utc)
 
         if countries:
             country_list = [c.strip() for c in countries.split(",") if c.strip()]
