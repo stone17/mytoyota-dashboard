@@ -361,7 +361,11 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             const periodDays = periodSelect.value;
-            if (periodDays !== 'all') {
+            if (periodDays === 'custom') {
+                if (fromDateInput.value) {
+                    params.append('start_date', fromDateInput.value);
+                }
+            } else if (periodDays !== 'all') {
                 const date = new Date();
                 date.setDate(date.getDate() - parseInt(periodDays, 10));
                 params.append('start_date', date.toISOString().split('T')[0]);
@@ -844,18 +848,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     periodSelect.addEventListener('change', () => {
+        if (periodSelect.value !== 'custom') {
+            fromDateInput.value = '';
+            toDateInput.value = '';
+        }
         saveTripFilters();
         loadTrips(true);
     });
 
     fromDateInput.addEventListener('change', () => {
+        if (fromDateInput.value) {
+            periodSelect.value = 'custom';
+        }
         saveTripFilters();
-        applyFilters();
+        loadTrips(true);
     });
 
     toDateInput.addEventListener('change', () => {
+        if (toDateInput.value) {
+            periodSelect.value = 'custom';
+        }
         saveTripFilters();
-        applyFilters();
+        loadTrips(true);
     });
 
     countrySelect.addEventListener('change', function() {
