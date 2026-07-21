@@ -365,6 +365,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (fromDateInput.value) {
                     params.append('start_date', fromDateInput.value);
                 }
+                if (toDateInput.value) {
+                    params.append('end_date', toDateInput.value);
+                }
             } else if (periodDays !== 'all') {
                 const date = new Date();
                 date.setDate(date.getDate() - parseInt(periodDays, 10));
@@ -401,22 +404,23 @@ document.addEventListener('DOMContentLoaded', () => {
     function applyFilters() {
         let filteredTrips = originalTrips;
 
-        const fromDate = fromDateInput.value;
-        const toDate = toDateInput.value;
+        if (periodSelect.value === 'custom') {
+            const fromDate = fromDateInput.value;
+            const toDate = toDateInput.value;
 
-        if (fromDate) {
-            filteredTrips = filteredTrips.filter(trip => {
-                if (!trip.start_timestamp) return false;
-                const tripDate = trip.start_timestamp.split('T')[0];
-                return tripDate >= fromDate;
-            });
-        }
-        if (toDate) {
-            filteredTrips = filteredTrips.filter(trip => {
-                if (!trip.start_timestamp) return false;
-                const tripDate = trip.start_timestamp.split('T')[0];
-                return tripDate <= toDate;
-            });
+            if (fromDate) {
+                filteredTrips = filteredTrips.filter(trip => {
+                    if (!trip.start_timestamp) return false;
+                    return trip.start_timestamp >= fromDate;
+                });
+            }
+            if (toDate) {
+                const toDateEnd = toDate + 'T23:59:59';
+                filteredTrips = filteredTrips.filter(trip => {
+                    if (!trip.start_timestamp) return false;
+                    return trip.start_timestamp <= toDateEnd;
+                });
+            }
         }
 
         if (activeFilters.area.bounds) {
@@ -945,7 +949,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         const periodDays = periodSelect.value;
-        if (periodDays !== 'all') {
+        if (periodDays === 'custom') {
+            if (fromDateInput.value) params.append('start_date', fromDateInput.value);
+            if (toDateInput.value) params.append('end_date', toDateInput.value);
+        } else if (periodDays !== 'all') {
             const date = new Date();
             date.setDate(date.getDate() - parseInt(periodDays, 10));
             params.append('start_date', date.toISOString().split('T')[0]);
