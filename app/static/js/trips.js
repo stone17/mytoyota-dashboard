@@ -17,6 +17,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const geocodeProgressBar = document.getElementById('geocode-progress-bar');
     const geocodeProgressText = document.getElementById('geocode-progress-text');
     const periodSelect = document.getElementById('period-select');
+    const fromDateInput = document.getElementById('from-date-input');
+    const toDateInput = document.getElementById('to-date-input');
     const countrySelect = document.getElementById('country-select');
     const filterAreaBtn = document.getElementById('filter-area-btn');
     const filterStartAreaBtn = document.getElementById('filter-start-area-btn');
@@ -176,7 +178,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedCountries = Array.from(countrySelect.selectedOptions).map(opt => opt.value);
         const filters = {
             period: periodSelect.value,
-            countries: selectedCountries
+            countries: selectedCountries,
+            fromDate: fromDateInput.value,
+            toDate: toDateInput.value
         };
         localStorage.setItem(TRIP_FILTERS_STORAGE_KEY, JSON.stringify(filters));
     }
@@ -186,6 +190,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (savedFilters) {
             if (savedFilters.period) {
                 periodSelect.value = savedFilters.period;
+            }
+            if (savedFilters.fromDate) {
+                fromDateInput.value = savedFilters.fromDate;
+            }
+            if (savedFilters.toDate) {
+                toDateInput.value = savedFilters.toDate;
             }
         }
         return savedFilters || {};
@@ -386,6 +396,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function applyFilters() {
         let filteredTrips = originalTrips;
+
+        const fromDate = fromDateInput.value;
+        const toDate = toDateInput.value;
+
+        if (fromDate) {
+            filteredTrips = filteredTrips.filter(trip => {
+                if (!trip.start_timestamp) return false;
+                const tripDate = trip.start_timestamp.split('T')[0];
+                return tripDate >= fromDate;
+            });
+        }
+        if (toDate) {
+            filteredTrips = filteredTrips.filter(trip => {
+                if (!trip.start_timestamp) return false;
+                const tripDate = trip.start_timestamp.split('T')[0];
+                return tripDate <= toDate;
+            });
+        }
 
         if (activeFilters.area.bounds) {
             filteredTrips = filteredTrips.filter(trip => 
@@ -818,6 +846,16 @@ document.addEventListener('DOMContentLoaded', () => {
     periodSelect.addEventListener('change', () => {
         saveTripFilters();
         loadTrips(true);
+    });
+
+    fromDateInput.addEventListener('change', () => {
+        saveTripFilters();
+        applyFilters();
+    });
+
+    toDateInput.addEventListener('change', () => {
+        saveTripFilters();
+        applyFilters();
     });
 
     countrySelect.addEventListener('change', function() {
