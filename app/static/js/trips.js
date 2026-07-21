@@ -604,6 +604,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const avgMpgUk = avgFuelL100km > 0 ? 282.481 / avgFuelL100km : 0;
         const avgSpeedKmh = totalDurS > 0 ? totalDistKm / (totalDurS / 3600) : 0;
 
+        const formatTotalDuration = (s) => {
+            if (s === null || s === undefined) return 'N/A';
+            const hours = Math.floor(s / 3600);
+            const minutes = Math.floor((s % 3600) / 60);
+            const seconds = Math.floor(s % 60);
+            return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        };
+
         const summaryRow = tripsTableBody.insertRow();
         summaryRow.className = 'summary-row';
         summaryRow.style.fontWeight = 'bold';
@@ -616,27 +624,27 @@ document.addEventListener('DOMContentLoaded', () => {
             <td data-column="consumption">${formatNumber(isImperial ? (isUk ? avgMpgUk : avgMpgUs) : avgFuelL100km)}</td>
             <td data-column="start-address"></td>
             <td data-column="end-address"></td>
-            <td data-column="duration">${formatDuration(totalDurS)}</td>
+            <td data-column="duration">${formatTotalDuration(totalDurS)}</td>
             <td data-column="avg-speed">${formatNumber(isImperial ? avgSpeedKmh * 0.621371 : avgSpeedKmh)}</td>
             <td data-column="max-speed">${formatNumber(isImperial ? maxSpeedKmh * 0.621371 : maxSpeedKmh, 0)}</td>
             <td data-column="score-global"></td>
             <td data-column="night-trip"></td>
             <td data-column="countries"></td>
             <td data-column="overspeed-dist">${formatNumber(isImperial ? totalOverspeedDistKm * 0.621371 : totalOverspeedDistKm)}</td>
-            <td data-column="overspeed-dur">${formatDuration(totalOverspeedDurS)}</td>
+            <td data-column="overspeed-dur">${formatTotalDuration(totalOverspeedDurS)}</td>
             <td data-column="highway-dist">${formatNumber(isImperial ? totalHighwayDistKm * 0.621371 : totalHighwayDistKm)}</td>
-            <td data-column="highway-dur">${formatDuration(totalHighwayDurS)}</td>
+            <td data-column="highway-dur">${formatTotalDuration(totalHighwayDurS)}</td>
             <td data-column="score-accel"></td>
             <td data-column="score-brake"></td>
             <td data-column="score-const"></td>
             <td data-column="ev-dist">${formatNumber(isImperial ? totalEvDistKm * 0.621371 : totalEvDistKm)}</td>
-            <td data-column="ev-dur">${formatDuration(totalEvDurS)}</td>
+            <td data-column="ev-dur">${formatTotalDuration(totalEvDurS)}</td>
             <td data-column="hdc-eco-dist">${formatNumber(isImperial ? totalHdcEcoDistKm * 0.621371 : totalHdcEcoDistKm)}</td>
-            <td data-column="hdc-eco-dur">${formatDuration(totalHdcEcoDurS)}</td>
+            <td data-column="hdc-eco-dur">${formatTotalDuration(totalHdcEcoDurS)}</td>
             <td data-column="hdc-pwr-dist">${formatNumber(isImperial ? totalHdcPwrDistKm * 0.621371 : totalHdcPwrDistKm)}</td>
-            <td data-column="hdc-pwr-dur">${formatDuration(totalHdcPwrDurS)}</td>
+            <td data-column="hdc-pwr-dur">${formatTotalDuration(totalHdcPwrDurS)}</td>
             <td data-column="hdc-chg-dist">${formatNumber(isImperial ? totalHdcChgDistKm * 0.621371 : totalHdcChgDistKm)}</td>
-            <td data-column="hdc-chg-dur">${formatDuration(totalHdcChgDurS)}</td>`;
+            <td data-column="hdc-chg-dur">${formatTotalDuration(totalHdcChgDurS)}</td>`;
 
         trips.forEach((trip, index) => {
             const row = tripsTableBody.insertRow();
