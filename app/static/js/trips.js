@@ -371,7 +371,10 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (periodDays !== 'all') {
                 const date = new Date();
                 date.setDate(date.getDate() - parseInt(periodDays, 10));
-                params.append('start_date', date.toISOString().split('T')[0]);
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                params.append('start_date', `${year}-${month}-${day}`);
             }
             
             const selectedCountries = Array.from(countrySelect.selectedOptions).map(opt => opt.value);
@@ -411,14 +414,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (fromDate) {
                 filteredTrips = filteredTrips.filter(trip => {
                     if (!trip.start_timestamp) return false;
-                    return trip.start_timestamp >= fromDate;
+                    const tripDate = trip.start_timestamp.split('T')[0];
+                    return tripDate >= fromDate;
                 });
             }
             if (toDate) {
-                const toDateEnd = toDate + 'T23:59:59';
                 filteredTrips = filteredTrips.filter(trip => {
                     if (!trip.start_timestamp) return false;
-                    return trip.start_timestamp <= toDateEnd;
+                    const tripDate = trip.start_timestamp.split('T')[0];
+                    return tripDate <= toDate;
                 });
             }
         }
@@ -955,7 +959,10 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (periodDays !== 'all') {
             const date = new Date();
             date.setDate(date.getDate() - parseInt(periodDays, 10));
-            params.append('start_date', date.toISOString().split('T')[0]);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            params.append('start_date', `${year}-${month}-${day}`);
         }
         
         const selectedCountries = Array.from(countrySelect.selectedOptions).map(opt => opt.value);
