@@ -32,4 +32,12 @@ class PatchedController(Controller):
                         for key in missing_keys:
                             summary.setdefault(key, None)
 
+        # Intercept vehicle/guid endpoint to patch missing remoteDisplay key
+        if "vehicle/guid" in endpoint and isinstance(response, dict) and "payload" in response:
+            payload = response.get("payload")
+            if isinstance(payload, list):
+                for vehicle in payload:
+                    if isinstance(vehicle, dict):
+                        vehicle.setdefault("remoteDisplay", None)
+
         return response
